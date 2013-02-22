@@ -1,0 +1,4 @@
+<collect>
+<directory pattern=".*auto-cert-kit\.log\.*[0-9]*" negate="false">/var/log</directory>
+<directory pattern=".*auto-cert-kit-plugin\.log\.*[0-9]*" negate="false">/var/log</directory>
+</collect>

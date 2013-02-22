@@ -1,0 +1,61 @@
+Summary: XenServer Automated Certification Kit
+Name: xenserver-auto-cert-kit
+Version: @PRODUCT_VERSION@
+Release: @BUILD_NUMBER@
+License: Proprietary
+Vendor: Citrix Systems, Inc.
+Group: Development/Libraries
+BuildRoot: %{_tmppath}/%{name}
+BuildArch: noarch
+
+%description
+
+%prep
+exit 0
+
+%build
+exit 0
+
+%install
+exit 0
+
+%post
+chkconfig --add auto-cert-kit
+exit 0
+
+%preun
+chkconfig --del auto-cert-kit
+exit 0
+
+%clean
+exit 0
+
+%files
+%defattr(-,root,root,-)
+/opt/xensource/packages/files/auto-cert-kit/auto_cert_kit.py
+/opt/xensource/packages/files/auto-cert-kit/cpu_tests.py
+/opt/xensource/packages/files/auto-cert-kit/network_tests.py
+/opt/xensource/packages/files/auto-cert-kit/operations_tests.py
+/opt/xensource/packages/files/auto-cert-kit/storage_tests.py
+/opt/xensource/packages/files/auto-cert-kit/test_runner.py
+/opt/xensource/packages/files/auto-cert-kit/testbase.py
+/opt/xensource/packages/files/auto-cert-kit/utils.py
+/opt/xensource/packages/files/auto-cert-kit/test_report.py
+/opt/xensource/packages/files/auto-cert-kit/vpx-dlvm.xva
+/opt/xensource/packages/files/auto-cert-kit/ssh.py
+/opt/xensource/packages/files/auto-cert-kit/ack_cli.py
+/opt/xensource/packages/files/auto-cert-kit/status.py
+/opt/xensource/packages/files/auto-cert-kit/models.py
+/opt/xensource/packages/files/auto-cert-kit/test_generators.py
+/opt/xensource/packages/files/auto-cert-kit/iperf-2.0.4-1.el5.rf.i386.rpm
+/opt/xensource/packages/files/auto-cert-kit/bonnie++-1.94-1.el5.rf.i386.rpm
+/opt/xensource/packages/files/auto-cert-kit/iozone-3.394-1.el5.rf.i386.rpm
+/opt/xensource/packages/files/auto-cert-kit/lmbench-3.0-0.a7.1.el5.rf.i386.rpm
+/opt/xensource/packages/files/auto-cert-kit/make-3.81-3.el5.i386.rpm
+/opt/xensource/packages/files/auto-cert-kit/networkconf.example
+/opt/xensource/packages/files/auto-cert-kit/config/lmbench.conf
+/etc/xapi.d/plugins/autocertkit
+/etc/init.d/auto-cert-kit
+/etc/xensource/bugtool/Auto_Cert_Kit.xml
+/etc/xensource/bugtool/Auto_Cert_Kit/auto_cert_kit_logs.xml
+/etc/logrotate.d/autocertkit

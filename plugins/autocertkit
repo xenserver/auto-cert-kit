@@ -1,0 +1,1019 @@
+#!/usr/bin/env python
+
+# Copyright (c) Citrix Systems Inc.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, 
+# with or without modification, are permitted provided 
+# that the following conditions are met:
+#
+# *   Redistributions of source code must retain the above 
+#     copyright notice, this list of conditions and the 
+#     following disclaimer.
+# *   Redistributions in binary form must reproduce the above 
+#     copyright notice, this list of conditions and the 
+#     following disclaimer in the documentation and/or other 
+#     materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# SUCH DAMAGE.
+
+#
+# XenAPI plugin for retrieving XenStore data about a VM Guest
+#
+
+import XenAPI
+import XenAPIPlugin
+import subprocess
+import xmlrpclib
+import os, sys
+import time
+import logging
+import logging.handlers
+import re
+import base64
+import tarfile
+import datetime
+
+
+# The biosdevname library has been moved in Tamapa,
+# so we must ensure that we check that we cope with
+# previous versions of XS, which use xcp.biosdevname.
+
+try:
+    from xcp.net.biosdevname import *
+except ImportError:
+    from xcp.biosdevname import *
+
+from xcp.pci import *
+
+INSTALL_DIR = '/opt/xensource/packages/files/auto-cert-kit'
+LMBENCH_RESULTS_DIR = '%s/lmbench_results' % INSTALL_DIR
+
+##################
+if INSTALL_DIR not in sys.path:
+    sys.path.insert(0, INSTALL_DIR)
+import ssh
+##################
+
+XE = '/opt/xensource/bin/xe'
+IPERF = '/usr/bin/iperf'
+DROID_VM_LOC = '%s/vpx-dlvm.xva' % INSTALL_DIR
+XS_INVENTORY_PATH = "/etc/xensource-inventory"
+LMBENCH_CONF_LOC = "%s/config/lmbench.conf" % INSTALL_DIR
+
+##### Logging setup
+
+log = None
+def configure_logging(name):
+    global log
+    log = logging.getLogger(name)
+    log.setLevel(logging.DEBUG)
+    sysh = logging.FileHandler('/var/log/auto-cert-kit-plugin.log')
+    sysh.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%%(asctime)-8s %s: %%(levelname)-8s %%(filename)s:%%(lineno)-10d %%(message)s' % name)
+    sysh.setFormatter(formatter)
+    log.addHandler(sysh)
+configure_logging('autocertkit')
+
+
+##### Exceptions
+
+class PluginError(Exception):
+    """Base Exception class for all plugin errors."""
+    def __init__(self, *args):
+        Exception.__init__(self, *args)
+
+class ArgumentError(PluginError):
+    """Raised when required arguments are missing, argument values are invalid,
+    or incompatible arguments are given.
+    """
+    def __init__(self, *args):
+        PluginError.__init__(self, *args)
+
+##### Exception Decorator
+def log_exceptions(func):
+    def decorated(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except XenAPI.Failure, e:
+            log.error('%s: XenAPI.Failure: %s', func.__name__, str(e))
+            raise
+        except PluginError, e:
+            log.error('%s: %s: %s', func.__name__, e.__class__.__name__, str(e))
+            raise
+        except Exception, e:
+            log.error('%s: %s: %s', func.__name__, e.__class__.__name__, str(e))
+            raise
+    return decorated
+#############################
+
+##### Argument validation
+
+ARGUMENT_PATTERN = re.compile(r'^[a-zA-Z0-9_:\.\-,]+$')
+#Base64 allows the '=' symbol for padding - which is disallowed in shell-safe regex
+#Extra symbols: '=', '/', '+'
+ARGUMENT_PATTERN_BASE64 = re.compile(r'^[a-zA-Z0-9_:\.\-\=\/\+,]+$')
+
+def validate_exists(args, key, default=None):
+    """Validates that a string argument to a RPC method call is given, and
+    matches the shell-safe regex, with an optional default value in case it
+    does not exist.
+
+    Returns the string.
+    """
+    if key in args:
+        if len(args[key]) == 0:
+            raise ArgumentError('Argument %r value %r is too short.' % (key, args[key]))
+        if key == "vhd_blocks":
+            if not ARGUMENT_PATTERN_BASE64.match(args[key]):
+                raise ArgumentError('Argument %r value %r contains invalid characters for Base64.' % (key, args[key]))
+        elif not ARGUMENT_PATTERN.match(args[key]):
+            raise ArgumentError('Argument %r value %r contains invalid characters.' % (key, args[key]))
+        if args[key][0] == '-':
+            raise ArgumentError('Argument %r value %r starts with a hyphen.' % (key, args[key]))
+        return args[key]
+    elif default is not None:
+        return default
+    else:
+        raise ArgumentError('Argument %s is required.' % key)
+
+@log_exceptions
+def get_from_xensource_inventory(key):
+    if os.path.isfile(XS_INVENTORY_PATH) == False:
+        raise XenAPI.Failure(['NO_INVENTORY_FILE', "The XenSource Inventory file is missing."])
+    fh = open(XS_INVENTORY_PATH, "r")
+    data = fh.readlines()
+    fh.close()
+    for line in data:
+        if line.find(key) > -1:
+            values = line.split('\'')
+            return values[1]
+    return XenAPI.Failure('Error reading %s from %s' % (key, XS_INVENTORY_PATH))
+
+
+##################################
+
+ETHTOOL = "/sbin/ethtool"
+IPERF = "/usr/bin/iperf"
+LMBENCH = "/usr/bin/lmbench"
+SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
+SSH_HOST_KEYS = '/root/.ssh/known_hosts'
+IPERF_RPM = "iperf-2.0.4-1.el5.rf.i386.rpm"
+LMBENCH_RPM = "lmbench-3.0-0.a7.1.el5.rf.i386.rpm"
+IOZONE_RPM = "iozone-3.394-1.el5.rf.i386.rpm"
+BONNIE_RPM = "bonnie++-1.94-1.el5.rf.i386.rpm"
+MAKE_RPM = "make-3.81-3.el5.i386.rpm"
+
+OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
+                 'scatter-gather': 'sg',
+                 'generic-segmentation-offload': 'gso',
+                 'tx-checksumming': 'tx',
+                 'large-receive-offload': 'lro',
+                 'generic-receive-offload': 'gro',
+                 'tcp-segmentation-offload': 'tso',
+                 'rx-checksumming': 'rx',
+                 'rx-vlan-offload': 'rxvlan',
+                 'tx-vlan-offload': 'txvlan',
+                 'ntuple-filters': 'ntuple',
+                 'receive-hashing': 'rxhash'}
+
+
+############# SSH KEY SETUP ##########################
+@log_exceptions
+def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
+    """execute an SSH command using the parimiko library, in order
+    to specify a password. Return the result to the caller."""
+    if dbg_str:
+        log.debug(dbg_str)
+
+    for i in range(0, attempts):
+        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
+
+        try:
+            cmd = ssh.SSHCommand(ip, cmd_str, log, username, 900, password)
+            return cmd.read("string").strip()
+        except Exception, e:
+            log.debug("Exception: %s" % str(e))
+            if i + 1 == attempts:
+                # If we have reached our attempts limit, and still have
+                # raised an exception, we should elevate the exception.
+                log.debug("Max attempt reached %d/%d" % (i + 1, attempts))
+                raise e
+            # Sleep before next attempt
+            time.sleep(20)
+
+    raise PluginError("An unkown error has occured!")
+
+def install_ssh_key(session, vm_ref, username, password):
+    """Install Dom0 public key in droid VM"""
+    setup_public_ssh_key()
+    vm_ip = wait_for_ip(session, vm_ref, 'eth0')
+
+    fh = open(SSH_PUBLIC_KEY,'r')
+    public_key = fh.read()
+    fh.close()
+
+    # Remove any host key previously installed for the specified IP address
+    call = ["/bin/sed","-i","'/%s/d'" % vm_ip, SSH_HOST_KEYS]
+    make_local_call(call)
+
+    cmd1 = ["mkdir", "-p", "/root/.ssh"]
+    cmd2 = ["echo", "\"%s\"" % public_key.strip(), ">>", "/root/.ssh/authorized_keys"]
+    cmd_str = "%s; %s" % (" ".join(cmd1), " ".join(cmd2))
+
+    log.debug("Install SSH key command string: %s" % cmd_str)
+    ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")
+
+def setup_public_ssh_key():
+    if not os.path.exists(SSH_PUBLIC_KEY):
+        call = ['/usr/bin/ssh-keygen', '-f', SSH_PUBLIC_KEY.replace('.pub',''),
+                '-N', '']
+        make_local_call(call)
+
+######################################################
+@log_exceptions
+def wait_for_ip(session, vm_ref, device, timeout=60):
+    """Wait for an IP address to be returned (until a given timeout)"""
+    
+    xs_data = session.xenapi.VM.get_xenstore_data(vm_ref)
+    log.debug("xenstore data: %s" % xs_data)
+    key = "vm-data/control/%s/ip" % device
+    if key in xs_data.keys():
+        log.debug("Static IP %s found for VM %s" % (xs_data[key],
+                                                    vm_ref))
+        return xs_data[key]
+
+
+    if not device.startswith('eth'):
+        raise PluginError("Invalid device specified, it should be in the format 'ethX'")
+
+    start = time.time()
+
+    def should_timeout(start, timeout):
+        """Method for evaluating whether a time limit has been met"""
+        return time.time() - start > float(timeout)
+
+    i = 0
+    while not should_timeout(start, timeout):
+        log.debug("Trying to retrieve VM IP address - Attempt %d" % i)
+        ips = get_vm_ips(session, vm_ref)
+        log.debug("VM %s has these %s IPs" % (vm_ref,ips))
+
+        for k, v in ips.iteritems():
+            if k == device:
+                return v
+
+        i = i + 1
+        time.sleep(5)
+
+    raise PluginError("""Timeout has been exceeded waiting for IP
+                     address of VM to be returned %s """ % str(timeout))
+
+def get_vm_ips(session, vm_ref):
+    guest_metrics_ref = session.xenapi.VM.get_guest_metrics(vm_ref)
+    networks = session.xenapi.VM_guest_metrics.get_networks(guest_metrics_ref)
+    res = {}
+    for k, v in networks.iteritems():
+        if k.endswith('ip'):
+            res["eth%s" % (k.replace('/ip',''))] = v
+    return res
+    
+def save_bugtool():
+    """Saves a bugtool and returns the name"""
+    log.debug("Collecting a bugtool report")
+    call = ["xen-bugtool", "--yestoall"]
+    info = make_local_call(call)
+    where = info.find('/var/opt/xen/bug-report')
+    bugtool_loc = ((info[where:]).split())[0]
+    log.debug("Bugtool saved: %s" % bugtool_loc)
+    return bugtool_loc
+
+
+############### IPERF Setup #########################
+
+def install_iperf(session, vm_ref, username, password):
+    """Install iperf rpm on a droid vm"""
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    call = ['/usr/bin/scp', 
+            "-o", "StrictHostKeyChecking=no",
+            "/opt/xensource/packages/files/auto-cert-kit/%s" % IPERF_RPM, 
+            'root@%s:' % ip_address]
+    log.debug(call)
+    make_local_call(call)
+    cmd_str = "rpm -i /root/%s" % IPERF_RPM
+    log.debug(cmd_str)
+    ssh_command(ip_address, username, password, cmd_str)
+
+def make_local_call(call):
+    """Function wrapper for making a simple call to shell"""
+    log.debug("make_local_call: %s" % (" ".join(call)))
+    process = subprocess.Popen(call, stdout=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode == 0:
+        return str(stdout).strip()
+    else:
+	return "ERR: Could not make local call %s" % ' '.join(call)
+
+def validate_xml_key(key):
+    """Check that a key will be acceptable for an XML attribute
+    there are some cases, where invalid keys will cause things
+    to break when re-importing."""
+
+    # Check that first character of key is not a number
+    valid_key = re.compile(r'^[a-zA-Z].*')
+    if valid_key.match(key):
+        return True
+    else:
+        return False
+
+
+def to_xml(d, t):
+    s = '<?xml version="1.0"?>\n<%s' % t
+    for k, v in d.iteritems():
+        if not validate_xml_key(k):
+            continue
+        s += ' %s="%s"' % (k, xmlrpclib.escape(v))
+    s += '></%s>\n' % t
+    return s
+
+def list_to_xml(l, t):
+    log.debug("List; %s" % l)
+    s = '<?xml version="1.0"?><%ss>\n' % t
+    for d in l:
+        s += '<%s' % t
+        for k, v in d.iteritems():
+            if not validate_xml_key(k):
+                continue
+            s += ' %s="%s"' % (str(k).replace(' ','_'), xmlrpclib.escape(str(v)))
+        s += '></%s>\n' % t
+    s += '</%ss>' % t
+    return s    
+
+@log_exceptions
+def deploy_iperf(session, args):
+    """Install iPerf on a specified VM"""
+    log.debug("deploy iperf plugin call")
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+
+    log.debug("validation complete")
+
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        # Only setup iperf if not control domain
+        # - that already has iperf installed.
+        i = 0
+        limit = 10
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                install_iperf(session, vm_ref, username, password)
+                break
+            except:
+                log.debug("Exception raised attempting to deploy iperf. Attempt %d" % i)
+                time.sleep(8) #Sleep 8 seconds
+                i = i + 1 #Increment counter
+                if i == limit:
+                    raise PluginError("Plugin Error: Cannot deploy Iperf")
+                
+    log.debug("iPerf installation completed")
+    return "OK"
+
+def get_pci_id(bus_id):
+    """Return the PCI id for a specified bus location"""
+    call = ['/sbin/lspci', '-n', '-s', bus_id]
+    try:
+    	res = make_local_call(call)
+    	return res.split()[2]
+    except Exception, e:
+    	log.debug("Exception: %s" % str(e))
+
+def get_pci_description(bus_id):
+    """Return the PCI description for a specified bus location"""    
+    log.debug("Getting decription for PCI device at bus id: %s" % bus_id)
+    devices = PCIDevices()
+
+    if bus_id not in devices.devs.keys():
+        #Biosdevname returns shortened Bus IDs, so check that.
+        # i.e. instead of '0000:02:00.1' --> '02:00.1'
+        # remove front 5 characters.
+        short_bus_id = bus_id[5:]
+        if short_bus_id not in devices.devs.keys():
+            raise Exception("Error: the Bus ID '%s' cannot be found in the PCI database" %
+                            short_bus_id)
+        else:
+            #Only the short ID is found in the record, so use this.
+            bus_id = short_bus_id
+
+    dev_rec = devices.devs[bus_id]
+
+    IDS = PCIIds.read()
+    vendor = IDS.findVendor(dev_rec['vendor'])
+    description = IDS.findDevice(dev_rec['vendor'], dev_rec['device'])
+    return "%s %s" % (vendor, description)
+        
+@log_exceptions
+def create_output_package(session, args):
+    """Create an output package for submission to Citrix"""
+
+    dt = datetime.datetime.now()
+    tarfile_loc = "/root/ack-submission-%s.tar.gz" % dt.strftime('%H-%M-%d-%m-%Y')
+
+    bugtool_loc = save_bugtool()
+
+    tar = tarfile.open(tarfile_loc, 'w:gz')
+
+    def add_if_exists(file_loc):
+        if os.path.exists(file_loc):
+            tar.add(file_loc)
+       	log.debug("Cannot add %s to output package, does not exist" % file_loc)
+
+    tar.add(bugtool_loc)
+    tar.add("%s/test_run.conf" % INSTALL_DIR)
+
+    add_if_exists(LMBENCH_RESULTS_DIR)
+    add_if_exists("%s/iozone.log" % INSTALL_DIR)
+    add_if_exists("%s/bonnie.log" % INSTALL_DIR)
+
+    tar.add("/root/results.txt")
+    tar.close()
+    return tarfile_loc
+
+def _pre_tampa_biosdevname():
+    """Pre Tampa, we have to use the old biosdevname library"""
+    import xcp.biosdevname
+    biosdevobj = BiosDevName()
+    if not biosdevobj.run():
+        raise Exception("Error exceuting biosdevname XCP library.")
+
+    type_key = 'Kernel name'
+    pattern = re.compile(r'\d*:?[a-f0-9]+:[a-f0-9]+\.[a-f0-9]')
+    
+    return [device for device in biosdevobj.devices 
+                   if (device[type_key].startswith('eth') and pattern.match(device['Bus Info']))]
+    
+
+def compat_biosdevname():
+    """Return biosdevname, irrespective of system."""
+    try:
+        import xcp.net.biosdevname
+    except ImportError:
+        return _pre_tampa_biosdevname()
+
+    devs = xcp.net.biosdevname.all_devices_all_names()
+    
+    devices = []
+    pattern = re.compile(r'\d*:?[a-f0-9]+:[a-f0-9]+\.[a-f0-9]')
+
+    for eth, rec in devs.iteritems():
+    	if pattern.match(rec['Bus Info']):
+        	log.debug("Found %s" % eth)
+        	devices.append(rec)
+
+    return devices
+
+@log_exceptions
+def get_network_devices(session, args):
+    """Return a list of network devices and their corresponding properties"""
+    log.debug("Getting network devices Plugin Call")
+
+    devices = []
+    devs = compat_biosdevname()
+    
+    # Filter for only network devices.
+    for device in devs:
+        log.debug("Device: %s" % device)
+        pci_id = get_pci_id(device['Bus Info'])
+        device['PCI_id'] = pci_id
+        log.debug("Bus Id %s" % device['Bus Info'])
+        device['PCI_description'] = get_pci_description(device['Bus Info'])
+        devices.append(device)
+
+    return list_to_xml(devices, 'device')
+    
+def _get_local_storage_disk(session):
+    disk_path = get_from_xensource_inventory('PRIMARY_DISK')
+    log.debug("Local Storage Disk Path: %s" % disk_path)
+    return os.path.basename(os.readlink(disk_path))
+
+def find_dir(dirpath, dirname, max_depth=2):
+    """Find a file in a given directory, recursing a limited number of times"""
+
+    def _find(path, dname):
+        """Inner function for checking a directory
+        for the existance of a file"""
+        for root, dirs, filenames in os.walk(path):
+            log.debug("Directories: %s" % dirs)
+            if dname in dirs:
+                return True, "/".join([root, dname])
+            else:
+                return False, dirs
+
+    results = []
+    paths = [dirpath]
+
+    for depth in range(max_depth):
+        log.debug("Directory Depth: %d" % depth)
+        
+        # Take a copy of the list, so as to
+        # force exiting the iteration to count depth.
+        for path in list(paths):
+            log.debug("Path: %s" % path)
+            
+            # Ensure that the path actually exists
+            if os.path.exists(path):
+                val, res = _find(path, dirname)
+            else:
+                # If the path doesn't exist, ignore it.
+                continue
+            # Check the result of the find.
+            # If True, we found a result, so append it.
+            # If False, we may have returned sub-directories.
+            if val:
+                results.append(res)
+            else:
+                # Check whether any sub directories were returned
+                if res:
+                    # Append sub directories to the paths list
+                    # for searching the next level down.
+                    for item in res:
+                        paths.append("/".join([path,item]))
+
+    return results   
+
+
+@log_exceptions
+def get_local_storage_devices(session, args):
+    """Return a list of local storage devices and their corresponding properties"""
+
+    # Ensure that any exceptions raised as a result of find a non-expected device 
+    # passes back a failure message without halting execution.
+
+    try:
+        
+        disk = _get_local_storage_disk(session)
+    
+        try:
+            bus_path = os.readlink("/sys/block/%s/device" % disk)
+        except Exception, e:
+            log.debug("Could not read bus path '/sys/block/%s/device'. Exception: %s" % (disk, str(e)))
+            return list_to_xml([{'Exception':'StorageInfoNotAvailable'}], 'device')
+    
+        bus_id = bus_path.split('/')[4]
+
+        if bus_id.startswith('0000:'):
+            #We only care about the shortened id
+            bus_id = bus_id[5:]
+
+        # Enumerate PCI Devices
+        devices = PCIDevices()
+        
+        # Copy dictionary record for device at specified bus location
+        device = dict(devices.devs[bus_id])
+
+        driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:5])
+
+        log.debug("Searching for driver sym link in '%s'" % driver_root_dir)
+               
+        driver_links = find_dir(driver_root_dir, 'driver')
+
+        if driver_links:
+            log.debug("Found the following driver sym-links: %s" % driver_links)
+
+            # Take the first link - there should only be one, but this needs
+            # investigation on more bits of hardware, so let's not fail if there
+            # does exist more than one link.
+            driver_sym = driver_links[0]
+            log.debug("Reading driver from symlink: %s" % driver_sym)
+        
+            # Just check the path is still there.
+            if os.path.exists(driver_sym):
+                device['driver'] = os.path.basename(os.readlink(driver_sym))
+
+        return list_to_xml([device], 'device')
+
+    except Exception, e:
+        log.debug("Could not get local storage info. Exception: %s" % str(e))
+        return list_to_xml([{'Exception':'StorageInfoNotAvailable','Exception_Info':str(e)}], 'device')
+
+
+@log_exceptions
+def get_vm_ip(session, args):
+    """Return an IP address for a specified VMs device"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    device = validate_exists(args, 'device')
+    return wait_for_ip(session, vm_ref, device)
+
+@log_exceptions
+def set_hw_offload(session, args):
+    """Set, using ethtool, whether a specified
+    hw offload is turned on or off in the devices
+    driver"""
+    eth_dev = validate_exists(args, 'eth_dev')
+    offload_type = validate_exists(args, 'offload')
+    offload_state = validate_exists(args, 'state')
+    call = [ETHTOOL, '-K', eth_dev, offload_type, offload_state]
+    log.debug("Ethtool Command: %s" % call)
+    return make_local_call(call)
+
+@log_exceptions
+def get_hw_offloads(session, args):
+    """Return a dictionary object specifying offload protocols,
+    and whether they are on or off (as true or false)"""
+    eth_dev = validate_exists(args, 'eth_dev')
+    call = [ETHTOOL, '-k', eth_dev]
+    offloads = make_local_call(call).split('\n')
+    #Remove the item at the top of the list
+    # "Offload parameters for ethX:"
+    offloads.pop(0)
+    rec = {}
+    for line in offloads:
+        arr = line.strip().split(': ')
+        if len(arr) != 2:
+            raise Exception("Unexpected format from ethtool -k " +
+                            "has been returned. %s" % offloads)
+        rec[OFFLOAD_CODES[arr[0]]] = arr[1]
+    return to_xml(rec, 'hw_offloads')
+
+@log_exceptions
+def get_network_backend(session, args):
+    """Return the networking backend used by the pool"""
+    fh = open('/etc/xensource/network.conf', 'r')
+    backend = fh.read()
+    fh.close()
+    return backend.strip()
+
+@log_exceptions
+def set_network_backend(session, args):
+    """Set the backend used by the pool"""
+    #Note, this requires a host reboot to become effective
+    backend = validate_exists(args, 'backend')
+    call = ['/opt/xensource/bin/xe-switch-network-backend', backend]
+    return make_local_call(call)
+
+@log_exceptions
+def iperf_test(session, args):
+    """Run iperf in client mode against a provided target host"""
+    dst_host = validate_exists(args, 'dst')
+    #params = validate_exists(args, 'params')
+
+    window_size = validate_exists(args, 'window_size', False)
+    format = validate_exists(args, 'format', False)
+    buffer_length = validate_exists(args, 'buffer_length', False)
+    thread_count = validate_exists(args, 'thread_count', False)
+
+    call = [IPERF, '-y', 'csv']
+
+    def copy(param, cmd_arg):
+        if param:
+            call.append(cmd_arg)
+            call.append(param)
+
+    copy(window_size, '-w')
+    copy(format, '-f')
+    copy(buffer_length, '-l')
+    copy(thread_count, '-P')
+    copy(dst_host, '-c')
+    
+    #Print MTU size
+    call.append('-m')
+
+    return make_local_call(call)   
+    
+
+############### RPM Install #########################
+
+@log_exceptions
+def install_rpm(session, rpm_name, vm_ref, username, password):
+	"""Install a predefined RPM"""
+	ip_address = wait_for_ip(session, vm_ref, 'eth0')
+	call = ['/usr/bin/scp', "-o", "StrictHostKeyChecking=no", "/opt/xensource/packages/files/auto-cert-kit/%s" % rpm_name, 'root@%s:' % ip_address]
+	log.debug(call)
+	make_local_call(call)
+	cmd_str = "rpm -i /root/%s --nosignature" % rpm_name
+	log.debug(cmd_str)
+	ssh_command(ip_address, username, password, cmd_str)
+ 
+ 
+############### LMbench Setup #########################
+@log_exceptions
+def copy_lmbench_config(session, vm_ref, username, password):
+	"""Copy the LMbench config file to a VM"""
+	if not os.path.exists(LMBENCH_CONF_LOC):
+		raise Exception("LMbench config file is not present in %s" % LMBENCH_CONF_LOC)
+	ip_address = wait_for_ip(session, vm_ref, 'eth0')
+
+	# Determine where lmbench will be looking for the config
+	# file, so that we can copy it to the correct place.
+	cmd_str = "/usr/lib/lmbench/scripts/config"
+	config_file_name = ssh_command(ip_address, username, password, cmd_str)
+        
+	log.debug("Deterined that VM %s needs lmbench config file named: %s" % (vm_ref, config_file_name))
+    
+	call = ['/usr/bin/scp',
+			"-o", "StrictHostKeyChecking=no",
+			LMBENCH_CONF_LOC,
+			'root@%s:/usr/lib/lmbench/bin/i686-pc-linux-gnu/%s' % (ip_address, config_file_name)]
+	log.debug(call)
+	return make_local_call(call)
+
+@log_exceptions
+def deploy_lmbench(session, args):
+	"""Install LMbench on a VM"""
+	vm_ref = validate_exists(args, 'vm_ref')
+	username = validate_exists(args, 'username')
+	password = validate_exists(args, 'password')
+
+	if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        # Only setup iperf if not control domain
+        # - that already has lmbench installed.
+		i = 0
+		limit = 5
+		while i < limit:
+			try:
+				install_ssh_key(session, vm_ref, username, password)
+				install_rpm(session, MAKE_RPM, vm_ref, username, password)
+				install_rpm(session, LMBENCH_RPM, vm_ref, username, password)
+				copy_lmbench_config(session, vm_ref, username, password)
+				break
+			except:
+				log.debug("Exception raised attempting to deploy LMbench. Attempt %d" % i)
+				time.sleep(5) #Sleep 5 seconds
+				i = i + 1 #Increment counter
+				if i == limit:
+					raise Exception("Cannot deploy LMbench")
+                
+	log.debug("LMbench installation completed")
+	return "OK"
+
+@log_exceptions
+def retrieve_lmbench_logs(session, args):
+	"""Copy the LMbench logs back to the log dir on the master host"""
+	vm_ref = validate_exists(args, 'vm_ref')
+	username = validate_exists(args, 'username')
+	password = validate_exists(args, 'password')
+	ip_address = wait_for_ip(session, vm_ref, 'eth0')
+	
+	# Make sure the logs exists
+	results_dir = '/usr/lib/lmbench/results/i686-pc-linux-gnu/'
+	cmd_str = "ls %s* | wc -l" % results_dir
+	log.debug(cmd_str)
+	response = ssh_command(ip_address, username, password, cmd_str)
+
+	if int(response) == 0:
+		raise Exception("Couldn't find any results files in directory '%s'" % results_dir)
+
+    # Make sure the local lmbench results dir exists
+	if not os.path.exists(LMBENCH_RESULTS_DIR):
+		os.makedirs(LMBENCH_RESULTS_DIR)
+
+    # Create a directory per VM to save having to rename log files to
+    # avoid overwritting other results.
+	vm_lmbench_results_dir = "%s/%s" % (LMBENCH_RESULTS_DIR, vm_ref)
+	os.mkdir(vm_lmbench_results_dir)
+	
+	# SCP the logs to the master host
+	call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", 
+            "root@%s:/usr/lib/lmbench/results/i686-pc-linux-gnu/*" % ip_address, 
+            vm_lmbench_results_dir]
+
+	log.debug(call)
+	return make_local_call(call)
+
+def lmbench_test(session):
+    """Run LMbench"""
+    call = [LMBENCH]
+    log.debug(call)
+    return make_local_call(call)  
+    
+
+############### Iozone Setup #########################
+
+@log_exceptions
+def deploy_iozone(session, args):
+	"""Install Iozone on a VM"""
+	vm_ref = validate_exists(args, 'vm_ref')
+	username = validate_exists(args, 'username')
+	password = validate_exists(args, 'password')
+
+	if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        # Only setup iperf if not control domain
+        # - that already has lmbench installed.
+		i = 0
+		limit = 5
+		while i < limit:
+			try:
+				install_ssh_key(session, vm_ref, username, password)
+				install_rpm(session, IOZONE_RPM, vm_ref, username, password)
+				break
+			except:
+				log.debug("Exception raised attempting to deploy Iozone. Attempt %d" % i)
+				time.sleep(5) #Sleep 5 seconds
+				i = i + 1 #Increment counter
+				if i == limit:
+					raise Exception("Cannot deploy LMbench")
+                
+	log.debug("Iozone installation completed")
+	return "OK"
+
+@log_exceptions
+def retrieve_iozone_logs(session, args):
+	"""Copy the Iozone logs back to the log dir on the master host"""
+	vm_ref = validate_exists(args, 'vm_ref')
+	username = validate_exists(args, 'username')
+	password = validate_exists(args, 'password')
+	ip_address = wait_for_ip(session, vm_ref, 'eth0')
+	
+	# Make sure the logs exists
+	cmd_str = "test -e /root/localhost.log"
+	log.debug(cmd_str)
+	response = ssh_command(ip_address, username, password, cmd_str)
+	if "error" in response:
+	    raise Exception("Cannot retrieve Iozone log from VM %s" % vm_ref)
+	
+	# SCP the logs to the master host
+	call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/iozone.log"]
+	log.debug(call)
+	return make_local_call(call)
+  
+
+############### Bonnie++ Setup #########################
+
+@log_exceptions
+def deploy_bonnie(session, args):
+	"""Install Bonnie++ on a VM"""
+	vm_ref = validate_exists(args, 'vm_ref')
+	username = validate_exists(args, 'username')
+	password = validate_exists(args, 'password')
+
+	if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        # Only setup iperf if not control domain
+        # - that already has lmbench installed.
+		i = 0
+		limit = 5
+		while i < limit:
+			try:
+				install_ssh_key(session, vm_ref, username, password)
+				install_rpm(session, BONNIE_RPM, vm_ref, username, password)
+				vm_ip = wait_for_ip(session, vm_ref, 'eth0')
+				ssh_command(vm_ip, username, password, 'mkdir -m a=rwx /root/bonnie; useradd citrix; chown citrix /root/bonnie')
+				break
+			except:
+				log.debug("Exception raised attempting to deploy Bonnie++. Attempt %d" % i)
+				time.sleep(5) #Sleep 5 seconds
+				i = i + 1 #Increment counter
+				if i == limit:
+					raise Exception("Cannot deploy LMbench")
+                
+	log.debug("Bonnie++ installation completed")
+	return "OK"
+
+@log_exceptions
+def retrieve_bonnie_logs(session, args):
+	"""Copy the Bonnie++ logs back to the log dir on the master host"""
+	vm_ref = validate_exists(args, 'vm_ref')
+	username = validate_exists(args, 'username')
+	password = validate_exists(args, 'password')
+	ip_address = wait_for_ip(session, vm_ref, 'eth0')
+	
+	# Make sure the logs exists
+	cmd_str = "test -e /root/localhost.log"
+	log.debug(cmd_str)
+	response = ssh_command(ip_address, username, password, cmd_str)
+	if "error" in response:
+	    raise Exception("Cannot retrieve Bonnie++ log from VM %s" % vm_ref)
+	
+	# SCP the logs to the master host
+	call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/bonnie.log"]
+	log.debug(call)
+	return make_local_call(call)
+  
+
+############### Main #########################
+
+
+def handle_ipv4_static_conf(session, vm_uuid, iface, args):
+    ip = validate_exists(args, 'ip')
+    netmask = validate_exists(args, 'netmask')
+    gw = validate_exists(args, 'gateway')
+
+    vm_ref = session.xenapi.VM.get_by_uuid(vm_uuid)
+
+    def add_config(key, value):
+        session.xenapi.VM.add_to_xenstore_data(vm_ref, "vm-data/control/%s/%s" % (iface, key), value)
+
+    add_config('ip', ip)
+    add_config('netmask', netmask)
+    add_config('gateway', gw)
+
+    return 'OK'
+
+def handle_ipv6_static_conf(session, vm_uuid, iface, args):
+    raise Exception("IPv6 support has not been implemented for this plugin")
+    return None
+
+@log_exceptions
+def droid_set_static_conf(session, args):
+    """Set static network configuration for droid VM"""
+    vm_uuid = validate_exists(args, 'vm_uuid')
+    iface = validate_exists(args, 'iface')
+    protocol = validate_exists(args, 'protocol').lower()
+
+    if protocol not in ["ipv4","ipv6"]:
+        raise Exception("Currently, static addressing is only supported for ipv4 or ivp6. (%s)" %
+                        protocol)
+
+    if protocol == "ipv4":
+        return handle_ipv4_static_conf(session, vm_uuid, iface, args)
+    elif protocol == "ipv6":
+        return handle_ipv6_static_conf(session, vm_uuid, iface, args)
+    else:
+        raise Exception("Unexpected error ('%s')" % protocol)
+
+@log_exceptions
+def droid_template_import(session, args):
+    """Import a xva using fully specified location"""
+    #Need to encode/decode URI as it has unsafe characters for transmission.
+    filename = DROID_VM_LOC
+    sr_uuid = validate_exists(args, 'sr_uuid')
+    call = [XE, 'vm-import', 'filename=%s' % filename, 'sr_uuid=%s' % sr_uuid]
+    return make_local_call(call)
+
+def process_running(process_name):
+    process_list = make_local_call(['ps','aux']).split('\n')
+    for process in process_list:
+        if process_name in process:
+            log.debug("Process Found: %s" % process)
+            return True
+    return False
+
+@log_exceptions
+def start_iperf_server(session, args):
+    """Start up iPerf in sever mode. This command will block - due to how iperf returns
+    from the command line issued. It should be run as an Async tasks by XAPI."""
+    # Check for iperfs existence
+    if not process_running(IPERF):
+        log.debug("Iperf is not running - start process")
+        # Disable iptables
+        call = ['/etc/init.d/iptables', 'stop']
+        make_local_call(call)
+
+        #Start iperf daemon - need to ensure we don't block
+        call = [IPERF, '-s', '-D']
+        log.debug("About to start iperf server daemon")
+        subprocess.Popen(call, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, bufsize=4096)
+        log.debug("Call executed")
+
+        max_attempts = 10
+        attempts = 0
+        #Ensure that the iperf server has actually been started
+        while not process_running(IPERF) or attempts > max_attempts:
+            log.debug("%d: Iperf server not yet started...waiting" % attempts)
+            time.sleep(1)
+            attempts = attempts + 1
+
+        if attempts == max_attempts:
+            log.debug("Failed to start the iperf server!")
+            return "Error"
+
+        log.debug("Iperf server started")
+        return "OK"
+    else:
+        log.debug("Iperf server already running")
+        return "Already Started"
+
+if __name__ == '__main__':
+    XenAPIPlugin.dispatch({'get_hw_offloads': get_hw_offloads,
+                           'set_hw_offload': set_hw_offload,
+                           'iperf_test': iperf_test,
+                           'lmbench_test': lmbench_test,
+                           'get_vm_ip': get_vm_ip,
+                           'deploy_iperf': deploy_iperf,
+                           'deploy_lmbench': deploy_lmbench,
+                           'deploy_iozone': deploy_iozone,
+                           'deploy_bonnie': deploy_bonnie,
+                           'get_network_backend': get_network_backend,
+                           'set_network_backend': set_network_backend,
+                           'droid_set_static_conf': droid_set_static_conf,
+                           'droid_template_import': droid_template_import,
+                           'retrieve_lmbench_logs': retrieve_lmbench_logs,
+                           'retrieve_iozone_logs': retrieve_iozone_logs,
+                           'retrieve_bonnie_logs': retrieve_bonnie_logs,
+                           'get_network_devices': get_network_devices,
+                           'get_local_storage_devices': get_local_storage_devices,
+                           'create_output_package': create_output_package,
+                           'start_iperf_server': start_iperf_server
+                           })

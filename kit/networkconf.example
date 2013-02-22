@@ -1,0 +1,16 @@
+#Interface = Network ID,VLANs
+eth0 = 0,[200,204,240]
+eth1 = 1,[200,124]
+eth2 = 0,[204,240]
+
+# For static addressing, each network/vlan combination needs to be
+# explicitly stated, otherwise we assume DHCP is available. The syntax can
+# be seen in the example below. For the 'non-vlan' case, the vlan Id should
+# be 0, i.e.:
+#	static_0_0 = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
+
+# static_<network _id>_<vlan_id> = <ip_start>,<ip_end>,<netmask>,<gw>
+
+# Setting static addressing for VLAN 200 on Network ID 0:
+static_0_200 = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
+

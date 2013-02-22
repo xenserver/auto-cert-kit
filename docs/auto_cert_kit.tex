@@ -1,0 +1,143 @@
+%% installation.text
+%% Documentation to be supplied with the ACK drop
+\providecommand{\versionnumber}{0.0.3}
+\documentclass[a4paper,11pt]{article}
+\usepackage{verbatim}
+\usepackage{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2ex}
+
+\title{Installation Instructions for the XenServer Auotmated Certification Kit\\\normalsize Version \versionnumber}
+\date{June 2012}
+\begin{document}
+\maketitle
+
+\section{Introduction}
+The Automated Certification Kit (ACK), is an offering from Citrix to help improve both the quality of hardware self-certification, and the time spent running certification tests. This will serve to act as a replacement for the manual server self-certification kit.
+
+The kit is designed to run automatically once the user has correctly configured their XenServers, and networking according to the instructions given below. 
+
+The kit is currently Beta quality, which means we expect there to be bugs that still need to be fixed before its official release later this quarter. Instructions are also given below on how to report failures. 
+
+We appreciate your engaging in the development of this kit, and would ask that you also provide us feedback as to how it might be improved to better help you test your hardware with the XenServer platform.
+
+\section{XenServer deployment}
+In order for the automated certification kit to run successfully, there are currently the following requirements on your XenServer deployment:
+\begin{itemize}
+\item Users must set up a pool consisting of two hosts, both running XenServer 6.0.0.
+\item Shared storage must be set up for the pool, and designated as the default Storage Repository (which can be done using XenCenter).
+\item Each host requires a minimum of two network interfaces. The corresponding network interfaces on each host, are expected to be plugged into the same layer 2 network.
+\item The network adaptors for which the certification is being performed must reside on the master host.
+\item Installation of the ACK must be performed on both the master and the slave machines.
+\item In order to perform the network tests, a configuration file must be created and and specified on the command line (see instructions below).
+\end{itemize}
+
+\section{ACK Installation}
+Once the above environment has been set up, please download the \verb=xs-auto-cert-kit.iso= supplemental back as provided by Citrix, and copy the ISO onto the \verb=/root= directory of the \verb=Dom0= file-system residing on the master host.
+
+To install the supplemental pack run:
+\begin{verbatim}
+xe-install-supplemental-pack /root/xs-auto-cert-kit.iso
+\end{verbatim}
+
+\section{ACK Operation}
+To run the certification tests, please run the following commands:
+\begin{verbatim}
+cd /opt/xensource/packages/files/auto-cert-kit
+python ack_cli.py [options]
+\end{verbatim}
+
+Unless specified otherwise, the test kit will attempt to execute all of it's tests (Network, Local Storage, CPU and Opertational). For network adaptor certification, only the network tests are a requirement for certification, tough it is advisable for the complete test kit to have been run.
+
+For any of the options the user is required to specify a network configuration file on the command line:
+
+\begin{verbatim}
+python ack_cli.py -n network.conf
+\end{verbatim}
+
+There is an example file which located in the ACK's root directory (\verb=networkconf.example=). The purpose of this file is to define which VLANs have been setup on each of the interfaces, and which interfaces are connected to the same physical layer 2 network (for use in the bonding tests).
+
+The config file can also be used to specify which networks have DHCP enabled, or require static addressing in order to function. By default, it is assumed DHCP is enabled on all networks, so in order to override this, an entry in the config file must be written.
+
+The config file is defined in the following format:
+
+\begin{verbatim}
+#Interface = Network ID,VLANs
+eth0 = 0,[200,204,240]
+eth1 = 1,[200,124]
+eth2 = 0,[204,240]
+
+# static_<network_id>_<vlan_id> = <ip_start>,<ip_end>,<netmask>,<gw>
+static_0_200 = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
+\end{verbatim}
+
+In the case of this example, the kit will only certify the network adaptors for which the specified interfaces belong, and we understand that both \verb=eth0= and \verb=eth2= are connected to the same physical layer 2 network, and eth0 can create VLAN networks for the IDs 204 and 240, where as \verb=eth1= can only create a VLAN on either 200 or 124. We also know to allocate static IP addresses from the range provided for any VMs plugged into VLAN 200 on the 0th physical network (eth0/eth2).
+
+Once executed, the ACK will then generate and execute a list of tests for each device on the master host that should be certified.
+
+You can also run the kit in debug mode, with the argument \verb=-d=. This will cause the kit to exit on exception, rather than continue to run the remaining tests.
+
+\section{Quering the status of the test run}
+Depending on the set of tests being executed by the kit, a host reboot may be required. This means that unless you are executing the kit from the host's physical console you will no longer see the progress of the kit after the reboot. If this happens, then you can follow the logs being generated at \verb=/var/log/auto-cert-kit.log=, however you can also query the test kit status by running the \verb=status.py= module (located in the ACK install directory).
+
+The module will return one of the following results:
+\begin{verbatim}
+0:Finished (Passed:[num] Failed:[num])
+1:Process not running. An error has occurred. (Passed:[num], Failed:[num], Waiting:[num])
+2:Running - [num]% complete (Passed:[num], Failed:[num], Waiting:[num])
+3:Server rebooting... (Passed:[num], Failed:[num], Waiting:[num])
+4:Manifest file has not been created. Have run the kit? (Has an error occured?)
+5:An error has occured reading. [testfile]
+\end{verbatim}
+
+\section{Test Results and Logs}
+After a test run has completed, there should be two files created in the \verb=/root/= directory on the master:
+\begin{itemize}
+\item \verb=ack-submission-[time]-[date].tar.gz=
+\item \verb=results.txt=
+\end{itemize}
+
+The \verb=results.txt= file will detail the output of your test run, specifying which tests have passed or failed, along with the features marked as supported for your device. 
+
+More specific result information and test exceptions can be found in the xml file generated after each run:
+\begin{verbatim}
+/opt/xensource/packages/files/auto-cert-kit/test_run.conf
+\end{verbatim}
+
+Debug logging is currently printed to \verb=stdout=, as well as the ACK's log file which is found in \verb=/var/log/auto-cert-kit.log=. This log file is collected automatically as part of a XenServer status report (which is required for submission).
+
+\section{Submitting results and logs}
+We would obviously appreciate it if vendors could submit log/result files so that we can establish we are collecting the appropriate information concerning your devices, as well as fix any bugs that you may have found during the testing performed on your hardware.
+
+The mechanism for providing us with these files and feedback are via the XenServer ticket tracker. Please see instructions below for creating a new ticket.
+
+In the normal case where the test kit runs to completion, we would ask that the vendor submits the ack-submission package:
+
+\begin{verbatim}
+/root/ack-submission-[time]-[date].tar.gz
+\end{verbatim}
+
+However, if there is a failure such that the ack-submission package is not created, then we would ask that you submit the following:
+\begin{itemize}
+\item XenServer Status Report -- this can be obtained either by either running the \verb=xen-bugtool= command on the master host, or by using XenCenter (Tools - Get Server Status Report).
+\item The \verb=test_run.conf= file mentioned in the section above.
+\end{itemize}
+
+\section{Current Known Limitations}
+Citrix is aware of the following limitations in the ACK at present:
+\begin{itemize}
+\item There is currently no testing for SR-IOV support; those certification tests still need to be performed using the old manual kit.
+\item The CPU and Local Storage tests have shown issues when running in a static environment. These problems will be resolved for the next release of the kit.
+\end{itemize}
+
+\section{Bug Reports and Feedback}
+In order for us to collect your feedback on this kit, and improve it for the Beta and subsequent releases, we would ask that you open up 'tracker tickets'.
+
+You can create tickets on the Jira instance hosted at \url{https://tracker.xensource.com}.
+
+If you do not currently have an account setup, please email \href{mailto:rob.dobson@citrix.com}{rob.dobson@citrix.com} who will set up an account for you.
+
+Please make sure that tickets have the component type set to the \emph{auto-cert-kit} in order for us to track feedback appropriately.
+
+\end{document}
