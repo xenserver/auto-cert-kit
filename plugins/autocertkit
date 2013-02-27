@@ -185,6 +185,7 @@ IOZONE_RPM = "iozone-3.394-1.el5.rf.i386.rpm"
 BONNIE_RPM = "bonnie++-1.94-1.el5.rf.i386.rpm"
 MAKE_RPM = "make-3.81-3.el5.i386.rpm"
 SSH = "/usr/bin/ssh"
+CAT = "/bin/cat"
 
 OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
                  'scatter-gather': 'sg',
@@ -722,6 +723,26 @@ def iperf_test(session, args):
 
     return make_local_call(call)   
     
+def parse_proc_net_dev(data):
+    """Taking the contents of /proc/net/dev parse to provide a record"""
+    lines = data.split('\n')
+
+    header = lines[1]
+    _, rx_cols, tx_cols = header.split("|")
+    rx_cols = map(lambda x: "rx_%s" % x, rx_cols.split())
+    tx_cols = map(lambda x: "tx_%s" % x, tx_cols.split())
+    cols = rx_cols + tx_cols
+
+    ifaces = {}
+    for line in lines[2:]:
+        if not line.find(":"):
+            continue
+        iface, data = line.split(":")
+        iface_data = dict(zip(cols, data.split()))
+        ifaces[iface.strip()] = iface_data
+
+    return ifaces
+
 
 @log_exceptions
 def add_route(session, args):
@@ -821,7 +842,7 @@ def get_iface_stats(session, args):
     """Use ethtool to return a list of statistics for a given interface"""
     vm_ref = validate_exists(args, 'vm_ref')
     iface_name = validate_exists(args, 'iface')
-
+    log.debug("Iface passed in %s" % iface_name)
     data = None
     
     if session.xenapi.VM.get_is_control_domain(vm_ref):
@@ -830,7 +851,7 @@ def get_iface_stats(session, args):
 
         if host_ref == session.xenapi.host.get_by_uuid(this_host_uuid):
             # Execute call locally
-            call = [ETHTOOL, '-S', iface_name]
+            call = [CAT, '/proc/net/dev']
             data = make_local_call(call)
 
         else:
@@ -848,7 +869,7 @@ def get_iface_stats(session, args):
         # Note, we rely on an SSH key being setup for this
         # droid VM.
 
-        call = [SSH, vm_m_ip, '/sbin/ethtool', '-S', iface_name]     
+        call = [SSH, vm_m_ip, CAT, '/proc/net/dev']     
         log.debug("About to make SSH call: %s" % call)
 
         data = make_local_call(call)
@@ -856,30 +877,15 @@ def get_iface_stats(session, args):
     if not data:
         log.error("Error: no data obtained from calls")
 
-    data_fields = {}
+    rec = parse_proc_net_dev(data)
 
-    for line in data.split('\n'):
-        if 'NIC Statistics:' in line:
-            continue
+    if iface_name not in rec.keys():
+        log.error("Error: could not find iface '%s' in stats (%s)" %
+                    (iface_name, rec.keys()))
 
-        stat_field = line.strip()
-        
-        if ':' not in stat_field:
-            log.error("Error: could not parse line '%s' in ethtool " + \
-                      "output for '%s'. No ':'" % (line, iface_name))
-            continue
+    device_stats = rec[iface_name]
 
-        kvp = stat_field.split(':')
-
-        if len(kvp) > 2:
-            log.error("Error: expecting only one ':' delimeter. " + \
-                      "'%d' found in '%s'" % (len(kvp), kvp))
-            continue
-
-        # Copy KVP into record
-        data_fields[kvp[0]] = kvp[1]
-
-    return to_xml(data_fields, 'iface_stats') 
+    return to_xml(device_stats, 'iface_stats') 
 
 
 ############### RPM Install #########################
