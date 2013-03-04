@@ -742,7 +742,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 
         log.debug("Ping Arguments: %s" % self.PING_ARGS)
         #set ping args and run cmd
-        ping_result = ping(vm1_ip, vm2_ip, 'eth1', self.PING_ARGS['packet_size'], self.PING_ARGS['packet_count'])
+        ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1', self.PING_ARGS['packet_size'], self.PING_ARGS['packet_count'])
         log.debug("Result: %s" % ping_result)
             
             
