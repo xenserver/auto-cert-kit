@@ -1185,20 +1185,6 @@ def start_iperf_server(session, args):
     """Start up iPerf in sever mode. This command will block - due to how iperf returns
     from the command line issued. It should be run as an Async tasks by XAPI."""
 
-    device_name = validate_exists(args, 'device')
-    mode = validate_exists(args, 'mode')
-
-    ip_addr = None
-    ip_netmask = None
-    
-    if mode == "static":
-        ip_addr = validate_exists(args, 'ip_addr')
-        ip_netmask = validate_exists(args, 'ip_netmask')
-    else:
-        if mode.lower() != "dhcp":
-            raise Exception("Error: invalid 'mode' '%s'" % mode)
-    
-    server_ip, _ = configure_server_ip(session, device_name, ip_addr, ip_netmask)
     
     # Check for iperfs existence
     if not process_running(IPERF):
@@ -1208,7 +1194,7 @@ def start_iperf_server(session, args):
         make_local_call(call)
 
         #Start iperf daemon - need to ensure we don't block
-        call = [IPERF, '-s', '-D', '-B', server_ip]
+        call = [IPERF, '-s', '-D']
         log.debug("About to start iperf server daemon (%s)" % call)
         subprocess.Popen(call, stdout=subprocess.PIPE, 
                          stderr=subprocess.PIPE, 

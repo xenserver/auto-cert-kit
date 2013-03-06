@@ -7,7 +7,7 @@ thisdir=$(dirname "$0")
 
 output=""
 
-for file in "auto_cert_kit" "cpu_tests" "operations_tests" "storage_tests" "utils" "network_tests" "testbase" 
+for file in "network_tests" "cpu_tests" "operations_tests" "storage_tests" "utils" "network_tests" "testbase" 
 do
     echo "Running pylint on $file..."
     cd "kit"
