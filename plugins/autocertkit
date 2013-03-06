@@ -1221,7 +1221,6 @@ if __name__ == '__main__':
                            'get_local_storage_devices': get_local_storage_devices,
                            'create_output_package': create_output_package,
                            'start_iperf_server': start_iperf_server,
-                           'get_iface_stats': get_iface_stats,
                            'add_route': add_route,
                            'reset_arp': reset_arp,
                            'get_local_device_ip': get_local_device_ip
