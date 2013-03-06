@@ -761,25 +761,36 @@ def reset_arp(session, args):
     to send traffic too."""
 
     vm_ref = validate_exists(args, 'vm_ref')
-    device = validate_exists(args, 'device')
+    
+    log.debug("Reset ARP for VM %s" % vm_ref)
 
     arp_ipv4_ignore_config = "net.ipv4.conf.all.arp_ignore=1"
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
+
         # Handle the case that we are dealing with Dom0
         call = [SYSCTL, arp_ipv4_ignore_config]
         make_local_call(call)
 
-        # Execute a gratuitus ARP for the device in question
-        # translate device name into bridge
-        bridge = device.replace('eth','xenbr')
-        bridge_ip, _ = _get_local_device_ip(bridge)
+        # Determine the host reference
+        host_ref = session.xenapi.VM.get_resident_on(vm_ref)
+        pifs = session.xenapi.VM.get_PIFs(host_ref)
+        for pif in pifs:
+            device = session.xenapi.PIF.get_device(pif)
+        
+            # Execute a gratuitus ARP for the device in question
+            # translate device name into bridge
+            bridge = device.replace('eth','xenbr')
+        
+            log.debug("About to send gARP out on %s" % bridge)
 
-        if not bridge_ip:
-            raise Exception("Error: cannot find IP for bridge %s" % bridge)
+            bridge_ip, _ = _get_local_device_ip(bridge)
 
-        call = [ARPING, "-c", '4', '-A', bridge, bridge_ip]
-        make_local_call(call)
+            if not bridge_ip:
+                raise Exception("Error: cannot find IP for bridge %s" % bridge)
+
+            call = [ARPING, "-c", '4', '-A', '-I', bridge, bridge_ip]
+            make_local_call(call)
         
     else:
         # Handle the Droid VM case
@@ -790,10 +801,15 @@ def reset_arp(session, args):
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
 
-        # Execute a gratuitus ARP for the device in question
-        device_ip = wait_for_ip(session, vm_ref, device)
-        call = [SSH, vm_m_ip, ARPING, "-c", '4', '-A', device, device_ip]
-        make_local_call(call)
+        vifs = session.xenapi.VM.get_VIFs(vm_ref)
+        for vif in vifs:
+            device_id = session.xenapi.VIF.get_device(vif)
+            device = "eth%s" % device_id
+       
+            # Execute a gratuitus ARP for the device in question
+            device_ip = wait_for_ip(session, vm_ref, device)
+            call = [SSH, vm_m_ip, ARPING, "-c", '4', '-A', '-I', device, device_ip]
+            make_local_call(call)
 
     return "OK"
 
