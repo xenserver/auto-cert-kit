@@ -74,7 +74,7 @@ DROID_VM_LOC = '%s/vpx-dlvm.xva' % INSTALL_DIR
 XS_INVENTORY_PATH = "/etc/xensource-inventory"
 LMBENCH_CONF_LOC = "%s/config/lmbench.conf" % INSTALL_DIR
 FOR_CLEANUP = "for_cleanup"
-
+SSH = "/usr/bin/ssh"
 IP = "/sbin/ip"
 ARPING = "/sbin/arping"
 DHCLIENT = "/sbin/dhclient"
@@ -244,6 +244,12 @@ def install_ssh_key(session, vm_ref, username, password):
     log.debug("Install SSH key command string: %s" % cmd_str)
     ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")
 
+    # Disable hostkey checking
+    call = [SSH, '-o', 'StrictHostKeyChecking=no', vm_ip]
+    make_local_call(call)
+
+    return True
+
 def setup_public_ssh_key():
     if not os.path.exists(SSH_PUBLIC_KEY):
         call = ['/usr/bin/ssh-keygen', '-f', SSH_PUBLIC_KEY.replace('.pub',''),
@@ -251,6 +257,18 @@ def setup_public_ssh_key():
         make_local_call(call)
 
 ######################################################
+@log_exceptions
+def inject_ssh_key(session, args):
+    """Inject Dom0's public SSH key into a guest VM"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+
+    log.debug("Call to Inject Dom0's SSH key into %s" % vm_ref)
+    install_ssh_key(session, vm_ref, username, password)
+    return "OK"
+
+
 @log_exceptions
 def wait_for_ip(session, vm_ref, device, timeout=60):
     """Wait for an IP address to be returned (until a given timeout)"""
@@ -1223,5 +1241,6 @@ if __name__ == '__main__':
                            'start_iperf_server': start_iperf_server,
                            'add_route': add_route,
                            'reset_arp': reset_arp,
-                           'get_local_device_ip': get_local_device_ip
+                           'get_local_device_ip': get_local_device_ip,
+                           'inject_ssh_key': inject_ssh_key
                            })
