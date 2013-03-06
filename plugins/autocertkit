@@ -350,7 +350,9 @@ def make_local_call(call):
     if process.returncode == 0:
         return str(stdout).strip()
     else:
-	return "ERR: Could not make local call %s" % ' '.join(call)
+        msg = "ERR: Could not make local call %s" % ' '.join(call)
+        log.error(msg)
+        return msg
 
 def validate_xml_key(key):
     """Check that a key will be acceptable for an XML attribute
