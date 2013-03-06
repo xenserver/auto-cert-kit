@@ -343,6 +343,28 @@ class StaticIPManager(object):
         self.in_use = []
         self.free = free
 
+class IfaceStats(object):
+    """Class object for representing network statistics associated
+       with an ethernet interface"""
+
+    # List of keys depended on by callers
+    required_keys = ['rx_bytes', 'tx_bytes']
+
+    def __init__(self,iface, rec):
+        setattr(self, 'iface', iface)
+        self.validate_args(rec)
+       
+        # Load all key/values into the class as attributes 
+        for k,v in rec.iteritems():
+            setattr(self, k, int(v))
+
+    def validate_args(self, rec):
+        for key in self.required_keys:
+            if key not in rec.keys():
+                raise Exception("Error: could not find key '%s'" % key + \
+                                " in iface statistics record '%s'" % rec) 
+                                                           
+
 ##### Logging setup
 
 log = None
@@ -1368,6 +1390,12 @@ def get_hw_offloads(session, device):
 
     return xml_to_dicts(xml_res, 'hw_offloads')[0]
 
+def get_iface_statistics(session, vm_ref, iface): 
+    xml_res = call_ack_plugin(session, 'get_iface_stats',
+                                        {'iface':iface,
+                                        'vm_ref': vm_ref})
+    stats_dict = xml_to_dicts(xml_res, 'iface_stats')[0]
+    return IfaceStats(iface, stats_dict)
 
 def set_hw_offload(session, device, offload, state):
     """Call the a XAPI plugin on the pool master to set

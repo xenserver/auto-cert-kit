@@ -184,6 +184,7 @@ LMBENCH_RPM = "lmbench-3.0-0.a7.1.el5.rf.i386.rpm"
 IOZONE_RPM = "iozone-3.394-1.el5.rf.i386.rpm"
 BONNIE_RPM = "bonnie++-1.94-1.el5.rf.i386.rpm"
 MAKE_RPM = "make-3.81-3.el5.i386.rpm"
+SSH = "/usr/bin/ssh"
 
 OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
                  'scatter-gather': 'sg',
@@ -1322,6 +1323,7 @@ if __name__ == '__main__':
                            'retrieve_bonnie_logs': retrieve_bonnie_logs,
                            'get_network_devices': get_network_devices,
                            'get_local_storage_devices': get_local_storage_devices,
+						   'get_iface_stats': get_iface_stats,
                            'create_output_package': create_output_package,
                            'start_iperf_server': start_iperf_server,
                            'add_route': add_route,
