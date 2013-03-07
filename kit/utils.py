@@ -1275,6 +1275,19 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
     wait_for_ip(session, vm2_ref, 'eth0')
     log.debug("IP's retrieved...")
 
+
+    # Make plugin calls
+    for vm_ref in [vm1_ref, vm2_ref]:
+        # Install SSH Keys for Plugin operations
+        call_ack_plugin(session, 'inject_ssh_key', 
+                                {'vm_ref': vm_ref,
+                                 'username': 'root',
+                                 'password': DEFAULT_PASSWORD})
+                                                    
+        # Ensure that we make sure the switch accesses IP addresses by 
+        # their own interfaces (avoid interface forwarding).        
+        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref})
+
     return vm1_ref, vm2_ref
 
 def droid_set_static(session, vm_ref, protocol, iface, ip, netmask, gw):
