@@ -128,6 +128,23 @@ def log_exceptions(func):
     return decorated
 #############################
 
+class Iface(object):
+    """Class representing an ethernet interface"""
+    
+    required_keys = ["ip","mask","mac"]
+
+    def __init__(self, rec):
+        self.validate_rec(rec)
+
+        for k, v in rec.iteritems():
+            setattr(self, k, v)
+
+    def validate_rec(self, rec):
+        for key in self.required_keys:
+            if key not in rec.keys():
+                raise Exception("Error: invalid input rec '%s'" % rec)
+        
+
 ##### Argument validation
 
 ARGUMENT_PATTERN = re.compile(r'^[a-zA-Z0-9_:\.\-,]+$')
@@ -844,12 +861,12 @@ def reset_arp(session, args):
         
             log.debug("About to send gARP out on %s" % bridge)
 
-            bridge_ip, _ = _get_local_device_ip(bridge)
+            bridge_dev = _get_local_device(bridge)
 
-            if not bridge_ip:
+            if not bridge_dev.ip:
                 raise Exception("Error: cannot find IP for bridge %s" % bridge)
 
-            call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_ip]
+            call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_dev.ip]
             make_local_call(call)
         
     else:
@@ -1228,15 +1245,15 @@ def configure_local_device_ip(session, device, ip_addr, ip_netmask):
         call = [IFCONFIG, device, ip_addr, 'netmask', ip_netmask]
 
     make_local_call(call)
-    ip_addr, ip_mask = _get_local_device_ip(device)
+    dev = _get_local_device(device)
 
-    if not ip_addr:
+    if not dev.ip:
         log.error("Settings Device: %s, IP: %s, Mask: %s" % device,
-                                                            ip_addr,
-                                                            ip_netmask)
+                                                            dev.ip,
+                                                            dev.mask)
         raise Exception("Error: failed to set IP for '%s'" % device)
 
-    return ip_addr, ip_mask
+    return dev
 
 @log_exceptions
 def get_local_device_ip(session, args):
@@ -1247,13 +1264,13 @@ def get_local_device_ip(session, args):
     device = device.replace('eth','xenbr')
 
     log.debug("get_local_device_ip for: %s" % device)
-    ip, mask = _get_local_device_ip(device)
-    log.debug("_get_local_device_ip %s = %s" % (device, ip))
-    if not ip:
+    dev = _get_local_device(device)
+    log.debug("_get_local_device %s = %s" % (dev.device, dev.ip))
+    if not dev.ip:
         raise Exception("Error: could not obtain an IP for %s" % device)
-    return ip
+    return dev.ip
 
-def _get_local_device_ip(device_name):
+def _get_local_device(device_name):
     """Use ifconfig to get the IP address of a specified interface
     If one doesn't exist, return None"""
 
@@ -1267,11 +1284,28 @@ def _get_local_device_ip(device_name):
     regex = re.compile(pattern)
     matches = regex.search(data)
 
-    if matches:
-        return matches.group('ip'), matches.group('mask')
+    mac_pattern = "HWaddr (?P<mac>([0-9a-fA-F]{2}\:){5}([0-9a-fA-F]{2}))"
+    mac_regex = re.compile(mac_pattern)
+    mac_match = mac_regex.search(data)
 
+    rec = {'device': device_name,
+           'ip': None,
+           'mask': None,
+           'mac': None,
+           }
+
+    if matches:
+        rec['ip'] = matches.group('ip')
+        rec['mask'] = matches.group('mask')
     else:
-        return None, None
+        log.debug("Did not find ip/mask for '%s'" % device_name)
+    
+    if mac_match:
+        rec['mac'] = mac_match.group('mac')
+    else:
+        log.error("Did not find MAC for '%s'" % device_name)
+
+    return Iface(rec)
 
 
 def configure_server_ip(session, device_name, ip_addr, ip_netmask):
@@ -1284,16 +1318,15 @@ def configure_server_ip(session, device_name, ip_addr, ip_netmask):
         # We only want to care about allocating IPs to bridges
         device = device.replace('eth', 'xenbr')
 
-    device_ip, device_mask = _get_local_device_ip(device)
+    dev = _get_local_device(device)
 
-    if not device_ip or not device_mask:
-        device_ip, device_mask = \
-                   configure_local_device_ip(session, 
-                                             device, 
-                                             ip_addr, 
-                                             ip_netmask)
+    if not dev.ip or not dev.mask:
+        dev = configure_local_device_ip(session, 
+                                        device, 
+                                        ip_addr, 
+                                        ip_netmask)
 
-    return device_ip, device_mask
+    return dev
 
 @log_exceptions
 def start_iperf_server(session, args):
@@ -1313,7 +1346,7 @@ def start_iperf_server(session, args):
         if mode.lower() != "dhcp":
             raise Exception("Error: invalid 'mode' '%s'" % mode)
     
-    server_ip, _ = configure_server_ip(session, device_name, ip_addr, ip_netmask)
+    dev = configure_server_ip(session, device_name, ip_addr, ip_netmask)
 
     kill_processes('iperf')
      
@@ -1325,7 +1358,7 @@ def start_iperf_server(session, args):
         make_local_call(call)
 
         #Start iperf daemon - need to ensure we don't block
-        call = [IPERF, '-s', '-D']
+        call = [IPERF, '-s', '-D', '-B', dev.ip]
         log.debug("About to start iperf server daemon (%s)" % call)
         subprocess.Popen(call, stdout=subprocess.PIPE, 
                          stderr=subprocess.PIPE, 
