@@ -149,8 +149,14 @@ class IperfTest:
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',
                    {'vm_ref': self.client,
-                    'dest_ip': self.get_server_ip(),
+                    'dest_ip': self.get_server_ip(self.get_device_name(self.server)),
                     'device': self.get_device_name(self.client)}
+                    )
+
+        self.plugin_call('add_route',
+                    {'vm_ref': self.server,
+                    'dest_ip': self.get_client_ip(self.get_device_name(self.client)),
+                    'device': self.get_device_name(self.server)}
                     )
 
     def run(self):
