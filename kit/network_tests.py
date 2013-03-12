@@ -361,7 +361,8 @@ class IperfTest:
             copy('buffer_length')
             copy('thread_count')
             args['dst'] = self.get_server_ip()
-                    
+            args['vm_ref'] = self.client        
+
             result = self.plugin_call('iperf_test', args)
         else:
             #Run the client locally
