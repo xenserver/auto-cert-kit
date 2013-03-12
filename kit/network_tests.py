@@ -205,7 +205,11 @@ class IperfTest:
             return wait_for_ip(self.session, self.server, iface)
 
     def get_client_ip(self, iface='eth0'):
-        return wait_for_ip(self.session, self.client, iface)
+        ip = wait_for_ip(self.session, self.client, iface)
+        log.debug("Client (%s) IP for '%s' is '%s'" % (self.client,
+                                                       iface,
+                                                       ip))
+        return ip
 
     def deploy_iperf(self):
         """deploy iPerf on both client and server"""
@@ -251,6 +255,7 @@ class IperfTest:
             device_name = "eth%s" % \
                           self.session.xenapi.VIF.get_device(int_vifs.pop())
 
+        log.debug("Device under test for VM %s is '%s'" % (vm_ref, device_name))
         return device_name 
     
     def get_iface_stats(self, vm_ref):
@@ -339,7 +344,11 @@ class IperfTest:
         log.debug("Starting IPerf client")
         if self.session.xenapi.VM.get_is_control_domain(self.client):
             #Run client via XAPI plugin
-            log.debug("Executing iperf test from Dom0")
+            log.debug("Executing iperf test from Dom0 (%s (%s) --> %s (%s))" % \
+                (self.session.xenapi.VM.get_name_label(self.client), 
+                self.client,
+                self.session.xenapi.VM.get_name_label(self.server),
+                self.server))
 
             args = {}
 
