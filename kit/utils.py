@@ -752,13 +752,18 @@ def should_timeout(start, timeout):
     """Method for evaluating whether a time limit has been met"""
     return time.time() - start > float(timeout)
 
-def _get_control_domain_ip(session, vm_ref):
+def _get_control_domain_ip(session, vm_ref, device='xenbr0'):
     """Return the IP address for a specified control domain"""
     if not session.xenapi.VM.get_is_control_domain(vm_ref):
         raise Exception("Specified VM is not a control domain")
 
     host_ref = session.xenapi.VM.get_resident_on(vm_ref)
-    return session.xenapi.host.get_address(host_ref)
+
+    return session.xenapi.host.call_plugin(host_ref, 
+                                          'autocertkit',
+                                          'get_local_device_ip', 
+                                           {'device': device}
+                                           ) 
 
 def wait_for_ip(session, vm_ref, device, timeout=300):
     """Wait for an IP address to be returned (until a given timeout)"""
@@ -772,8 +777,8 @@ def wait_for_ip(session, vm_ref, device, timeout=300):
         return xs_data[key]
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
-        ipaddr = _get_control_domain_ip(session, vm_ref)
-        log.debug("Control domain %s has IP %s" % (vm_ref, ipaddr))
+        ipaddr = _get_control_domain_ip(session, vm_ref, device)
+        log.debug("Control domain %s has IP %s on device %s" % (vm_ref, ipaddr, device))
         return ipaddr
 
     if not device.startswith('eth'):
