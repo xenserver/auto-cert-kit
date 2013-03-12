@@ -916,6 +916,28 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         vm2_ip_eth1 = wait_for_ip(session, vm2_ref, 'eth1')
         log.debug("VM %s has IP %s (iface: eth1)" % (vm2_ref, vm2_ip_eth1))
 
+
+        # Add explicit IP routes to ensure MTU traffic travels
+        # across the correct interface.
+
+        args = {
+                'vm_ref': vm1_ref,
+                'dest_ip': vm2_ip_eth1,
+                'device': 'eth1',
+               }   
+        
+        call_ack_plugin(session, 'add_route', args)
+
+        args = {
+                'vm_ref': vm2_ref,
+                'dest_ip': vm1_ip_eth1,
+                'device': 'eth1',
+               }   
+        
+        call_ack_plugin(session, 'add_route', args)
+
+
+
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session, vm_ref)
 
@@ -927,6 +949,10 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         
         log.debug("Starting large MTU ping test...")
 
+        log.debug("Attempt normal ping first...")
+        ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1')
+
+        log.debug("Moving onto large MTU ping...")
         log.debug("Ping Arguments: %s" % self.PING_ARGS)
         #set ping args and run cmd
         ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1', self.PING_ARGS['packet_size'], self.PING_ARGS['packet_count'])
