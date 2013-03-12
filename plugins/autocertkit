@@ -698,7 +698,15 @@ def set_network_backend(session, args):
 def iperf_test(session, args):
     """Run iperf in client mode against a provided target host"""
     dst_host = validate_exists(args, 'dst')
+    vm_ref = validate_exists(args, 'vm_ref')
     #params = validate_exists(args, 'params')
+
+    this_host_uuid = get_from_xensource_inventory('INSTALLATION_UUID')
+    host_ref = session.xenapi.VM.get_resident_on(vm_ref)
+    if session.xenapi.host.get_uuid(host_ref) != this_host_uuid:
+        return session.xenapi.host.call_plugin(host_ref, 'autocertkit',
+                                                'iperf_test',
+                                                args)
 
     window_size = validate_exists(args, 'window_size', False)
     format = validate_exists(args, 'format', False)
@@ -754,6 +762,18 @@ def add_route(session, args):
     log.debug("add_route %s %s %s" % (vm_ref, device, dest_ip))
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
+
+        # Check if we need to relay this call to another host
+        # in the pool.
+
+        this_host_uuid = get_from_xensource_inventory('INSTALLATION_UUID')
+        host_ref = session.xenapi.VM.get_resident_on(vm_ref)
+        if session.xenapi.host.get_uuid(host_ref) != this_host_uuid:
+            return session.xenapi.host.call_plugin(host_ref, 'autocertkit',
+                                                    'add_route',
+                                                    args)
+
+        bridge = device.replace('eth', 'xenbr')
         # Handle the case that we are dealing with Dom0
         # 1. Setup the correct routing entry in Dom0's routing table
     
@@ -762,7 +782,7 @@ def add_route(session, args):
                 "add", 
                 "%s/32" % dest_ip,
                 "dev", 
-                device]
+                bridge]
 
     else:
         # Handle the case we are adding a route to a VM
@@ -776,6 +796,21 @@ def add_route(session, args):
                 device]
 
     return make_local_call(call)
+
+
+@log_exceptions
+def remove_route(session, args):
+    """Remove an IP route that has been setup"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    dest_ip = validate_exists(args, 'dest_ip')
+
+    if session.xenapi.VM.get_is_control_domain(vm_ref):
+        call = [IP, 'route', 'del', dest_ip]
+        make_local_call(call)
+    else:
+        raise Exception("Not yet supported")
+
+    return "OK"
 
 @log_exceptions
 def reset_arp(session, args):
@@ -1154,6 +1189,11 @@ def process_running(process_name):
             return True
     return False
 
+def kill_processes(process_name):
+    process_list = make_local_call(['pgrep', process_name]).split('\n')
+    for process in process_list:
+        make_local_call(['kill', '-9', process])
+
 def mark_local_pif_for_cleanup(session, device):
     # Undo any transformations between bridges/devices that may
     # have taken place already
@@ -1275,7 +1315,8 @@ def start_iperf_server(session, args):
     
     server_ip, _ = configure_server_ip(session, device_name, ip_addr, ip_netmask)
 
-    
+    kill_processes('iperf')
+     
     # Check for iperfs existence
     if not process_running(IPERF):
         log.debug("Iperf is not running - start process")
@@ -1307,8 +1348,7 @@ def start_iperf_server(session, args):
         log.debug("Iperf server started")
         return "OK"
     else:
-        log.debug("Iperf server already running")
-        return "Already Started"
+        raise Exception("ERR: did not kill all iperf processes")
 
 if __name__ == '__main__':
     XenAPIPlugin.dispatch({'get_hw_offloads': get_hw_offloads,
@@ -1333,6 +1373,7 @@ if __name__ == '__main__':
                            'create_output_package': create_output_package,
                            'start_iperf_server': start_iperf_server,
                            'add_route': add_route,
+                           'remove_route': remove_route,
                            'reset_arp': reset_arp,
                            'get_local_device_ip': get_local_device_ip,
                            'inject_ssh_key': inject_ssh_key
