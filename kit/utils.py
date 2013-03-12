@@ -928,8 +928,30 @@ def pool_wide_vm_cleanup(session, tag):
     """Searches for VMs with a cleanup tag, and destroys"""
     vms = session.xenapi.VM.get_all()
     for vm in vms:
-        if tag in session.xenapi.VM.get_other_config(vm):
+        oc = session.xenapi.VM.get_other_config(vm)
+        if tag in oc:
             destroy_vm(session, vm)
+            continue
+
+        if session.xenapi.VM.get_is_control_domain(vm):
+            # Cleanup any routes that are lying around
+            keys_to_clean = []
+            for k, v in oc.iteritems():
+                if k.startswith('route_clean_'):
+                    # Call plugin
+                    call_ack_plugin(session, 'remove_route',
+                                    {
+                                        'vm_ref': vm,
+                                        'dest_ip': v,
+                                    })
+                    keys_to_clean.append(k)
+            
+            if keys_to_clean:
+                for key in keys_to_clean:
+                    del oc[key]
+
+                session.xenapi.VM.set_other_config(vm, oc)
+
 
 def pool_wide_network_cleanup(session, tag):
     """Searches for networks with a cleanup tag, and
