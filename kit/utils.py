@@ -1403,6 +1403,9 @@ def xml_to_dicts(xml, tag):
 
 def call_ack_plugin(session, method, args={}):
     host = get_pool_master(session)
+    log.debug("About to call plugin '%s' on host '%s' with args '%s'" % \
+                (method, host, args))
+                
     return session.xenapi.host.call_plugin(host,
                                            'autocertkit',
                                            method,
