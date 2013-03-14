@@ -1361,7 +1361,9 @@ def _get_local_device(device_name):
     else:
         log.error("Did not find MAC for '%s'" % device_name)
 
-    return Iface(rec)
+    iface = Iface(rec)
+    log.debug("Got Iface: %s" % iface.to_rec())
+    return iface
 
 
 def configure_local_device_ip(session, device_name, ip_addr, ip_netmask):
