@@ -1238,25 +1238,51 @@ def mark_local_pif_for_cleanup(session, device):
 
     raise Exception("Error: unable to find PIF for '%s' in '%s'" %
                     (device, pifs))
+
+def run_dhclient(device):
+    """Run dhclient on a specified interface. If a process already
+    exists, then also take care of killing that process and starting
+    dhclient up on the specified device again."""
+
+    call = [PS, 'aux']
+    processes = make_local_call(call).split('\n')
+
+    for process in processes:
+        if "dhclient %s" % device in process:
+            log.debug(process)
+            arr = process.split()
+            pid = arr[1]
+            make_local_call([KILL, '-9', pid])
+
+    call = [DHCLIENT, device]
+    res = make_local_call(call)
+
+
+    return res
+
    
-def configure_local_device_ip(session, device, ip_addr, ip_netmask):
+def _configure_local_device_ip(session, device, ip_addr, ip_netmask):
+    log.debug("Configure local device IP: (%s) (%s) (%s)" % (device,
+                                                             ip_addr,
+                                                             ip_netmask))
     # Mark the PIF as needing cleaning up
     mark_local_pif_for_cleanup(session, device) 
     
     if not ip_addr or not ip_netmask:
         # DHCP Case
-        call = [DHCLIENT, device]
+        run_dhclient(device)
+
     else:
         # Static Case
         call = [IFCONFIG, device, ip_addr, 'netmask', ip_netmask]
+        make_local_call(call)
 
-    make_local_call(call)
     dev = _get_local_device(device)
 
     if not dev.ip:
-        log.error("Settings Device: %s, IP: %s, Mask: %s" % device,
+        log.error("Settings Device: %s, IP: %s, Mask: %s" % (device,
                                                             dev.ip,
-                                                            dev.mask)
+                                                            dev.mask))
         raise Exception("Error: failed to set IP for '%s'" % device)
 
     return dev
