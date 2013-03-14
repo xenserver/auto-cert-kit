@@ -1364,9 +1364,12 @@ def _get_local_device(device_name):
     return Iface(rec)
 
 
-def configure_server_ip(session, device_name, ip_addr, ip_netmask):
+def configure_local_device_ip(session, device_name, ip_addr, ip_netmask):
     """For the local Dom0, configure a bridge for the particular 
     device name in order to run a service bound to that interface"""
+    log.debug("configure_local_device_ip (%s) (%s) (%s)" % (device_name,
+                                                      ip_addr,
+                                                      ip_netmask))
 
     device = device_name.lower()
    
@@ -1377,13 +1380,33 @@ def configure_server_ip(session, device_name, ip_addr, ip_netmask):
     dev = _get_local_device(device)
 
     if not dev.ip or not dev.mask:
-        dev = configure_local_device_ip(session, 
+        dev = _configure_local_device_ip(session, 
                                         device, 
                                         ip_addr, 
                                         ip_netmask)
 
     return dev
 
+@log_exceptions
+def configure_local_device(session, args):  
+    """Configure a local ethernet interface"""
+    device = validate_exists(args, 'device')
+    mode = validate_exists(args, 'mode')
+    log.debug("configure_local_device (%s) (%s)" % (device, mode))
+
+    ip_addr = None
+    ip_netmask = None
+
+    if mode == "static":
+        ip_addr = validate_exists(args, 'ip_addr')
+        ip_netmask = validate_exists(args, 'ip_netmask')
+    else:
+        if mode.lower() != "dhcp":
+            raise Exception("Error: invalid 'mode' '%s'" % mode)
+
+    dev = configure_local_device_ip(session, device, ip_addr, ip_netmask)
+    return "OK"
+    
 @log_exceptions
 def start_iperf_server(session, args):
     """Start up iPerf in sever mode. This command will block - due to how iperf returns
@@ -1404,7 +1427,7 @@ def start_iperf_server(session, args):
         if mode.lower() != "dhcp":
             raise Exception("Error: invalid 'mode' '%s'" % mode)
     
-    dev = configure_server_ip(session, device_name, ip_addr, ip_netmask)
+    dev = configure_local_device_ip(session, device_name, ip_addr, ip_netmask)
 
     kill_processes('iperf')
      
@@ -1466,6 +1489,7 @@ if __name__ == '__main__':
                            'add_route': add_route,
                            'remove_route': remove_route,
                            'reset_arp': reset_arp,
+                           'configure_local_device': configure_local_device,
                            'get_local_device_ip': get_local_device_ip,
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key
