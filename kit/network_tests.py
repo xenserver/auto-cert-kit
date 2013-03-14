@@ -150,12 +150,20 @@ class IperfTest:
         self.plugin_call('add_route',
                    {'vm_ref': self.client,
                     'dest_ip': self.get_server_ip(self.get_device_name(self.server)),
+                    'dest_mac': get_vm_device_mac(self.session,
+                                                  self.server,
+                                                  self.get_device_name(self.server),
+                                                  ),
                     'device': self.get_device_name(self.client)}
                     )
 
         self.plugin_call('add_route',
                     {'vm_ref': self.server,
                     'dest_ip': self.get_client_ip(self.get_device_name(self.client)),
+                    'dest_mac': get_vm_device_mac(self.session,
+                                                  self.client,
+                                                  self.get_device_name(self.client),
+                                                  ),
                     'device': self.get_device_name(self.server)}
                     )
 
@@ -923,6 +931,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         args = {
                 'vm_ref': vm1_ref,
                 'dest_ip': vm2_ip_eth1,
+                'dest_mac': get_vm_device_mac(session, vm2_ref, 'eth1'),
                 'device': 'eth1',
                }   
         
@@ -931,6 +940,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         args = {
                 'vm_ref': vm2_ref,
                 'dest_ip': vm1_ip_eth1,
+                'dest_mac': get_vm_device_mac(session, vm1_ref, 'eth1'),
                 'device': 'eth1',
                }   
         
