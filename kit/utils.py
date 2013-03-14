@@ -1423,8 +1423,9 @@ def xml_to_dicts(xml, tag):
     log.debug(result)
     return result
 
-def call_ack_plugin(session, method, args={}):
-    host = get_pool_master(session)
+def call_ack_plugin(session, method, args={}, host=None):
+    if not host:
+        host = get_pool_master(session)
     log.debug("About to call plugin '%s' on host '%s' with args '%s'" % \
                 (method, host, args))
                 
