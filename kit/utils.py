@@ -365,6 +365,28 @@ class IfaceStats(object):
                                 " in iface statistics record '%s'" % rec) 
                                                            
 
+class Iface(object):
+    """Class representing an ethernet interface"""
+    
+    required_keys = ["ip","mask","mac"]
+
+    def __init__(self, rec):
+        self.validate_rec(rec)
+
+        for k, v in rec.iteritems():
+            setattr(self, k, v)
+
+    def validate_rec(self, rec):
+        for key in self.required_keys:
+            if key not in rec.keys():
+                raise Exception("Error: invalid input rec '%s'" % rec)
+
+    def to_rec(self):
+        rec = {}
+        for key in self.required_keys:
+            rec[key] = getattr(self, key)
+        return rec
+
 ##### Logging setup
 
 log = None
@@ -1419,6 +1441,33 @@ def get_hw_offloads(session, device):
                               {'eth_dev':device})
 
     return xml_to_dicts(xml_res, 'hw_offloads')[0]
+
+def get_dom0_iface_info(session, host_ref, device):
+    xml_res = call_ack_plugin(session, 'get_local_device_info',
+                                        {'device': device},
+                                        host=host_ref)
+
+    device_dict = xml_to_dicts(xml_res, 'devices')[0]
+    return Iface(device_dict)
+
+def get_vm_device_mac(session, vm_ref, device):
+    """For a specified VM, obtain the MAC address of the specified dev"""
+    if session.xenapi.VM.get_is_control_domain(vm_ref):
+        # Handle Dom0 Case
+        log.debug("get_vm_device_mac: VM (%s) device (%s)" % (vm_ref,
+                                                              device))
+        host_ref = session.xenapi.VM.get_resident_on(vm_ref)
+        iface = get_dom0_iface_info(session, host_ref, device)
+        return iface.mac
+    else:
+        # Handle the VM case
+        vifs = session.xenapi.VM.get_VIFs(vm_ref)
+        for vif in vifs:
+            vif_rec = session.xenapi.VIF.get_record(vif)
+            if vif_rec['device'] == device.replace('eth',''):
+                return vif_rec['MAC']
+        raise Exception("Error: could not find device '%s' for VM '%s'" %
+                        (device, vm_ref))
 
 def get_iface_statistics(session, vm_ref, iface): 
     xml_res = call_ack_plugin(session, 'get_iface_stats',
