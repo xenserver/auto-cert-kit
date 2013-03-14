@@ -79,6 +79,7 @@ IP = "/sbin/ip"
 ARPING = "/sbin/arping"
 DHCLIENT = "/sbin/dhclient"
 IFCONFIG = "/sbin/ifconfig"
+KILL = "/bin/kill"
 SYSCTL = "/sbin/sysctl"
 CAT = "/bin/cat"
 
@@ -1218,8 +1219,14 @@ def process_running(process_name):
 
 def kill_processes(process_name):
     process_list = make_local_call(['pgrep', process_name]).split('\n')
+    log.debug("Process List: %s" % process_list)
+
+    pattern = "\d+"
+    regex = re.compile(pattern)
+
     for process in process_list:
-        make_local_call(['kill', '-9', process])
+        if regex.match(process):
+            make_local_call([KILL, '-9', process])
 
 def mark_local_pif_for_cleanup(session, device):
     # Undo any transformations between bridges/devices that may
