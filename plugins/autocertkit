@@ -374,11 +374,14 @@ def make_local_call(call):
     process = subprocess.Popen(call, stdout=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode == 0:
+        res = str(stdout).strip()
         return str(stdout).strip()
     else:
         msg = "ERR: Could not make local call %s" % ' '.join(call)
         log.error(msg)
-        return msg
+        log.debug("stdout: %s"  % str(stdout))
+        log.debug("stderr: %s" % str(stderr))
+        return str(stdout).strip()
 
 def validate_xml_key(key):
     """Check that a key will be acceptable for an XML attribute
@@ -911,6 +914,7 @@ def get_iface_stats(session, args):
             # Execute call locally
             call = [CAT, '/proc/net/dev']
             data = make_local_call(call)
+            log.debug("Net Stats: %s" % data)
 
         else:
             # Proxy the command to the correct host
@@ -1379,6 +1383,8 @@ def start_iperf_server(session, args):
 
     device_name = validate_exists(args, 'device')
     mode = validate_exists(args, 'mode')
+
+    log.debug("start_iperf_server (%s) (%s)" % (device_name, mode))
 
     ip_addr = None
     ip_netmask = None
