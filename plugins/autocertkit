@@ -82,6 +82,7 @@ IFCONFIG = "/sbin/ifconfig"
 KILL = "/bin/kill"
 SYSCTL = "/sbin/sysctl"
 CAT = "/bin/cat"
+PS = "/bin/ps"
 
 ##### Logging setup
 
