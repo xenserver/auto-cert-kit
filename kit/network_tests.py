@@ -318,10 +318,10 @@ class IperfTest:
             else:
                 args['mode'] = 'dhcp'
 
-            self.session.xenapi.host.call_plugin(host_ref, 
-                           'autocertkit', 
+            call_ack_plugin(self.session,
                            'start_iperf_server', 
-                            args)
+                            args,
+                            host=host_ref)
         else:
             m_ip_address = self.get_server_ip('eth0')
             test_ip = self.get_server_ip()
