@@ -170,6 +170,7 @@ class IperfTest:
     def run(self):
         """This classes run test function"""
         self.deploy_iperf()
+        self.configure_client_ip()
         self.run_iperf_server()
         log.debug("IPerf deployed and server started")
 
@@ -271,6 +272,33 @@ class IperfTest:
 
         # Make plugin call to get statistics
         return get_iface_statistics(self.session, vm_ref, device_name)
+
+    def configure_client_ip(self):
+        return self.configure_vm_ip(self.client)
+
+    def configure_vm_ip(self, vm_ref):
+        """Make sure that the client has an IP, which may not be the case
+        if we are dealing with Dom0 to Dom0 tests."""
+        log.debug("configure_client_ip")
+        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
+            log.debug("Client VM is Dom0... setup IP on bridge")
+            args = {'device': self.get_device_name(vm_ref)}
+
+            if self.static_manager:
+                args['mode'] = 'static'
+                ip = self.static_manager.get_ip()
+                args['ip_addr'] = ip.addr
+                args['ip_netmask'] = ip.netmask
+            else:
+                args['mode'] = 'dhcp'
+            
+            host_ref = self.session.xenapi.VM.get_resident_on(vm_ref)
+            call_ack_plugin(self.session,
+                            'configure_local_device',
+                            args,
+                            host=host_ref)
+        else:
+            log.debug("Client VM is a droid VM, no need to configure an IP")
 
 
     def run_iperf_server(self):
