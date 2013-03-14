@@ -143,6 +143,12 @@ class Iface(object):
         for key in self.required_keys:
             if key not in rec.keys():
                 raise Exception("Error: invalid input rec '%s'" % rec)
+
+    def to_rec(self):
+        rec = {}
+        for key in self.required_keys:
+            rec[key] = getattr(self, key)
+        return rec
         
 
 ##### Argument validation
@@ -1256,6 +1262,18 @@ def configure_local_device_ip(session, device, ip_addr, ip_netmask):
     return dev
 
 @log_exceptions
+def get_local_device_info(session, args):
+    device = validate_exists(args, 'device')
+
+    # We only deal with MAC addresses on the bridge level
+    # so swap out instances of eth for xenbr
+    device = device.replace('eth', 'xenbr')
+
+    log.debug("get_local_device_info for %s" % device)
+    dev = _get_local_device(device)
+    return to_xml(dev.to_rec(), 'devices')
+
+@log_exceptions
 def get_local_device_ip(session, args):
     device = validate_exists(args, 'device')
 
@@ -1409,5 +1427,6 @@ if __name__ == '__main__':
                            'remove_route': remove_route,
                            'reset_arp': reset_arp,
                            'get_local_device_ip': get_local_device_ip,
+                           'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key
                            })
