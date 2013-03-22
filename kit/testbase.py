@@ -31,6 +31,7 @@
 """Module for base test clasess from which test cases are derived"""
 
 import traceback
+import re
 from utils import *
 log = get_logger('auto-cert-kit')
 
@@ -181,37 +182,59 @@ class TestClass(object):
 
     def generate_static_net_conf(self):
         log.debug("Config: %s" % self.config)
-        iface = self.config['device_config']['Kernel_name']
         netconf = self.get_netconf()
+        log.debug("Netconf: %s" % netconf)
+        netid_rec = {}
+        for iface, rec in netconf.iteritems():
+            if iface.startswith('eth'):
+                log.debug("Rec: %s" % rec)
+                nid = rec['network_id']
 
-        net_id = netconf[iface]['network_id']
-        vlans = self.get_vlans(iface)
+                # Required for initialisation
+                if nid not in netid_rec:
+                    netid_rec[nid] = []
+
+                # Append interface on that network id
+                netid_rec[nid].append(iface)
 
         res = {}
+        regex = re.compile(r'static_(?P<netid>\d+)_(?P<vlan>\d+)')
+
         # Iterate through the network config structure to 
         # see if we have any static managers to initialise.
         for k, v in self.get_netconf().iteritems():
             # We only care about vlans on the physical network ID this test is running on
-            if k.startswith('static_%s' % net_id):
-                vlan = k.split('_')[2]
-                print "value: %s" % v
-                #rec = eval(v)
-                log.debug("Static Config Record %s: %s" % (k, v))
+
+            match = regex.search(k)
+            if match:
+                network_id = match.group('netid')
+                vlan = match.group('vlan')
+                log.debug("Static Config Record for Netid %s and Vlan %s" % \
+                            (network_id, vlan))
                 sm = StaticIPManager(v)
-                # Ensure we are never overwriting something
-                assert(vlan not in res.keys())
-                res[vlan] = sm
+
+                # We must assign this static manager to all of the network references
+                # which have the netid that has been specified.
+                for iface in netid_rec[int(network_id)]:
+                    log.debug("Create config for %s (%s)" % (iface, vlan))
+                    network_ref = get_network_by_device(self.session, iface)
+                    key_name = "%s_%s" % (network_ref, vlan)
+                    assert(key_name not in res.keys())
+                    res[key_name] = sm
+                    log.debug("Added static conf for '%s'" % key_name)
+
         
         self.static_managers = res
         log.debug("Static Managers Created: %s" % self.static_managers)
 
-    def get_static_manager(self, vlan='0'):
+    def get_static_manager(self, network_ref, vlan='0'):
         """By default, return the zero'th VLAN static ip manager
         if it exists, otherwise just return None."""
         log.debug("get_static_manager recs: %s" % self.static_managers)
         #Explicit cast to string
-        if str(vlan) in self.static_managers.keys():
-            return self.static_managers[str(vlan)]
+        key = "%s_%s" % (network_ref, vlan)
+        if key in self.static_managers.keys():
+            return self.static_managers[key]
         else:
             return None
 
