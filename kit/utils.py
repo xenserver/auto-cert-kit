@@ -656,6 +656,16 @@ def get_pifs_by_device(session, device, hosts=[]):
                         can be found on host(s) %s""" % 
                         (device, hosts))
 
+def get_network_by_device(session, device):
+    pifs = get_pifs_by_device(session, device)
+    network_refs = []
+    for pif in pifs:
+        ref = session.xenapi.PIF.get_network(pif)
+        if ref not in network_refs:
+            network_refs.append(ref)
+    assert(len(network_refs) == 1)
+    return network_refs.pop()
+
 def filter_pif_devices(session, devices):
     """Return non management devices from the set of devices
     defined by a user."""
