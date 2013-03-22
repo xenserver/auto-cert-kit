@@ -60,7 +60,7 @@ class PerfTestClass(testbase.CPUTestClass):
                                               host_ref, 
                                               [net_ref], 
                                               self.vm_count,
-                                              {net_ref: self.get_static_manager()})
+                                              {net_ref: self.get_static_manager(net_ref)})
         
     def _call_plugin(self, session, vm_ref_list, call):
         """Generic plugin call modified for this test class"""
