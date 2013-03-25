@@ -666,6 +666,23 @@ def get_network_by_device(session, device):
     assert(len(network_refs) == 1)
     return network_refs.pop()
 
+def get_device_by_network(session, network):
+    pifs = session.xenapi.network.get_PIFs(network)
+    devices = []
+    for pif in pifs:
+        device = session.xenapi.PIF.get_device(pif)
+        if device not in devices:
+            devices.append(device)
+
+    if not devices:
+        raise Exception("Error: no PIFs for network %s" % network)
+
+    if len(devices) > 1:
+        raise Exception("Error: assertion that a network is made up of " \
+                        + "devices with the same name fails. (%s)" % devices)
+
+    return devices.pop()
+
 def filter_pif_devices(session, devices):
     """Return non management devices from the set of devices
     defined by a user."""

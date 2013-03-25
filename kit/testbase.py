@@ -207,21 +207,21 @@ class TestClass(object):
 
             match = regex.search(k)
             if match:
-                network_id = match.group('netid')
+                network_id = int(match.group('netid'))
                 vlan = match.group('vlan')
-                log.debug("Static Config Record for Netid %s and Vlan %s" % \
+                log.debug("Static Config Record for Netid %d and Vlan %s" % \
                             (network_id, vlan))
                 sm = StaticIPManager(v)
 
                 # We must assign this static manager to all of the network references
                 # which have the netid that has been specified.
-                for iface in netid_rec[int(network_id)]:
-                    log.debug("Create config for %s (%s)" % (iface, vlan))
-                    network_ref = get_network_by_device(self.session, iface)
-                    key_name = "%s_%s" % (network_ref, vlan)
-                    assert(key_name not in res.keys())
-                    res[key_name] = sm
-                    log.debug("Added static conf for '%s'" % key_name)
+                if network_id in netid_rec.keys():    
+                    for iface in netid_rec[network_id]:
+                        log.debug("Create static config for %s (%s)" % (iface, vlan))
+                        key_name = "%s_%s" % (iface, vlan)
+                        assert(key_name not in res.keys())
+                        res[key_name] = sm
+                        log.debug("Added static conf for '%s'" % key_name)
 
         
         self.static_managers = res
@@ -230,9 +230,12 @@ class TestClass(object):
     def get_static_manager(self, network_ref, vlan='0'):
         """By default, return the zero'th VLAN static ip manager
         if it exists, otherwise just return None."""
-        log.debug("get_static_manager recs: %s" % self.static_managers)
-        #Explicit cast to string
-        key = "%s_%s" % (network_ref, vlan)
+        log.debug("get_static_manager: %s %s" % (network_ref, vlan))
+        log.debug("All static recs: %s" % self.static_managers)
+
+        iface = get_device_by_network(self.session, network_ref)
+    
+        key = "%s_%s" % (iface, vlan)
         if key in self.static_managers.keys():
             return self.static_managers[key]
         else:
