@@ -45,6 +45,10 @@ import os
 import base64
 import threading
 
+K = 1024
+M = 1024 * K
+G = 1024 * M
+
 DROID_VM = 'droid_vm'
 DEFAULT_PASSWORD = 'citrix'
 FOR_CLEANUP = "for_cleanup"
@@ -348,7 +352,7 @@ class IfaceStats(object):
        with an ethernet interface"""
 
     # List of keys depended on by callers
-    required_keys = ['rx_bytes', 'tx_bytes']
+    required_keys = ['rx_bytes', 'tx_bytes', 'arch']
 
     def __init__(self,iface, rec):
         setattr(self, 'iface', iface)
@@ -356,14 +360,107 @@ class IfaceStats(object):
        
         # Load all key/values into the class as attributes 
         for k,v in rec.iteritems():
-            setattr(self, k, int(v))
+            try:
+                setattr(self, k, int(v))
+            except ValueError:
+                setattr(self, k, str(v))
 
     def validate_args(self, rec):
+        rec_keys = rec.keys()
         for key in self.required_keys:
-            if key not in rec.keys():
+            if key not in rec_keys:
                 raise Exception("Error: could not find key '%s'" % key + \
                                 " in iface statistics record '%s'" % rec) 
-                                                           
+
+def is_64_bit(arch):
+    """Check if platform type is 64 bit"""
+    return arch in ['x86_64']
+
+def value_in_range(value, min_v, max_v):
+    """Establish whether a value lies between two numbers"""
+    return value >= min_v and value <= max_v
+
+def wrapped_value_in_range(value, min_v, max_v, wrap=4*G):
+    """The value is assumed to be wrapped at some point. The function
+    must test whether the value falls within the expected range.
+    e.g. if our range is between 15-25, but we wrap at 20, then the
+    value '4' should be acceptable."""
+
+    if min_v > max_v:
+        raise Exception("Error: min must be greated than max. %d %d" % \
+                        (min_v, max_v))
+
+    if min_v - max_v >= wrap:
+        raise Exception("Error: cannot accurately determine if value " + \
+                        "is in a range that is the space of a wrap")
+
+    # This is a normal comparison opp
+    if max_v < wrap:
+        return value_in_range(value, min_v, max_v)
+
+    if min_v < wrap:
+        # The range spans the wrap, there are two ranges we need
+        # to check:
+        #
+        # 0------------y--------w
+        # 0----z-----------------
+        # We must check whether:
+        #
+        #  y > value < w or 0 > value > z
+
+        pre_range = value_in_range(value, min_v, wrap)
+        post_range = value_in_range(value, 0, max_v % wrap)
+
+        if pre_range or post_range:
+            # Value must lie in correct range.
+            return True
+
+    if min_v > wrap:
+        return value_in_range(value, min_v % wrap, max_v % wrap)
+
+    return False
+
+class IperfTestStatsValidator(object):
+
+    threshold = 100 * M
+    
+    def __init__(self, pre_stats, post_stats):
+        setattr(self, 'pre', pre_stats)
+        setattr(self, 'post', post_stats)
+
+        assert pre_stats.arch == post_stats.arch
+        setattr(self, 'arch', pre_stats.arch)
+
+    def value_in_range(self, value, min_v, max_v):
+        if is_64_bit(self.arch):
+            log.debug("IfaceStats 64bit. (%s)" % self.arch)
+            return value_in_range(value, min_v, max_v)
+        else:
+            log.debug("IfaceStats 32bit. Wrapping. (%s)" % self.arch)
+            return wrapped_value_in_range(value, min_v, max_v, 4*G)
+
+    def wrapped_value_in_range(self, value, min_v, max_v, wrap):
+        return wrapped_value_in_range(value, min_v, max_v, wrap)
+
+    def validate_bytes(self, sent_bytes, attr):
+        pre_bytes = getattr(self.pre, attr)
+        post_bytes = getattr(self.post, attr)
+
+        low_lim = pre_bytes + sent_bytes
+        high_lim = low_lim + self.threshold
+
+        log.debug("pre_bytes = %d" % pre_bytes)
+        log.debug("post_bytes = %d" % post_bytes)
+        log.debug("sent_bytes = %d" % sent_bytes)
+        log.debug("low_lim = %d" % low_lim)
+        log.debug("high_lim = %d" % high_lim)
+        log.debug("threshold = %d" % self.threshold)
+
+        if not self.value_in_range(post_bytes, low_lim, high_lim):
+            raise Exception("Error: mismatch in expected number " + \
+                                " of bytes")
+        return True
+
 
 class Iface(object):
     """Class representing an ethernet interface"""

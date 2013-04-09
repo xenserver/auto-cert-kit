@@ -102,38 +102,13 @@ class IperfTest:
         log.debug("Get Server Stats:")
         server_now_stats = self.get_iface_stats(self.server)
 
-    
-        def test_exp_bytes(start, end, total_transferred):
-            """Helper function for validating whether the correct
-            number of bytes have been transferred. Works within a
-            tollerance due to the fact other traffic might be present.
-            Also need to consider the 4G wrap around on the byte
-            counters stored in /proc/net/dev"""
-            wrap_limit = int(math.pow(2, 32)) #4Gb
-            threshold = 5 * int(math.pow(2,24)) #5mb
+        itsv_cli = IperfTestStatsValidator(client_stats, client_now_stats)
+        itsv_srv = IperfTestStatsValidator(server_stats, server_now_stats)
 
-            low = (start + total_transferred) % wrap_limit
-            high = low + threshold
-
-            res = end > low and end < high
-
-            if not res:
-                log.error("Err: Start '%d' End '%d' Trans '%d' Thres '%d'" % \
-                            (start, end, total_transferred, threshold))
-
-            return res
-         
-        if not test_exp_bytes(client_stats.tx_bytes,
-                              client_now_stats.tx_bytes,
-                              bytes_sent):
-            raise Exception("Mismatch in expected tx bytes on %s" % \
-                            client_stats.iface)
-
-        if not test_exp_bytes(server_stats.rx_bytes,
-                              server_now_stats.rx_bytes,
-                              bytes_sent):
-            raise Exception("Mismatch in expected rx bytes on %s" % \
-                            server_stats.iface)
+        log.debug("Validate Client tx_bytes")
+        itsv_cli.validate_bytes(bytes_sent, 'tx_bytes')
+        log.debug("Validate Server rx_bytes")
+        itsv_srv.validate_bytes(bytes_sent, 'rx_bytes')
 
     def configure_routes(self):
         """Ensure that the routing table is setup correctly in the client"""

@@ -83,6 +83,7 @@ KILL = "/bin/kill"
 SYSCTL = "/sbin/sysctl"
 CAT = "/bin/cat"
 PS = "/bin/ps"
+UNAME = "/bin/uname"
 
 ##### Logging setup
 
@@ -907,6 +908,7 @@ def get_iface_stats(session, args):
     iface_name = validate_exists(args, 'iface')
     log.debug("Iface passed in %s" % iface_name)
     data = None
+    arch = None
     
     if session.xenapi.VM.get_is_control_domain(vm_ref):
         host_ref = session.xenapi.VM.get_resident_on(vm_ref)
@@ -917,6 +919,8 @@ def get_iface_stats(session, args):
             call = [CAT, '/proc/net/dev']
             data = make_local_call(call)
             log.debug("Net Stats: %s" % data)
+            call = [UNAME, '-i']
+            arch = make_local_call(call)
 
         else:
             # Proxy the command to the correct host
@@ -938,8 +942,15 @@ def get_iface_stats(session, args):
 
         data = make_local_call(call)
 
+        call = [SSH, vm_m_ip, UNAME, '-i']
+        log.debug("About to make SSH call: %s" % call)
+        arch = make_local_call(call)
+
     if not data:
         log.error("Error: no data obtained from calls")
+
+    if not arch:
+        log.error("Error: no arch obtained from calls")
 
     rec = parse_proc_net_dev(data)
 
@@ -948,6 +959,12 @@ def get_iface_stats(session, args):
                     (iface_name, rec.keys()))
 
     device_stats = rec[iface_name]
+
+    # Pass on arch info so that client can work around the wrap enforced
+    # with a 32bit bytes counter.
+    device_stats['arch'] = arch
+
+    log.debug("Device Stats: %s %s" % (vm_ref, device_stats))
 
     return to_xml(device_stats, 'iface_stats') 
 
