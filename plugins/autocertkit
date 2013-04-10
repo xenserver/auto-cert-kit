@@ -776,7 +776,7 @@ def reset_arp(session, args):
 
         # Determine the host reference
         host_ref = session.xenapi.VM.get_resident_on(vm_ref)
-        pifs = session.xenapi.VM.get_PIFs(host_ref)
+        pifs = session.xenapi.host.get_PIFs(host_ref)
         for pif in pifs:
             device = session.xenapi.PIF.get_device(pif)
         
