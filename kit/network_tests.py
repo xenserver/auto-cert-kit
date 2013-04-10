@@ -34,6 +34,7 @@ import testbase
 from utils import *
 import os.path
 import sys
+import math
 
 log = get_logger('auto-cert-kit')
 
@@ -47,11 +48,20 @@ class IperfTest:
                       'buffer_length': '256K',
                       'thread_count': '1'}
 
-    def __init__(self, session, client_vm_ref, server_vm_ref, username='root', 
-                 password=DEFAULT_PASSWORD, config=None):
+    def __init__(self, session, 
+                       client_vm_ref, 
+                       server_vm_ref, 
+                       network_ref,
+                       static_manager,
+                       username='root', 
+                       password=DEFAULT_PASSWORD, 
+                       config=None):
+
         self.session = session
         self.server = server_vm_ref
         self.client = client_vm_ref
+        self.network = network_ref
+        self.static_manager = static_manager
         self.username = username
         self.password = password
 
@@ -74,25 +84,116 @@ class IperfTest:
 
         if self.session.xenapi.VM.get_is_control_domain(self.server):
             raise Exception("Expecting Dom0 to be the client, not the server")
+
+    def record_stats(self):
+        """Record the interface statistics before running any tests"""
+        self.stats_rec = {self.client: self.get_iface_stats(self.client),
+                          self.server: self.get_iface_stats(self.server)}
+
+
+    def validate_stats(self, bytes_sent):
+        # Load previous
+        client_stats = self.stats_rec[self.client]
+        server_stats = self.stats_rec[self.server]
+
+        # Obtain current
+        log.debug("Get Client Stats:")
+        client_now_stats = self.get_iface_stats(self.client)
+        log.debug("Get Server Stats:")
+        server_now_stats = self.get_iface_stats(self.server)
+
+        itsv_cli = IperfTestStatsValidator(client_stats, client_now_stats)
+        itsv_srv = IperfTestStatsValidator(server_stats, server_now_stats)
+
+        log.debug("Validate Client tx_bytes")
+        itsv_cli.validate_bytes(bytes_sent, 'tx_bytes')
+        log.debug("Validate Server rx_bytes")
+        itsv_srv.validate_bytes(bytes_sent, 'rx_bytes')
+
+    def configure_routes(self):
+        """Ensure that the routing table is setup correctly in the client"""
+        log.debug("Configuring routes...")
+
+        # Make a plugin call to ensure the server is going to recieve
+        # packets over the correct interface
+
+        self.plugin_call('reset_arp',
+                    {'vm_ref': self.server,
+                    })
         
+        # Make a plugin call to add a route to the client
+        self.plugin_call('add_route',
+                   {'vm_ref': self.client,
+                    'dest_ip': self.get_server_ip(self.get_device_name(self.server)),
+                    'dest_mac': get_vm_device_mac(self.session,
+                                                  self.server,
+                                                  self.get_device_name(self.server),
+                                                  ),
+                    'device': self.get_device_name(self.client)}
+                    )
+
+        self.plugin_call('add_route',
+                    {'vm_ref': self.server,
+                    'dest_ip': self.get_client_ip(self.get_device_name(self.client)),
+                    'dest_mac': get_vm_device_mac(self.session,
+                                                  self.client,
+                                                  self.get_device_name(self.client),
+                                                  ),
+                    'device': self.get_device_name(self.server)}
+                    )
+
     def run(self):
         """This classes run test function"""
         self.deploy_iperf()
+        self.configure_client_ip()
         self.run_iperf_server()
         log.debug("IPerf deployed and server started")
+
+        # Configure routes
+        self.configure_routes()
+
+        # Capture interface statistics pre test run
+        self.record_stats()
 
         iperf_test_inst = TimeoutFunction(self.run_iperf_client, 
                                           self.timeout,
                                           'iPerf test timed out %d' % self.timeout)
 
-        return iperf_test_inst()
+        # Run the iperf tests
+        iperf_data = iperf_test_inst()
+    
+        # Capture interface statistcs post test run
+        bytes_transferred = int(iperf_data['transfer'])
+        self.validate_stats(bytes_transferred)
+
+        return iperf_data
 
     ############# Utility Functions used by Class ###############
-    def get_server_ip(self, iface='eth0'):
-        return wait_for_ip(self.session, self.server, iface)
+    def get_server_ip(self, iface=None):
+        # By default return the interface the server will be listening on
+
+        if not iface:
+            iface = self.get_device_name(self.server)
+
+        if self.session.xenapi.VM.get_is_control_domain(self.server):
+            # Handle Dom0 Case
+            host_ref = self.session.xenapi.VM.get_resident_on(self.server)
+            ip = self.session.xenapi.host.call_plugin(host_ref,
+                                                      'autocertkit',
+                                                      'get_local_device_ip',
+                                                      {'device':iface})
+            return ip
+
+        else:
+            # Handle DroidVM Case
+            return wait_for_ip(self.session, self.server, iface)
 
     def get_client_ip(self, iface='eth0'):
-        return wait_for_ip(self.session, self.client, iface)
+        ip = wait_for_ip(self.session, self.client, iface)
+        log.debug("Client (%s) IP for '%s' is '%s'" % (self.client,
+                                                       iface,
+                                                       ip))
+        return ip
 
     def deploy_iperf(self):
         """deploy iPerf on both client and server"""
@@ -105,6 +206,77 @@ class IperfTest:
         deploy(self.client)
         deploy(self.server)
 
+    def get_device_name(self, vm_ref): 
+        vm_host = self.session.xenapi.VM.get_resident_on(vm_ref)
+
+        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
+            # Handle the Dom0 case
+            pifs = self.session.xenapi.network.get_PIFs(self.network)
+            device_names = []
+            for pif in pifs:
+                host_ref = self.session.xenapi.PIF.get_host(pif)
+                if vm_host == host_ref:
+                    device_names.append(self.session.xenapi.PIF.get_device(pif))
+                  
+            if len(device_names) > 1:
+                raise Exception("Error: expected only a single device " + \
+                                "name to be found in PIF list ('%s') " + \
+                                "Instead, '%s' were returned." % 
+                                                (pifs, device_names))
+            device_name = device_names.pop()
+            # For control domains, only deal with bridges
+            device_name = device_name.replace('eth','xenbr')
+
+        else:
+            # Handle the case where we are dealing with a VM
+            vm_vifs = self.session.xenapi.VM.get_VIFs(vm_ref)
+            network_vifs = self.session.xenapi.network.get_VIFs(self.network)
+    
+            int_vifs = intersection(vm_vifs, network_vifs) 
+
+            if len(int_vifs) > 1:
+                raise Exception("Error: more than one VIF connected " + \
+                                "to VM '%s' ('%s')" % (int_vifs, vm_vifs))
+
+            device_name = "eth%s" % \
+                          self.session.xenapi.VIF.get_device(int_vifs.pop())
+
+        log.debug("Device under test for VM %s is '%s'" % (vm_ref, device_name))
+        return device_name 
+    
+    def get_iface_stats(self, vm_ref):
+        device_name = self.get_device_name(vm_ref)
+
+        # Make plugin call to get statistics
+        return get_iface_statistics(self.session, vm_ref, device_name)
+
+    def configure_client_ip(self):
+        return self.configure_vm_ip(self.client)
+
+    def configure_vm_ip(self, vm_ref):
+        """Make sure that the client has an IP, which may not be the case
+        if we are dealing with Dom0 to Dom0 tests."""
+        log.debug("configure_client_ip")
+        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
+            log.debug("Client VM is Dom0... setup IP on bridge")
+            args = {'device': self.get_device_name(vm_ref)}
+
+            if self.static_manager:
+                args['mode'] = 'static'
+                ip = self.static_manager.get_ip()
+                args['ip_addr'] = ip.addr
+                args['ip_netmask'] = ip.netmask
+            else:
+                args['mode'] = 'dhcp'
+            
+            host_ref = self.session.xenapi.VM.get_resident_on(vm_ref)
+            call_ack_plugin(self.session,
+                            'configure_local_device',
+                            args,
+                            host=host_ref)
+        else:
+            log.debug("Client VM is a droid VM, no need to configure an IP")
+
 
     def run_iperf_server(self):
         """Start the iPerf server listening on a VM"""
@@ -112,13 +284,26 @@ class IperfTest:
         if self.session.xenapi.VM.get_is_control_domain(self.server):
             host_ref = self.session.xenapi.VM.get_resident_on(self.server)
             log.debug("Host ref = %s" % host_ref)
-            self.session.xenapi.host.call_plugin(host_ref, 'autocertkit', 
-                                                 'start_iperf_server', 
-                                                 {})
+
+            args = {'device': self.get_device_name(self.server)}
+
+            if self.static_manager:
+                args['mode'] = 'static'
+                ip = self.static_manager.get_ip()
+                args['ip_addr'] = ip.addr
+                args['ip_netmask'] = ip.netmask
+            else:
+                args['mode'] = 'dhcp'
+
+            call_ack_plugin(self.session,
+                           'start_iperf_server', 
+                            args,
+                            host=host_ref)
         else:
-            ip_address = wait_for_ip(self.session, self.server, 'eth0')
-            cmd_str = "iperf -s -D < /dev/null >&/dev/null"
-            ssh_command(ip_address, self.username, self.password, cmd_str)    
+            m_ip_address = self.get_server_ip('eth0')
+            test_ip = self.get_server_ip()
+            cmd_str = "iperf -s -D -B %s < /dev/null >&/dev/null" % test_ip
+            ssh_command(m_ip_address, self.username, self.password, cmd_str)    
 
     def parse_iperf_line(self, data):
         """Take a CSV line from iperf, parse, returning a dictionary"""
@@ -172,7 +357,11 @@ class IperfTest:
         log.debug("Starting IPerf client")
         if self.session.xenapi.VM.get_is_control_domain(self.client):
             #Run client via XAPI plugin
-            log.debug("Executing iperf test from Dom0")
+            log.debug("Executing iperf test from Dom0 (%s (%s) --> %s (%s))" % \
+                (self.session.xenapi.VM.get_name_label(self.client), 
+                self.client,
+                self.session.xenapi.VM.get_name_label(self.server),
+                self.server))
 
             args = {}
 
@@ -185,7 +374,8 @@ class IperfTest:
             copy('buffer_length')
             copy('thread_count')
             args['dst'] = self.get_server_ip()
-                    
+            args['vm_ref'] = self.client        
+
             result = self.plugin_call('iperf_test', args)
         else:
             #Run the client locally
@@ -238,8 +428,8 @@ class VLANTestClass(testbase.NetworkTestClass):
         # We may want to allocate static addresses to the different interfaces
         # differently, so collect the static ip managers in a record.
         sms = {}
-        sms[management_network_ref] = self.get_static_manager()
-        sms[vlan_network_ref] = self.get_static_manager(vlan=vlan_id)
+        sms[management_network_ref] = self.get_static_manager(management_network_ref)
+        sms[vlan_network_ref] = self.get_static_manager(vlan_network_ref, vlan=vlan_id)
         
         #Deploy two VMs
         vm1_ref, vm2_ref = deploy_two_droid_vms(session, network_refs, sms)
@@ -323,7 +513,7 @@ class BondingTestClass(testbase.NetworkTestClass):
         # for the physical network ID being used.
         sms = {}
         for net_ref in net_refs:
-            sms[net_ref] = self.get_static_manager()
+            sms[net_ref] = self.get_static_manager(net_ref)
 
         return deploy_two_droid_vms(session, net_refs, sms)
         
@@ -390,7 +580,7 @@ class IperfTestClass(testbase.NetworkTestClass):
                   'thread_count': '4'}
 
     required_config = ['device_config']
-    
+    network_for_test = None 
     num_ips_required = 2
 
     mode = "vm-vm"
@@ -398,7 +588,14 @@ class IperfTestClass(testbase.NetworkTestClass):
     def _setup_network(self, session):
         """Utility method for returning the network reference to be used by VMs"""
         management_network_ref = get_management_network(session)
-        return [management_network_ref, self.get_networks()[0]]
+
+        # Pick a network to use for testing that exercises the device
+        # are wanting to test
+        self.network_for_test = self.get_networks()[0]
+
+        log.debug("Network for testing with: %s" % self.network_for_test)
+
+        return [management_network_ref, self.network_for_test]
 
     def _setup_vms(self, session, network_refs):
         """Util function for returning VMs to run IPerf test on,
@@ -408,7 +605,7 @@ class IperfTestClass(testbase.NetworkTestClass):
         # Setup default static manager with the available interfaces    
         sms = {}
         for network_ref in network_refs:
-            sms[network_ref] = self.get_static_manager()
+            sms[network_ref] = self.get_static_manager(network_ref)
 
         return deploy_two_droid_vms(session, network_refs, sms)
 
@@ -418,7 +615,7 @@ class IperfTestClass(testbase.NetworkTestClass):
 
         sms = {}
         for network_ref in network_refs:
-            sms[network_ref] = self.get_static_manager()
+            sms[network_ref] = self.get_static_manager(network_ref)
     
         log.debug("Create droid")
         vm2_ref = deploy_slave_droid_vm(session, network_refs, sms)
@@ -463,7 +660,10 @@ class IperfTestClass(testbase.NetworkTestClass):
         log.debug("About to run iperf test...")
 
         #Run an iperf test - if failure, an exception should be raised.
-        iperf_data = IperfTest(session, client, server, config=self.IPERF_ARGS).run()
+        iperf_data = IperfTest(session, client, server, 
+                                self.network_for_test,
+                                self.get_static_manager(self.network_for_test), 
+                                config=self.IPERF_ARGS).run()
 
         return {'info': 'Test ran successfully',
                 'data': iperf_data,
@@ -702,7 +902,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 
         sms = {}
         for net_ref in net_refs:
-            sms[net_ref] = self.get_static_manager()
+            sms[net_ref] = self.get_static_manager(net_ref)
 
         return deploy_two_droid_vms(session, net_refs, sms)
     
@@ -729,6 +929,30 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         vm2_ip_eth1 = wait_for_ip(session, vm2_ref, 'eth1')
         log.debug("VM %s has IP %s (iface: eth1)" % (vm2_ref, vm2_ip_eth1))
 
+
+        # Add explicit IP routes to ensure MTU traffic travels
+        # across the correct interface.
+
+        args = {
+                'vm_ref': vm1_ref,
+                'dest_ip': vm2_ip_eth1,
+                'dest_mac': get_vm_device_mac(session, vm2_ref, 'eth1'),
+                'device': 'eth1',
+               }   
+        
+        call_ack_plugin(session, 'add_route', args)
+
+        args = {
+                'vm_ref': vm2_ref,
+                'dest_ip': vm1_ip_eth1,
+                'dest_mac': get_vm_device_mac(session, vm1_ref, 'eth1'),
+                'device': 'eth1',
+               }   
+        
+        call_ack_plugin(session, 'add_route', args)
+
+
+
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session, vm_ref)
 
@@ -740,6 +964,10 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         
         log.debug("Starting large MTU ping test...")
 
+        log.debug("Attempt normal ping first...")
+        ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1')
+
+        log.debug("Moving onto large MTU ping...")
         log.debug("Ping Arguments: %s" % self.PING_ARGS)
         #set ping args and run cmd
         ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1', self.PING_ARGS['packet_size'], self.PING_ARGS['packet_count'])

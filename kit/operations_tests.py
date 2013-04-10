@@ -50,7 +50,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
                                               host_ref, 
                                               [net_ref],
                                               self.vm_count,
-                                              {net_ref: self.get_static_manager()})
+                                              {net_ref: self.get_static_manager(net_ref)})
         
     def test_vm_power_control(self, session):
         """Creates a number of VMs and alterates the power
