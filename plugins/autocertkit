@@ -263,7 +263,7 @@ def install_ssh_key(session, vm_ref, username, password):
     fh.close()
 
     # Remove any host key previously installed for the specified IP address
-    call = ["/bin/sed","-i","'/%s/d'" % vm_ip, SSH_HOST_KEYS]
+    call = ["/bin/sed","-i","/%s/d" % vm_ip, SSH_HOST_KEYS]
     make_local_call(call)
 
     cmd1 = ["mkdir", "-p", "/root/.ssh"]
