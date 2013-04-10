@@ -45,6 +45,10 @@ import os
 import base64
 import threading
 
+K = 1024
+M = 1024 * K
+G = 1024 * M
+
 DROID_VM = 'droid_vm'
 DEFAULT_PASSWORD = 'citrix'
 FOR_CLEANUP = "for_cleanup"
@@ -343,6 +347,143 @@ class StaticIPManager(object):
         self.in_use = []
         self.free = free
 
+class IfaceStats(object):
+    """Class object for representing network statistics associated
+       with an ethernet interface"""
+
+    # List of keys depended on by callers
+    required_keys = ['rx_bytes', 'tx_bytes', 'arch']
+
+    def __init__(self,iface, rec):
+        setattr(self, 'iface', iface)
+        self.validate_args(rec)
+       
+        # Load all key/values into the class as attributes 
+        for k,v in rec.iteritems():
+            try:
+                setattr(self, k, int(v))
+            except ValueError:
+                setattr(self, k, str(v))
+
+    def validate_args(self, rec):
+        rec_keys = rec.keys()
+        for key in self.required_keys:
+            if key not in rec_keys:
+                raise Exception("Error: could not find key '%s'" % key + \
+                                " in iface statistics record '%s'" % rec) 
+
+def is_64_bit(arch):
+    """Check if platform type is 64 bit"""
+    return arch in ['x86_64']
+
+def value_in_range(value, min_v, max_v):
+    """Establish whether a value lies between two numbers"""
+    return value >= min_v and value <= max_v
+
+def wrapped_value_in_range(value, min_v, max_v, wrap=4*G):
+    """The value is assumed to be wrapped at some point. The function
+    must test whether the value falls within the expected range.
+    e.g. if our range is between 15-25, but we wrap at 20, then the
+    value '4' should be acceptable."""
+
+    if min_v > max_v:
+        raise Exception("Error: min must be greated than max. %d %d" % \
+                        (min_v, max_v))
+
+    if min_v - max_v >= wrap:
+        raise Exception("Error: cannot accurately determine if value " + \
+                        "is in a range that is the space of a wrap")
+
+    # This is a normal comparison opp
+    if max_v < wrap:
+        return value_in_range(value, min_v, max_v)
+
+    if min_v < wrap:
+        # The range spans the wrap, there are two ranges we need
+        # to check:
+        #
+        # 0------------y--------w
+        # 0----z-----------------
+        # We must check whether:
+        #
+        #  y > value < w or 0 > value > z
+
+        pre_range = value_in_range(value, min_v, wrap)
+        post_range = value_in_range(value, 0, max_v % wrap)
+
+        if pre_range or post_range:
+            # Value must lie in correct range.
+            return True
+
+    if min_v > wrap:
+        return value_in_range(value, min_v % wrap, max_v % wrap)
+
+    return False
+
+class IperfTestStatsValidator(object):
+
+    threshold = 100 * M
+    
+    def __init__(self, pre_stats, post_stats):
+        setattr(self, 'pre', pre_stats)
+        setattr(self, 'post', post_stats)
+
+        assert pre_stats.arch == post_stats.arch
+        setattr(self, 'arch', pre_stats.arch)
+
+    def value_in_range(self, value, min_v, max_v):
+        if is_64_bit(self.arch):
+            log.debug("IfaceStats 64bit. (%s)" % self.arch)
+            return value_in_range(value, min_v, max_v)
+        else:
+            log.debug("IfaceStats 32bit. Wrapping. (%s)" % self.arch)
+            return wrapped_value_in_range(value, min_v, max_v, 4*G)
+
+    def wrapped_value_in_range(self, value, min_v, max_v, wrap):
+        return wrapped_value_in_range(value, min_v, max_v, wrap)
+
+    def validate_bytes(self, sent_bytes, attr):
+        pre_bytes = getattr(self.pre, attr)
+        post_bytes = getattr(self.post, attr)
+
+        low_lim = pre_bytes + sent_bytes
+        high_lim = low_lim + self.threshold
+
+        log.debug("pre_bytes = %d" % pre_bytes)
+        log.debug("post_bytes = %d" % post_bytes)
+        log.debug("sent_bytes = %d" % sent_bytes)
+        log.debug("low_lim = %d" % low_lim)
+        log.debug("high_lim = %d" % high_lim)
+        log.debug("threshold = %d" % self.threshold)
+
+        if not self.value_in_range(post_bytes, low_lim, high_lim):
+            raise Exception("Error: mismatch in expected number " + \
+                                " of bytes")
+        return True
+
+
+class Iface(object):
+    """Class representing an ethernet interface"""
+    
+    required_keys = ["ip","mask","mac"]
+
+    def __init__(self, rec):
+        self.validate_rec(rec)
+
+        for k, v in rec.iteritems():
+            setattr(self, k, v)
+
+    def validate_rec(self, rec):
+        for key in self.required_keys:
+            if key not in rec.keys():
+                raise Exception("Error: invalid input rec '%s'" % rec)
+
+    def to_rec(self):
+        rec = {}
+        for key in self.required_keys:
+            rec[key] = getattr(self, key)
+        return rec
+
 ##### Logging setup
 
 log = None
@@ -612,6 +753,33 @@ def get_pifs_by_device(session, device, hosts=[]):
                         can be found on host(s) %s""" % 
                         (device, hosts))
 
+def get_network_by_device(session, device):
+    pifs = get_pifs_by_device(session, device)
+    network_refs = []
+    for pif in pifs:
+        ref = session.xenapi.PIF.get_network(pif)
+        if ref not in network_refs:
+            network_refs.append(ref)
+    assert(len(network_refs) == 1)
+    return network_refs.pop()
+
+def get_device_by_network(session, network):
+    pifs = session.xenapi.network.get_PIFs(network)
+    devices = []
+    for pif in pifs:
+        device = session.xenapi.PIF.get_device(pif)
+        if device not in devices:
+            devices.append(device)
+
+    if not devices:
+        raise Exception("Error: no PIFs for network %s" % network)
+
+    if len(devices) > 1:
+        raise Exception("Error: assertion that a network is made up of " \
+                        + "devices with the same name fails. (%s)" % devices)
+
+    return devices.pop()
+
 def filter_pif_devices(session, devices):
     """Return non management devices from the set of devices
     defined by a user."""
@@ -730,13 +898,18 @@ def should_timeout(start, timeout):
     """Method for evaluating whether a time limit has been met"""
     return time.time() - start > float(timeout)
 
-def _get_control_domain_ip(session, vm_ref):
+def _get_control_domain_ip(session, vm_ref, device='xenbr0'):
     """Return the IP address for a specified control domain"""
     if not session.xenapi.VM.get_is_control_domain(vm_ref):
         raise Exception("Specified VM is not a control domain")
 
     host_ref = session.xenapi.VM.get_resident_on(vm_ref)
-    return session.xenapi.host.get_address(host_ref)
+
+    return session.xenapi.host.call_plugin(host_ref, 
+                                          'autocertkit',
+                                          'get_local_device_ip', 
+                                           {'device': device}
+                                           ) 
 
 def wait_for_ip(session, vm_ref, device, timeout=300):
     """Wait for an IP address to be returned (until a given timeout)"""
@@ -750,8 +923,8 @@ def wait_for_ip(session, vm_ref, device, timeout=300):
         return xs_data[key]
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
-        ipaddr = _get_control_domain_ip(session, vm_ref)
-        log.debug("Control domain %s has IP %s" % (vm_ref, ipaddr))
+        ipaddr = _get_control_domain_ip(session, vm_ref, device)
+        log.debug("Control domain %s has IP %s on device %s" % (vm_ref, ipaddr, device))
         return ipaddr
 
     if not device.startswith('eth'):
@@ -906,8 +1079,30 @@ def pool_wide_vm_cleanup(session, tag):
     """Searches for VMs with a cleanup tag, and destroys"""
     vms = session.xenapi.VM.get_all()
     for vm in vms:
-        if tag in session.xenapi.VM.get_other_config(vm):
+        oc = session.xenapi.VM.get_other_config(vm)
+        if tag in oc:
             destroy_vm(session, vm)
+            continue
+
+        if session.xenapi.VM.get_is_control_domain(vm):
+            # Cleanup any routes that are lying around
+            keys_to_clean = []
+            for k, v in oc.iteritems():
+                if k.startswith('route_clean_'):
+                    # Call plugin
+                    call_ack_plugin(session, 'remove_route',
+                                    {
+                                        'vm_ref': vm,
+                                        'dest_ip': v,
+                                    })
+                    keys_to_clean.append(k)
+            
+            if keys_to_clean:
+                for key in keys_to_clean:
+                    del oc[key]
+
+                session.xenapi.VM.set_other_config(vm, oc)
+
 
 def pool_wide_network_cleanup(session, tag):
     """Searches for networks with a cleanup tag, and
@@ -1352,8 +1547,12 @@ def xml_to_dicts(xml, tag):
     log.debug(result)
     return result
 
-def call_ack_plugin(session, method, args={}):
-    host = get_pool_master(session)
+def call_ack_plugin(session, method, args={}, host=None):
+    if not host:
+        host = get_pool_master(session)
+    log.debug("About to call plugin '%s' on host '%s' with args '%s'" % \
+                (method, host, args))
+                
     return session.xenapi.host.call_plugin(host,
                                            'autocertkit',
                                            method,
@@ -1368,6 +1567,39 @@ def get_hw_offloads(session, device):
 
     return xml_to_dicts(xml_res, 'hw_offloads')[0]
 
+def get_dom0_iface_info(session, host_ref, device):
+    xml_res = call_ack_plugin(session, 'get_local_device_info',
+                                        {'device': device},
+                                        host=host_ref)
+
+    device_dict = xml_to_dicts(xml_res, 'devices')[0]
+    return Iface(device_dict)
+
+def get_vm_device_mac(session, vm_ref, device):
+    """For a specified VM, obtain the MAC address of the specified dev"""
+    if session.xenapi.VM.get_is_control_domain(vm_ref):
+        # Handle Dom0 Case
+        log.debug("get_vm_device_mac: VM (%s) device (%s)" % (vm_ref,
+                                                              device))
+        host_ref = session.xenapi.VM.get_resident_on(vm_ref)
+        iface = get_dom0_iface_info(session, host_ref, device)
+        return iface.mac
+    else:
+        # Handle the VM case
+        vifs = session.xenapi.VM.get_VIFs(vm_ref)
+        for vif in vifs:
+            vif_rec = session.xenapi.VIF.get_record(vif)
+            if vif_rec['device'] == device.replace('eth',''):
+                return vif_rec['MAC']
+        raise Exception("Error: could not find device '%s' for VM '%s'" %
+                        (device, vm_ref))
+
+def get_iface_statistics(session, vm_ref, iface): 
+    xml_res = call_ack_plugin(session, 'get_iface_stats',
+                                        {'iface':iface,
+                                        'vm_ref': vm_ref})
+    stats_dict = xml_to_dicts(xml_res, 'iface_stats')[0]
+    return IfaceStats(iface, stats_dict)
 
 def set_hw_offload(session, device, offload, state):
     """Call the a XAPI plugin on the pool master to set

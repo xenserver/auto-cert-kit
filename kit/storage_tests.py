@@ -62,7 +62,7 @@ class PerfTestClass(testbase.LocalStorageTestClass):
                                               host_ref, 
                                               [net_ref], 
                                               self.vm_count,
-                                              {net_ref: self.get_static_manager()},
+                                              {net_ref: self.get_static_manager(net_ref)},
                                               sr_ref)
         
     def _call_plugin(self, session, vm_ref_list, call):
