@@ -876,10 +876,10 @@ def reset_arp(session, args):
             bridge_dev = _get_local_device(bridge)
 
             if not bridge_dev.ip:
-                raise Exception("Error: cannot find IP for bridge %s" % bridge)
-
-            call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_dev.ip]
-            make_local_call(call)
+                log.debug("Error: cannot find IP for bridge %s" % bridge)
+            else:
+                call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_dev.ip]
+                make_local_call(call)
         
     else:
         # Handle the Droid VM case
