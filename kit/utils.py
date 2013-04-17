@@ -422,7 +422,8 @@ def wrapped_value_in_range(value, min_v, max_v, wrap=4*G):
 
 class IperfTestStatsValidator(object):
 
-    threshold = 100 * M
+    warn_threshold = 5
+    error_threshold = 10
     
     def __init__(self, pre_stats, post_stats):
         setattr(self, 'pre', pre_stats)
@@ -447,14 +448,19 @@ class IperfTestStatsValidator(object):
         post_bytes = getattr(self.post, attr)
 
         low_lim = pre_bytes + sent_bytes
-        high_lim = low_lim + self.threshold
+        warn_lim = low_lim + (sent_bytes / 100) * self.warn_threshold
+        high_lim = low_lim + (sent_bytes / 100) * self.error_threshold
 
         log.debug("pre_bytes = %d" % pre_bytes)
         log.debug("post_bytes = %d" % post_bytes)
         log.debug("sent_bytes = %d" % sent_bytes)
         log.debug("low_lim = %d" % low_lim)
+        log.debug("warn_lim = %d" % warn_lim)
         log.debug("high_lim = %d" % high_lim)
-        log.debug("threshold = %d" % self.threshold)
+
+        if not self.value_in_range(post_bytes, low_lim, warn_lim):
+            log.debug("Warning: limit not within warning range. (%d)" % \
+                     self.warn_threshold)
 
         if not self.value_in_range(post_bytes, low_lim, high_lim):
             raise Exception("Error: mismatch in expected number " + \
