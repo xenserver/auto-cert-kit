@@ -876,10 +876,10 @@ def reset_arp(session, args):
             bridge_dev = _get_local_device(bridge)
 
             if not bridge_dev.ip:
-                raise Exception("Error: cannot find IP for bridge %s" % bridge)
-
-            call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_dev.ip]
-            make_local_call(call)
+                log.debug("Error: cannot find IP for bridge %s" % bridge)
+            else:
+                call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_dev.ip]
+                make_local_call(call)
         
     else:
         # Handle the Droid VM case
@@ -1273,18 +1273,23 @@ def run_dhclient(device):
     exists, then also take care of killing that process and starting
     dhclient up on the specified device again."""
 
+    cmd = [DHCLIENT, "-q", "-lf", 
+           "/var/lib/dhclient/dhclient-%s.leases" % device,
+           "-pf", "/var/run/dhclient-%s.pid" % device, device]
+
+    cmd_str = " ".join(cmd)
+
     call = [PS, 'aux']
     processes = make_local_call(call).split('\n')
 
     for process in processes:
-        if "dhclient %s" % device in process:
+        if cmd_str in process:
             log.debug(process)
             arr = process.split()
             pid = arr[1]
             make_local_call([KILL, '-9', pid])
 
-    call = [DHCLIENT, device]
-    res = make_local_call(call)
+    res = make_local_call(cmd)
 
 
     return res

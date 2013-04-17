@@ -118,6 +118,10 @@ class IperfTest:
         # packets over the correct interface
 
         self.plugin_call('reset_arp',
+                    {'vm_ref': self.client,
+                    })
+
+        self.plugin_call('reset_arp',
                     {'vm_ref': self.server,
                     })
         
