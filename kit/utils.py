@@ -367,6 +367,9 @@ def configure_logging(name):
 if not log:
     log = configure_logging('auto-cert-kit')
 
+def foo(x):
+	return x + 1
+
 def get_logger(name):
     """Method to return instance of logger"""
     return logging.getLogger(name)
