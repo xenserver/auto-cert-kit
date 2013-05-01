@@ -769,10 +769,30 @@ def get_network_by_device(session, device):
     assert(len(network_refs) == 1)
     return network_refs.pop()
 
-def get_device_by_network(session, network):
+def get_physical_devices_by_network(session, network):
+    """Taking a network, enumerate the list of physical devices attached 
+    to each component PIF. This may require some unwrapping (e.g. bonds)
+    to determine all the consituent physical PIFs."""
+   
+    def get_physical_pifs(session, pifs):
+        res = []
+        for pif in pifs:
+            pif_rec = session.xenapi.PIF.get_record(pif)
+            if pif_rec['physical']:
+                res.append(pif)
+            elif pif_rec['bond_master_of']:
+                for bond in pif_rec['bond_master_of']:
+                    bond_pifs = session.xenapi.Bond.get_slaves(bond)
+                    res = res + get_physical_pifs(session, bond_pifs)
+            else:
+                raise Exception("Error: %s is not physical or a bond" % pif_rec)
+        return res
+
     pifs = session.xenapi.network.get_PIFs(network)
+    physical_pifs = get_physical_pifs(session, pifs)
+
     devices = []
-    for pif in pifs:
+    for pif in physical_pifs:
         device = session.xenapi.PIF.get_device(pif)
         if device not in devices:
             devices.append(device)
@@ -781,10 +801,10 @@ def get_device_by_network(session, network):
         raise Exception("Error: no PIFs for network %s" % network)
 
     if len(devices) > 1:
-        raise Exception("Error: assertion that a network is made up of " \
-                        + "devices with the same name fails. (%s)" % devices)
+        log.debug("More than one device for network %s: %s" % (network,
+                                                               devices))
+    return devices 
 
-    return devices.pop()
 
 def filter_pif_devices(session, devices):
     """Return non management devices from the set of devices

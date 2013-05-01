@@ -233,7 +233,16 @@ class TestClass(object):
         log.debug("get_static_manager: %s %s" % (network_ref, vlan))
         log.debug("All static recs: %s" % self.static_managers)
 
-        iface = get_device_by_network(self.session, network_ref)
+        devices = get_physical_devices_by_network(self.session, network_ref)
+
+        # Note: we expect two devices for the case where we have created
+        # a bond between two PIFs.
+        if len(devices) > 2:
+            raise Exception("Error: more than two devices " \
+                            + "for network %s: %s" % (network_ref, devices))
+
+        # In the case of a bond, we do not mind which device is used.
+        iface = devices.pop()
     
         key = "%s_%s" % (iface, vlan)
         if key in self.static_managers.keys():
