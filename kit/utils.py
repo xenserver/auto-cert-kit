@@ -1222,9 +1222,45 @@ def get_local_sr(session, host):
                         return sr_ref
     raise Exception("No local SR attached to the master host")    
 
-def import_droid_vm(session, creds=None, loc=DROID_VM_LOC):
+def assert_sr_connected(session, sr_ref, host_ref):
+    """Assert that a given SR is connected to a host"""
+    pbds = session.xenapi.SR.get_PBDs(sr_ref)
+    for pbd in pbds:
+        if session.xenapi.PBD.get_host(pbd) == host_ref:
+            log.debug("SR %s connected to host %s" % (session.xenapi.SR.get_uuid(sr_ref), session.xenapi.host.get_name_label(host_ref)))
+            return True
+    return False
+    
+
+def find_storage_for_host(session, host_ref, exclude_types=['iso','udev']):
+    """Given a host reference, return available storage"""
+    srs = session.xenapi.SR.get_all()
+
+    # Find relevent SRs based on whether they're connected to host
+    rel_srs = [sr for sr in srs \
+                     if assert_sr_connected(session, sr, host_ref) and
+                     session.xenapi.SR.get_type(sr) not in exclude_types]
+
+    log.debug("Available SRs for host '%s': '%s'" % (host_ref, rel_srs))
+
+    log.debug("Host: %s" % session.xenapi.host.get_name_label(host_ref))
+    for sr in rel_srs:
+        log.debug("SR: %s" % session.xenapi.SR.get_name_label(sr))
+    return rel_srs                             
+
+
+def import_droid_vm(session, host_ref, creds=None, loc=DROID_VM_LOC):
     """Import VM template from Dom0 for use in tests"""
-    sr_ref = get_default_sr(session)
+    sr_refs = find_storage_for_host(session, host_ref)
+
+    if not sr_refs:
+        raise Exception("Error: could not find any available SRs for host '%s'" % host_ref)
+
+    sr_ref = sr_refs.pop()
+    log.debug("Importing droid VM to %s for use on host %s" % \
+                (session.xenapi.SR.get_name_label(sr_ref),
+                 session.xenapi.host.get_name_label(host_ref)))
+
     sr_uuid = session.xenapi.SR.get_uuid(sr_ref)
     vm_uuid = droid_template_import(session, sr_uuid)
     vm_ref = session.xenapi.VM.get_by_uuid(vm_uuid)
@@ -1233,17 +1269,54 @@ def import_droid_vm(session, creds=None, loc=DROID_VM_LOC):
     session.xenapi.VM.set_name_label(vm_ref, 'Droid VM')
     return vm_ref
 
-def prepare_droid_vm(session, sr_ref, creds=None):
-    """Checks if the droid vm needs to be installed
-    on the host - if it does, it prepares it"""
-    log.debug("About to prepare droid vm on SR %s" % sr_ref)
+
+def find_droid_templates(session):
+    """Returns a list of droid VM template refs"""
+    refs = []
     vms = session.xenapi.VM.get_all_records()
     for ref, rec in vms.iteritems():
-        if DROID_TEMPLATE_TAG in rec['other_config'] and rec['is_a_template']:
-            return ref
-    log.debug("No droid vm template exists - import one")
-    #Else - if no templates exist
-    return import_droid_vm(session, creds)
+        if DROID_TEMPLATE_TAG in rec['other_config'] \
+                             and rec['is_a_template']: 
+            refs.append(ref)                             
+    
+    log.debug("find_droid_templates: found refs: '%s'" % refs)
+
+    return refs
+
+def get_vm_vdis(session, vm_ref):
+    vbds = session.xenapi.VM.get_VBDs(vm_ref)
+    vdis = [session.xenapi.VBD.get_VDI(vbd) for vbd in vbds]
+    return [vdi for vdi in vdis if vdi != "OpaqueRef:NULL"]
+
+def assert_can_boot_here(session, vm_ref, host_ref):
+    vdis = get_vm_vdis(session, vm_ref)
+
+    req_srs = list(set([session.xenapi.VDI.get_SR(vdi) for vdi in vdis]))
+    log.debug("VM %s requires SRs '%s'" % (vm_ref, req_srs))
+
+    for sr_ref in req_srs:
+        if not assert_sr_connected(session, sr_ref, host_ref):
+            return False
+
+    log.debug("VM %s can boot on host %s" % (vm_ref, host_ref))
+    return True
+
+
+def prepare_droid_vm(session, host_ref, creds=None):
+    """Checks if the droid vm needs to be installed
+    on the host - if it does, it prepares it"""
+    log.debug("About to prepare droid vm for host %s" % host_ref)
+
+    templates = [template for template in find_droid_templates(session) \
+          if assert_can_boot_here(session, template, host_ref)]
+    
+    if templates:
+        # Any of the templates will do
+        return templates.pop()
+    else:
+        log.debug("No droid vm template exists - import one")
+        #Else - if no templates exist
+        return import_droid_vm(session, host_ref, creds)
 
 def run_xapi_async_tasks(session, funcs, timeout=300):
     """Execute a list of async functions, only returning when
@@ -1299,7 +1372,7 @@ def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sm
 
     log.debug("Creating required VM(s)")
         
-    droid_template_ref = prepare_droid_vm(session, sr_ref)
+    droid_template_ref = prepare_droid_vm(session, host_ref)
     
     task_list = []
     vm_ref_list = []
@@ -1386,7 +1459,7 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
             
     log.debug("Creating required VM")
         
-    droid_template_ref = prepare_droid_vm(session, def_sr)
+    droid_template_ref = prepare_droid_vm(session, host_slave_ref)
     vm_ref = session.xenapi.VM.clone(droid_template_ref, 'Droid 1')
     
     brand_vm(session, vm_ref, FOR_CLEANUP)
@@ -1436,13 +1509,15 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
     log.debug("Creating required VMs")
         
     def_sr = get_default_sr(session)
-        
-    droid_template_ref = prepare_droid_vm(session, def_sr)
+    
+    # Get template references
+    dmt_ref = prepare_droid_vm(session, host_master_ref)
+    dst_ref = prepare_droid_vm(session, host_slave_ref)
 
     results = run_xapi_async_tasks(session,
-              [lambda: session.xenapi.Async.VM.clone(droid_template_ref,
+              [lambda: session.xenapi.Async.VM.clone(dmt_ref,
                                                      'Droid 1'),
-               lambda: session.xenapi.Async.VM.clone(droid_template_ref,
+               lambda: session.xenapi.Async.VM.clone(dst_ref,
                                                      'Droid 2')])
 
     if len(results) != 2:
