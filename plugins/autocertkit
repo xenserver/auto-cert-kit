@@ -1224,7 +1224,7 @@ def droid_template_import(session, args):
     #Need to encode/decode URI as it has unsafe characters for transmission.
     filename = DROID_VM_LOC
     sr_uuid = validate_exists(args, 'sr_uuid')
-    call = [XE, 'vm-import', 'filename=%s' % filename, 'sr_uuid=%s' % sr_uuid]
+    call = [XE, 'vm-import', 'filename=%s' % filename, 'sr-uuid=%s' % sr_uuid]
     return make_local_call(call)
 
 def process_running(process_name):
