@@ -1250,14 +1250,18 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
     all of the tasks have completed."""
     task_refs = []
 
+    i = 0
     for f in funcs:
-        task_refs.append(f())
+        # Create a tuple with an index so that returned results
+        # can keep the correct ordering.
+        task_refs.append((i, f()))
+        i = i + 1
 
     start = time.time()
 
     results = []
     while task_refs:
-        ref = task_refs.pop(0) #take the first item off
+        idx, ref = task_refs.pop(0) #take the first item off
         log.debug("Current Task: %s" % ref)
         status = session.xenapi.task.get_status(ref)
         if status == "success":
@@ -1266,23 +1270,26 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
 
             log.debug("Result = %s" % result)
             if result.startswith('<value>'):
-                results.append(result.split('value')[1].strip('</>'))
+                results.append((idx,result.split('value')[1].strip('</>')))
             else:
                 #Some Async calls have no return value
-                results.append(result)
+                results.append((idx,result))
         elif status == "failure":
             #The task has failed, and the error should be propogated upwards.
             raise Exception("Async call failed with error: %s" % session.xenapi.task.get_error_info(ref))
         else:
             log.debug("Task Status: %s" % status)
             #task has not finished, so re-attach to list
-            task_refs.append(ref)
+            task_refs.append((idx, ref))
 
         if should_timeout(start, timeout):
             raise Exception("Async calls took too long to complete!" + 
                             "Perhaps, the operation has stalled? %d" % timeout)
         time.sleep(1)
-    return results        
+
+    # Sort the results in order of index
+    results = sorted(results, key=lambda tup: tup[0])
+    return [res for (_, res) in results]
 
 def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sms=None, sr_ref=None):
     """Deploy vm_count VMs on the host_ref host. Required 
