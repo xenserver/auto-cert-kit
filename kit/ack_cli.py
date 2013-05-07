@@ -331,23 +331,16 @@ def pre_flight_checks(session, config):
     if len(hosts) < 2:
         raise Exception("Error: You need to have a pool of at least two hosts to run this kit. Only found %d." % (len(hosts)))
 
-    #Check for default storage
-    pool = session.xenapi.pool.get_all()[0]
-    default_sr = session.xenapi.pool.get_default_SR(pool)
-    
-    if default_sr not in session.xenapi.SR.get_all():
-        raise Exception("Please set a valid default SR for the pool.")
-
     for host in hosts:
         ver = utils.get_ack_version(session, host)
         if not ver:
             raise Exception("Error: Both hosts need the Auto Cert Kit installed on them! The kit was not found on %s" % host)
 
-    #Check that the default storage SR is shared between hosts
-    pbds = session.xenapi.SR.get_PBDs(default_sr)
-    if len(pbds) != len(hosts):
-        raise Exception("Error: SR %s is not shared between all %d hosts in pool. Only %d PBDs" % 
-                        (default_sr, len(hosts), len(pbds)))
+    # Check that each host has some storage
+    for host in hosts:
+       avail_storage = utils.find_storage_for_host(session, host)
+       if not avail_storage:
+           raise Exception("Error: host '%s' has no available storage.") 
 
     #Check that we have at least two network adaptors, on the same network
     recs = config['netconf']
