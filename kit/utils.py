@@ -784,8 +784,12 @@ def get_physical_devices_by_network(session, network):
                 for bond in pif_rec['bond_master_of']:
                     bond_pifs = session.xenapi.Bond.get_slaves(bond)
                     res = res + get_physical_pifs(session, bond_pifs)
+            elif pif_rec['VLAN_master_of'] != 'OpaqueRef:NULL':
+                log.debug("VLAN PIF found: %s." % pif_rec)
+                vlan_obj = session.xenapi.VLAN.get_record(pif_rec['VLAN_master_of'])
+                res = res + get_physical_pifs(session, [vlan_obj['tagged_PIF']])
             else:
-                raise Exception("Error: %s is not physical or a bond" % pif_rec)
+                raise Exception("Error: %s is not physical, bond or VLAN" % pif_rec)
         return res
 
     pifs = session.xenapi.network.get_PIFs(network)
