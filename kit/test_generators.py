@@ -247,7 +247,7 @@ def print_documentation(object_name):
             print utils.format(test_class.__doc__)
             print ""
             print "%s:" % (utils.bold('Tests'))
-            inst = test_class(self.session, self.config)
+            inst = test_class(None, {})
             for method in inst.list_tests():
                 print method
             print ""
