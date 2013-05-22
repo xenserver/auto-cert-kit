@@ -247,8 +247,8 @@ def print_documentation(object_name):
             print utils.format(test_class.__doc__)
             print ""
             print "%s:" % (utils.bold('Tests'))
-            for method in [m for m in dir(test_class)
-                if callable(getattr(test_class, m)) and m.startswith('test')]:
+            inst = test_class(None, {})
+            for method in inst.list_tests():
                 print method
             print ""
             sys.exit(0)
