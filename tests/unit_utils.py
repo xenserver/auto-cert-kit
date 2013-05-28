@@ -17,6 +17,7 @@ class ValueInRangeFunctions(unittest.TestCase):
         self.assertTrue(value_in_range(5*G, 4*G, 8*G))
         self.assertTrue(value_in_range(3*G, 0, 4*G))
         self.assertTrue(value_in_range(4*G, 0, 4*G))
+        self.assertTrue(value_in_range(3*G, 3*G, 4*G))
 
         #Assert False
         self.assertFalse(value_in_range(4, 5, 500))
@@ -29,6 +30,10 @@ class ValueInRangeFunctions(unittest.TestCase):
         self.assertTrue(wrapped_value_in_range(3*G, 2*G, 4*G))
         self.assertFalse(wrapped_value_in_range(1*G, 2*G, 4*G))
         self.assertFalse(wrapped_value_in_range(2*G, 3*G, 5*G))
+
+        self.assertTrue(wrapped_value_in_range(3965952210,
+                                               8248029658,
+                                               9067544228))
 
 
 if __name__ == '__main__':

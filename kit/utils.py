@@ -386,6 +386,9 @@ def wrapped_value_in_range(value, min_v, max_v, wrap=4*G):
     e.g. if our range is between 15-25, but we wrap at 20, then the
     value '4' should be acceptable."""
 
+    if value >= wrap:
+        raise Exception("Error: the value is greater/equal than the wrap")
+
     if min_v > max_v:
         raise Exception("Error: min must be greated than max. %d %d" % \
                         (min_v, max_v))
@@ -398,25 +401,28 @@ def wrapped_value_in_range(value, min_v, max_v, wrap=4*G):
     if max_v < wrap:
         return value_in_range(value, min_v, max_v)
 
-    if min_v < wrap:
-        # The range spans the wrap, there are two ranges we need
-        # to check:
-        #
-        # 0------------y--------w
-        # 0----z-----------------
-        # We must check whether:
-        #
-        #  y > value < w or 0 > value > z
+    # The range spans the wrap, there are two ranges we need
+    # to check:
+    #
+    # 0------------y--------w
+    # 0----z-----------------
+    # We must check whether:
+    #
+    #  y > value < w or 0 > value > z
 
-        pre_range = value_in_range(value, min_v, wrap)
-        post_range = value_in_range(value, 0, max_v % wrap)
+    min_v_wrapped = min_v % wrap
+    max_v_wrapped = max_v % wrap
 
-        if pre_range or post_range:
-            # Value must lie in correct range.
-            return True
+    # min_v_wrapped must be smaller (not equal)
+    # if min_v_wrapped = max_v_wrapped then we must
+    # accept a value that covers the entire range.
+    if min_v_wrapped < max_v_wrapped:
+        return value_in_range(value, min_v_wrapped, max_v_wrapped)
+    else:
+        pre_range = value_in_range(value, min_v_wrapped, wrap)
+        post_range = value_in_range(value, 0, max_v_wrapped)
 
-    if min_v > wrap:
-        return value_in_range(value, min_v % wrap, max_v % wrap)
+        return pre_range or post_range
 
     return False
 
