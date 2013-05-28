@@ -4,7 +4,7 @@ import unittest
 import sys
 
 sys.path.append('../kit/')
-from utils import value_in_range, wrapped_value_in_range
+from utils import value_in_range, wrapped_value_in_range, valid_ping_response
 
 K = 1024
 M = K * 1024
@@ -35,6 +35,20 @@ class ValueInRangeFunctions(unittest.TestCase):
                                                8248029658,
                                                9067544228))
 
+
+class ValidatePingResponses(unittest.TestCase):
+
+    def test_valid_ping_responses(self):
+        response = "20 packets transmitted, 19 received, 5% packet loss, time 19008ms"
+        self.assertTrue(valid_ping_response(response, max_loss=20))
+
+    def test_invalid_ping_responses(self):
+        response = "20 packets transmitted, 19 received, 5% packet loss, time 19008ms"
+        self.assertFalse(valid_ping_response(response, max_loss=0))
+
+    def test_valid_equal_ping_responses(self):
+        response = "20 packets transmitted, 19 received, 5% packet loss, time 19008ms"
+        self.assertTrue(valid_ping_response(response, max_loss=5))
 
 if __name__ == '__main__':
     unittest.main()

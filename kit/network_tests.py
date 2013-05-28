@@ -555,9 +555,11 @@ class BondingTestClass(testbase.NetworkTestClass):
         rec['config'] = mode
        
         for result in results:
-            if "0% packet loss" not in result:
+            if not valid_ping_response(result, 20):
                 raise TestCaseError("Error: Ping transmittion failed for bond type: %s. %s" 
-                                    % (mode, result))     
+                                    % (mode, result))
+            else:
+                log.debug("Ping Result: %s" % result)
                 
         return rec
     

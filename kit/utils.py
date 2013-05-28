@@ -44,6 +44,7 @@ import signal
 import os
 import base64
 import threading
+import re
 
 K = 1024
 M = 1024 * K
@@ -1972,3 +1973,23 @@ def check_vm_ping_response(session, vm_ref, interface='eth0', count=3, timeout=3
         time.sleep(3)
     
     raise Exception("VM %s interface %s could not be reached in the given timeout" % (vm_ref, interface))
+
+def valid_ping_response(ping_response, max_loss=0):
+
+    if max_loss > 100:
+        raise Exception("Error: cannot have a loss of > 100%!")
+
+    regex = re.compile(r"(?P<loss>\d+)\% packet loss")
+    match = regex.search(ping_response)
+    if match:
+        # We've matched the regex for the ping result, now we
+        # check whether the number of packets lost is acceptable.
+        loss = int(match.group('loss'))
+        return loss <= max_loss
+    else:
+        # We did not match the ping output, therefore we cannot
+        # validate the response.    
+        return False
+
+
+
