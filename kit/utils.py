@@ -1378,8 +1378,6 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
 def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sms=None, sr_ref=None):
     """Deploy vm_count VMs on the host_ref host. Required 
     to define the network, optionally the SR"""
-    if not sr_ref:
-        sr_ref = get_default_sr(session)
 
     log.debug("Creating required VM(s)")
         
@@ -1458,7 +1456,6 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
     tests between Dom0 and a VM. The Dom0 of the master is used for running
     commands, whilst the VM on the slave is used as a target"""
     
-    def_sr = get_default_sr(session)
     host_slave_refs = get_pool_slaves(session)
 
     if len(host_slave_refs) == 0:
@@ -1506,8 +1503,6 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
     """A utility method for setting up two VMs, one on the primary host,
     and one on a slave host"""
     
-    def_sr = get_default_sr(session)
-    
     host_master_ref = get_pool_master(session)
     host_slave_refs = get_pool_slaves(session)
 
@@ -1519,8 +1514,6 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
             
     log.debug("Creating required VMs")
         
-    def_sr = get_default_sr(session)
-    
     # Get template references
     dmt_ref = prepare_droid_vm(session, host_master_ref)
     dst_ref = prepare_droid_vm(session, host_slave_ref)
