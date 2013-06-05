@@ -1201,11 +1201,11 @@ def arg_encode(string):
     """Encode a string for sending over XML-RPC to plugin"""
     return string.replace('/', '&#47;').replace('.', '&#46;')
 
-def droid_template_import(session, sr_uuid):
+def droid_template_import(session, host_ref, sr_uuid):
     """Import the droid template into the specified SR"""
     #Note, the filename should be fully specified.
     args = {'sr_uuid': sr_uuid}
-    return call_ack_plugin(session, 'droid_template_import', args)  
+    return call_ack_plugin(session, 'droid_template_import', args, host=host_ref)  
 
 def get_default_sr(session):
     """Returns the SR reference marked as default in the pool"""
@@ -1273,7 +1273,7 @@ def import_droid_vm(session, host_ref, creds=None, loc=DROID_VM_LOC):
                  session.xenapi.host.get_name_label(host_ref)))
 
     sr_uuid = session.xenapi.SR.get_uuid(sr_ref)
-    vm_uuid = droid_template_import(session, sr_uuid)
+    vm_uuid = droid_template_import(session, host_ref, sr_uuid)
     vm_ref = session.xenapi.VM.get_by_uuid(vm_uuid)
     convert_to_template(session, vm_ref)
     brand_vm(session, vm_ref, DROID_TEMPLATE_TAG)
