@@ -2,6 +2,7 @@
 eth0 = 0,[200,204,240]
 eth1 = 1,[200,124]
 eth2 = 0,[204,240]
+eth3 = 1,[200]
 
 # For static addressing, each network/vlan combination needs to be
 # explicitly stated, otherwise we assume DHCP is available. The syntax can
