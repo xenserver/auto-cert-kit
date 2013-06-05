@@ -11,7 +11,7 @@ LABEL := xs-auto-cert-kit
 TEXT := XenServer Auto Cert Kit
 VERSION := $(PRODUCT_VERSION)
 BUILD := $(BUILD_NUMBER)
-KIT_VERSION := $(git describe)
+KIT_VERSION := $(shell git describe)
 
 STAGING := $(MY_OBJ_DIR)/auto-cert-supp-pack
 
