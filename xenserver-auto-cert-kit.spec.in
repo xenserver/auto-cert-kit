@@ -32,6 +32,7 @@ exit 0
 
 %files
 %defattr(-,root,root,-)
+/opt/xensource/packages/files/auto-cert-kit/__init__.py
 /opt/xensource/packages/files/auto-cert-kit/cpu_tests.py
 /opt/xensource/packages/files/auto-cert-kit/network_tests.py
 /opt/xensource/packages/files/auto-cert-kit/operations_tests.py
