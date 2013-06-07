@@ -3,9 +3,8 @@
 
 import unittest
 import sys
-sys.path.append("../kit/")
 
-import utils
+import autocertkit.utils
 
 class DevTestCase(unittest.TestCase):
     """Subclass unittest for extended setup/tear down

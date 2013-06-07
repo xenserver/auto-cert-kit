@@ -6,8 +6,7 @@ from testbase import *
 import sys
 from test_generators import *
 
-sys.path.append('../kit/')
-import utils
+import autocertkit.utils
 
 utils.configure_logging('ack_tests')
 
