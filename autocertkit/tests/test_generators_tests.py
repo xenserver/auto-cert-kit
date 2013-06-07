@@ -1,10 +1,10 @@
 #!/usr/bin/python
 import unittest
 
-import test_base
-from testbase import *
+import unittest_base
+from autocertkit.testbase import *
 import sys
-from test_generators import *
+from autocertkit.test_generators import *
 
 import autocertkit.utils
 
@@ -21,7 +21,7 @@ def expect_system_exit(func, code='0'):
             raise exp
 
 
-class DocumentationTests(test_base.DevTestCase):
+class DocumentationTests(unittest_base.DevTestCase):
     """Test that documentation is correctly generated for the testkit"""
 
     def testPrintTestList(self):

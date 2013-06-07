@@ -1,17 +1,14 @@
 #!/usr/bin/python
 import unittest
 
-import test_base
-from testbase import *
+import unittest_base
+from autocertkit.testbase import *
+from autocertkit import utils, test_generators
 import sys
-import test_generators
-
-sys.path.append('../kit/')
-import utils
 
 utils.configure_logging('ack_tests')
 
-class TagsTests(test_base.DevTestCase):
+class TagsTests(unittest_base.DevTestCase):
     """Test that tags are enumerated correctly for a specified testclass"""
 
     def testCPUTestClassTags(self):
@@ -20,7 +17,7 @@ class TagsTests(test_base.DevTestCase):
         assert 'CPU' in tags, "CPU tag not in the tags for CPUClass (%s)" % tags
 
     def testForTagMutilation(self):
-        tg = test_generators.TestGenerator('fake_session')
+        tg = test_generators.TestGenerator('fake_session', {}, 'nonexistent')
         for test_name, test_class in tg.get_test_classes():
             orig_tags = list(test_class('fake_session',{}).tags)
             new_tags = test_class('fake_session',{}).tags

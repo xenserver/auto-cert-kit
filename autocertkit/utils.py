@@ -1858,7 +1858,8 @@ def format(str):
     return " ".join(arr)
 
 def enumerate_test_classes():
-    tg = test_generators.TestGenerator('nonexistent_session')
+    import test_generators
+    tg = test_generators.TestGenerator('nonexistent_session', {}, 'nonexistent')
     return tg.get_test_classes()
 
 def read_valid_lines(filename):

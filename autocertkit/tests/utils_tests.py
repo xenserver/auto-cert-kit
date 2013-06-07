@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import unittest
 
-import test_base
+import unittest_base
 import sys
 
 from autocertkit import utils
@@ -12,7 +12,7 @@ K = 1024
 M = K * 1024
 G = M * 1024
 
-class ExpressionMatchingTests(test_base.DevTestCase):
+class ExpressionMatchingTests(unittest_base.DevTestCase):
     """Tests for checking that the expr_eval function
     works appropriately with XenServer version numbers"""
 
@@ -37,7 +37,7 @@ class ExpressionMatchingTests(test_base.DevTestCase):
         self._exp_false('> 5.6 SP2', '5.6 FP1')
         
 
-class StaticIPUtilsTests(test_base.DevTestCase):
+class StaticIPUtilsTests(unittest_base.DevTestCase):
     """Verify that the class methods for manipulating
     static IP addresses work correctly"""
 
