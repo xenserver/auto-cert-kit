@@ -234,13 +234,17 @@ class IperfTest:
         else:
             # Handle the case where we are dealing with a VM
             vm_vifs = self.session.xenapi.VM.get_VIFs(vm_ref)
+
+            filtered_vifs = [vif for vif in vm_vifs \
+                      if self.session.xenapi.VIF.get_device(vif) != '0']
+
             network_vifs = self.session.xenapi.network.get_VIFs(self.network)
     
-            int_vifs = intersection(vm_vifs, network_vifs) 
+            int_vifs = intersection(filtered_vifs, network_vifs) 
 
             if len(int_vifs) > 1:
                 raise Exception("Error: more than one VIF connected " + \
-                                "to VM '%s' ('%s')" % (int_vifs, vm_vifs))
+                                "to VM '%s' ('%s')" % (int_vifs, filtered_vifs))
 
             device_name = "eth%s" % \
                           self.session.xenapi.VIF.get_device(int_vifs.pop())
