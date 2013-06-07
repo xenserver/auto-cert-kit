@@ -115,7 +115,7 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC)
 	$(RPMBUILD) -bb $(TEST_KIT_SPEC)
 
 $(SUPP_PACK_ISO): $(TEST_KIT_RPM) $(DEPS)
-	python setup.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --bld $(BUILD) $^
+	python setup-supp-pack.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --bld $(BUILD) $^
 
 pylint:
 	$(PYLINT) $(TEST_KIT)/*.py
