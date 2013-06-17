@@ -506,12 +506,18 @@ def configure_logging(name):
     if not log:
         log = logging.getLogger(name)
         log.setLevel(logging.DEBUG)
-        fileh = logging.FileHandler('/var/log/auto-cert-kit.log')
-        fileh.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%%(asctime)-8s %s: %%(levelname)-8s %%(filename)s:%%(lineno)-10d %%(message)s' % name)
-        fileh.setFormatter(formatter)
-        log.addHandler(fileh)
-        log.debug("Added fileh")
+
+        try:
+            fileh = logging.FileHandler('/var/log/auto-cert-kit.log')
+            fileh.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('%%(asctime)-8s %s: %%(levelname)-8s %%(filename)s:%%(lineno)-10d %%(message)s' % name)
+            fileh.setFormatter(formatter)
+            log.addHandler(fileh)
+            log.debug("Added fileh")
+        except IOError, e:
+            print "Error writing to file handler. Ignoring."
+            print str(e)
+            
         sth = logging.StreamHandler(sys.__stdout__)
         sth.setLevel(logging.DEBUG)
         log.debug("Adding sth")
@@ -1858,7 +1864,8 @@ def format(str):
     return " ".join(arr)
 
 def enumerate_test_classes():
-    tg = test_generators.TestGenerator('nonexistent_session')
+    import test_generators
+    tg = test_generators.TestGenerator('nonexistent_session', {}, 'nonexistent')
     return tg.get_test_classes()
 
 def read_valid_lines(filename):

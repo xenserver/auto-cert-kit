@@ -1,46 +1,18 @@
 #!/usr/bin/python
 import unittest
 
-import test_base
+import unittest_base
 import sys
 
-sys.path.append('../kit/')
-import utils
+from autocertkit import utils
 
 utils.configure_logging('ack_tests')
 
-class DroidVMTests(test_base.DevTestCase):
-    """Test cases for utility functions creating droid vms"""
+K = 1024
+M = K * 1024
+G = M * 1024
 
-    def testPrepareReturnsReference(self):
-        ref = utils.prepare_droid_vm(self.session, self.config)
-        self.assertIsNotNone(ref, "Reference not returned by prepare_droid_vm")
-        print self.session.xenapi.VM.get_name_label(ref)
-
-    def testPrepareCreatesVM(self):
-        vm_recs = self.session.xenapi.VM.get_all()
-        droid_vms = utils.get_droid_templates(self.session)
-        print "Droid vms %s" % droid_vms
-        #Destroy all droid vms
-        for vm in droid_vms:
-            self.session.xenapi.VM.destroy(vm)
-        droid_vms = utils.get_droid_templates(self.session)
-        self.assertEqual(len(droid_vms),0,"Not all the droid templates have been removed!")
-        ref = utils.prepare_droid_vm(self.session, self.config)
-        droid_vms = utils.get_droid_templates(self.session)
-        self.assertEqual(len(droid_vms),1,"The droid VM has not be created!")
-
-    def testStaticDroidDeployment(self):
-        network_ref = self.session.xenapi.network.get_all()[0]
-        static_conf = {'ip_start': '192.168.0.2',
-                       'ip_end': '192.168.0.9',
-                       'netmask': '255.255.255.0',
-                       'gw': '192.168.0.1'}
-        vm1, vm2 = utils.deploy_two_droid_vms(self.session, network_ref, static_conf)
-
-
-
-class ExpressionMatchingTests(test_base.DevTestCase):
+class ExpressionMatchingTests(unittest_base.DevTestCase):
     """Tests for checking that the expr_eval function
     works appropriately with XenServer version numbers"""
 
@@ -65,7 +37,7 @@ class ExpressionMatchingTests(test_base.DevTestCase):
         self._exp_false('> 5.6 SP2', '5.6 FP1')
         
 
-class StaticIPUtilsTests(test_base.DevTestCase):
+class StaticIPUtilsTests(unittest_base.DevTestCase):
     """Verify that the class methods for manipulating
     static IP addresses work correctly"""
 
@@ -138,9 +110,6 @@ class StaticIPUtilsTests(test_base.DevTestCase):
         sim = utils.StaticIPManager(conf)
 
         borrowed_ip = sim.get_ip()
-        print "Borrowed %s" % borrowed_ip.addr
-
-        print "Free: %d In Use: %d" % (len(sim.free), len(sim.in_use))
         assert(len(sim.free) == 5)
         assert(len(sim.in_use) == 1)
         
@@ -150,6 +119,46 @@ class StaticIPUtilsTests(test_base.DevTestCase):
         assert(len(sim.in_use) == 0)
 
         
+class ValueInRangeFunctions(unittest.TestCase):
+    
+    def test_simple(self):
+        #Assert True
+        self.assertTrue(utils.value_in_range(5*G, 4*G, 8*G))
+        self.assertTrue(utils.value_in_range(3*G, 0, 4*G))
+        self.assertTrue(utils.value_in_range(4*G, 0, 4*G))
+        self.assertTrue(utils.value_in_range(3*G, 3*G, 4*G))
+
+        #Assert False
+        self.assertFalse(utils.value_in_range(4, 5, 500))
+        self.assertFalse(utils.value_in_range(4*G+1,0, 4*G))
+        self.assertFalse(utils.value_in_range(-1,0, 4*G))
+
+    def test_wrap(self):
+        self.assertTrue(utils.wrapped_value_in_range(8, 5, 15, 10))
+        self.assertTrue(utils.wrapped_value_in_range(5*K, 3*G, 5*G))
+        self.assertTrue(utils.wrapped_value_in_range(3*G, 2*G, 4*G))
+        self.assertFalse(utils.wrapped_value_in_range(1*G, 2*G, 4*G))
+        self.assertFalse(utils.wrapped_value_in_range(2*G, 3*G, 5*G))
+
+        self.assertTrue(utils.wrapped_value_in_range(3965952210,
+                                                     8248029658,
+                                                     9067544228))
+
+
+class ValidatePingResponses(unittest.TestCase):
+
+    def test_valid_ping_responses(self):
+        response = "20 packets transmitted, 19 received, 5% packet loss, time 19008ms"
+        self.assertTrue(utils.valid_ping_response(response, max_loss=20))
+
+    def test_invalid_ping_responses(self):
+        response = "20 packets transmitted, 19 received, 5% packet loss, time 19008ms"
+        self.assertFalse(utils.valid_ping_response(response, max_loss=0))
+
+    def test_valid_equal_ping_responses(self):
+        response = "20 packets transmitted, 19 received, 5% packet loss, time 19008ms"
+        self.assertTrue(utils.valid_ping_response(response, max_loss=5))
+
         
 
 if __name__ == '__main__':
