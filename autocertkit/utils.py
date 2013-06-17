@@ -210,7 +210,43 @@ class IPv4Addr(object):
             if not self.byte_mask_match(a, b, m):
                 return False
         return True        
-            
+
+class NetRoute(object):
+    """Class for representing a system network route"""
+    
+    def __init__(self, dest, gw, mask, iface):
+        self.dest = dest
+        self.gw = gw
+        self.mask = mask
+        self.iface = iface
+
+    def get_dest(self):
+        return self.dest
+
+    def get_gw(self):
+        return self.gw
+
+    def get_mask(self):
+        return self.mask
+
+    def get_iface(self):
+        return iface
+        
+def get_network_routes(session, host_ref):
+    """Return a list of NetRoute objects for this system"""
+    results = call_ack_plugin(session, 'get_host_routes', {}, host=host_ref)
+    recs = xml_to_dicts(results, 'routes')
+
+    routes = []
+
+    # Create NetRoute objects
+    for rec in recs:
+        route_obj = NetRoute(rec['Destination'], rec['Gateway'], 
+                             rec['Genmask'], rec['Iface'],
+                            )
+        routes.append(route_obj)
+
+    return routes
             
 class StaticIPManager(object):
     """Class for managing static IP address provided by
