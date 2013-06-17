@@ -795,7 +795,8 @@ class Dom0PIFParamTestClass1(PIFParamTestClass):
 
 
 class Dom0PIFParamTestClass2(Dom0PIFParamTestClass1):
-    
+    """A class for Dom0 - VM PIF param testing"""
+
     OFFLOAD_CONFIG = {'tx': 'on',
                       'rx': 'on',
                       'sg': 'on',
@@ -810,6 +811,8 @@ class Dom0PIFParamTestClass2(Dom0PIFParamTestClass1):
                       'rxhash': 'off'}
 
 class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
+    """A class for Dom0 - VM PIF param testing"""
+
     
     OFFLOAD_CONFIG = {'tx': 'on',
                       'rx': 'on',
@@ -848,7 +851,8 @@ class Dom0BridgePIFParamTestClass1(PIFParamTestClass):
                       'rxhash': 'off'}
 
 class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
-    
+    """A class for Dom0 - VM PIF param testing"""
+ 
     OFFLOAD_CONFIG = {'tx': 'on',
                       'rx': 'on',
                       'sg': 'on',
@@ -863,6 +867,7 @@ class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
                       'rxhash': 'off'}
 
 class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
+    """A class for Dom0 - VM PIF param testing"""
     
     OFFLOAD_CONFIG = {'tx': 'on',
                       'rx': 'on',

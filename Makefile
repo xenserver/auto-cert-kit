@@ -36,7 +36,7 @@ TEST_KIT_RPM := $(MY_OUTPUT_DIR)/RPMS/noarch/xenserver-auto-cert-kit-$(PRODUCT_V
 TEST_KIT_RPM_TMP_DIR := $(MY_OBJ_DIR)/RPM_BUILD_DIRECTORY/tmp/xenserver-auto-cert-kit
 
 TEST_KIT_DEST := /opt/xensource/packages/files/auto-cert-kit
-TEST_KIT := $(REPO)/kit
+TEST_KIT := $(REPO)/autocertkit
 TEST_KIT_SPEC := $(MY_OBJ_DIR)/xenserver-auto-cert-kit.spec
 
 XAPI_PLUGIN_DEST := /etc/xapi.d/plugins
@@ -94,8 +94,8 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC)
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(XAPI_PLUGIN_DEST)
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(STARTUP_SCRIPT_DEST)
-	cp -r $(REPO)/kit/*.py  $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
-	cp -r $(REPO)/kit/*.example $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
+	cp -r $(TEST_KIT)/*.py  $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
+	cp -r $(TEST_KIT)/*.example $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	sed -i 's/@PRODUCT_VERSION@/$(PRODUCT_VERSION)/g' \
 		$(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/*.py
 	sed -i 's/@BUILD_NUMBER@/$(BUILD_NUMBER)/g' \
@@ -115,7 +115,7 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC)
 	$(RPMBUILD) -bb $(TEST_KIT_SPEC)
 
 $(SUPP_PACK_ISO): $(TEST_KIT_RPM) $(DEPS)
-	python setup.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --bld $(BUILD) $^
+	python setup-supp-pack.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --bld $(BUILD) $^
 
 pylint:
 	$(PYLINT) $(TEST_KIT)/*.py
