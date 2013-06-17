@@ -533,7 +533,7 @@ class BondingTestClass(testbase.NetworkTestClass):
         net_refs = self._setup_network(session, mode)
         vm1_ref, vm2_ref = self._setup_vms(session, net_refs)
         vm1_ip = wait_for_ip(session, vm1_ref, 'eth0')
-        vm2_ip = wait_for_ip(session, vm2_ref, 'eth0')
+        vm2_bondnic_ip = wait_for_ip(session, vm2_ref, 'eth1')
 
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session,vm_ref)
@@ -541,16 +541,16 @@ class BondingTestClass(testbase.NetworkTestClass):
         log.debug("Starting test...")
         results = []
         #Test healthy bond
-        results.append(ping(vm1_ip, vm2_ip, 'eth0'))
+        results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
         
         #Test degraded bond
         set_nic_device_status(self.piface, 'down')
-        results.append(ping(vm1_ip, vm2_ip, 'eth0'))
+        results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
         
         #Test degraded bond
         set_nic_device_status(self.piface, 'up')
         set_nic_device_status(self.siface, 'down')
-        results.append(ping(vm1_ip, vm2_ip, 'eth0'))
+        results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
         
         set_nic_device_status(self.siface, 'up')
        
