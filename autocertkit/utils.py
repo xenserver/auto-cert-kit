@@ -46,6 +46,8 @@ import base64
 import threading
 import re
 
+from acktools.net import route
+
 K = 1024
 M = 1024 * K
 G = 1024 * M
@@ -210,27 +212,6 @@ class IPv4Addr(object):
             if not self.byte_mask_match(a, b, m):
                 return False
         return True        
-
-class NetRoute(object):
-    """Class for representing a system network route"""
-    
-    def __init__(self, dest, gw, mask, iface):
-        self.dest = dest
-        self.gw = gw
-        self.mask = mask
-        self.iface = iface
-
-    def get_dest(self):
-        return self.dest
-
-    def get_gw(self):
-        return self.gw
-
-    def get_mask(self):
-        return self.mask
-
-    def get_iface(self):
-        return iface
         
 def get_network_routes(session, host_ref):
     """Return a list of NetRoute objects for this system"""
@@ -241,9 +222,7 @@ def get_network_routes(session, host_ref):
 
     # Create NetRoute objects
     for rec in recs:
-        route_obj = NetRoute(rec['Destination'], rec['Gateway'], 
-                             rec['Genmask'], rec['Iface'],
-                            )
+        route_obj = route.Route(**rec)
         routes.append(route_obj)
 
     return routes
@@ -1152,7 +1131,47 @@ def pool_wide_cleanup(session, tag=FOR_CLEANUP):
     log.debug("**Performing pool wide cleanup...**")
     pool_wide_vm_cleanup(session, tag)
     pool_wide_network_cleanup(session, tag)
+    pool_wide_host_cleanup(session)
 
+
+def host_cleanup(session, host):
+    # Check routes
+    routes = get_network_routes(session, host)
+    cur_route_table = route.RouteTable(routes)
+
+    oc = session.xenapi.host.get_other_config(host)
+    
+    # Load in default routes
+    default_route_key = 'default_routes'
+    default_route_list = []
+    if default_route_key in oc.keys():
+        default_routes = eval(oc[default_route_key])
+        for rec in default_routes:
+            route_obj = route.Route(**rec)
+            default_route_list.append(route_obj)
+    
+    default_route_table = route.RouteTable(default_route_list) 
+    missing_routes = default_route_table.get_missing(cur_route_table)
+
+    dom0_ref = _find_control_domain(session, host)
+    for missing_route in missing_routes:
+        log.debug("Missing route: %s. Attempting to add to host %s" % \
+                    (missing_route.get_record(), host))
+
+        args = {'vm_ref': dom0_ref,
+                'dest_ip': missing_route.get_dest(),
+                'device': missing_route.get_iface(),
+                'gw': missing_route.get_gw(),
+                'mask': missing_route.get_mask()}
+        call_ack_plugin(session, 'add_route', args, host)
+
+    log.debug("host cleanup is complete.")
+    
+def pool_wide_host_cleanup(session):
+    hosts = session.xenapi.host.get_all()
+
+    for host in hosts:
+        host_cleanup(session, host)
 
 def pool_wide_vm_cleanup(session, tag):
     """Searches for VMs with a cleanup tag, and destroys"""
