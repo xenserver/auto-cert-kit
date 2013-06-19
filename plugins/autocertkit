@@ -162,7 +162,7 @@ ARGUMENT_PATTERN = re.compile(r'^[a-zA-Z0-9_:\.\-,]+$')
 #Extra symbols: '=', '/', '+'
 ARGUMENT_PATTERN_BASE64 = re.compile(r'^[a-zA-Z0-9_:\.\-\=\/\+,]+$')
 
-def validate_exists(args, key, default=None):
+def validate_exists(args, key, default=None, required=True):
     """Validates that a string argument to a RPC method call is given, and
     matches the shell-safe regex, with an optional default value in case it
     does not exist.
@@ -180,7 +180,7 @@ def validate_exists(args, key, default=None):
         if args[key][0] == '-':
             raise ArgumentError('Argument %r value %r starts with a hyphen.' % (key, args[key]))
         return args[key]
-    elif default is not None:
+    elif not required or not default:
         return default
     else:
         raise ArgumentError('Argument %s is required.' % key)
@@ -789,7 +789,9 @@ def add_route(session, args):
     vm_ref = validate_exists(args, 'vm_ref') 
     device = validate_exists(args, 'device')
     dest_ip = validate_exists(args, 'dest_ip')
-
+    gw = validate_exists(args, 'gw', required=False)
+    mask = validate_exists(args, 'mask', required=False)
+   
     log.debug("add_route %s %s %s" % (vm_ref, device, dest_ip))
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
@@ -807,13 +809,30 @@ def add_route(session, args):
         bridge = device.replace('eth', 'xenbr')
         # Handle the case that we are dealing with Dom0
         # 1. Setup the correct routing entry in Dom0's routing table
-    
-        call = [IP, 
-                "route", 
-                "add", 
-                "%s/32" % dest_ip,
-                "dev", 
-                bridge]
+  
+        # Handle the default route case 
+        if dest_ip == '0.0.0.0' and mask == '0.0.0.0' and gw:
+            
+            log.debug("Removing default gateway, before adding it back in")
+            call = [IP, "route", "del", "default"]
+            make_local_call(call)
+             
+            call = [IP,
+                    "route",
+                    "add",
+                    "default",
+                    "via",
+                    gw,
+                    "dev",
+                    bridge]
+
+        else:
+            call = [IP, 
+                    "route", 
+                    "add", 
+                    "%s/32" % dest_ip,
+                    "dev", 
+                    bridge]
 
     else:
         # Handle the case we are adding a route to a VM
