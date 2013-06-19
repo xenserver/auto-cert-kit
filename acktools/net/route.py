@@ -64,6 +64,43 @@ class Route(object):
             rec[key] = getattr(self, key)
         return rec
 
+class RouteTable(object):
+    """Class for representing a route table which constitutes 
+    a collection of route objects."""
+
+    def __init__(self, route_obj_list):
+        self.routes = route_obj_list
+
+    def get_routes(self, dest=None, mask=None, gw=None, iface=None):
+        
+        matching_routes = []
+
+        for route in self.routes:
+            if dest and route.dest != dest:
+                continue
+            if mask and route.mask != mask:
+                continue
+            if gw and route.gw != gw:
+                continue
+            if iface and route.iface != iface:
+                continue
+            else:
+                # Route clearly matches the required fields
+                matching_routes.append(route)
+
+        return matching_routes    
+
+    def get_missing(self, rt):
+        """Compare this route table with another passed in"""
+        missing = []
+        for route in self.get_routes():
+            if not rt.get_routes(route.get_dest(),
+                                 route.get_mask(),
+                                 route.get_gw(),
+                                 route.get_iface()):
+                missing.append(route)
+        return missing
+
 def get_route_table():
     return acktools.make_local_call([ROUTE_CLI,'-n'])    
 

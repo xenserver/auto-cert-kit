@@ -44,6 +44,52 @@ class RouteObjectTests(unittest.TestCase):
         for key in self.route_rec.keys():
             validate_key(key)
 
+class RouteTableTests(unittest.TestCase):
+
+    route_recs = [ 
+                   {'dest': '0.0.0.0', 'gw': '10.80.2.1', 
+                    'mask': '0.0.0.0', 'iface': 'eth1'},
+                   {'dest': '192.168.0.0', 'gw':'192.168.0.1',
+                    'mask': '255.255.255.0', 'iface':'eth3'}
+                 ]
+
+    def setUp(self):
+        route_list = []
+        for rec in self.route_recs:
+            route_obj = route.Route(**rec)
+            route_list.append(route_obj)
+
+        self.route_table = route.RouteTable(route_list)
+
+    def test_get_routes(self):
+        routes = self.route_table.get_routes()
+        self.assertEqual(len(routes), 2)
+
+    def test_get_route(self):
+        for rec in self.route_recs:
+            routes = self.route_table.get_routes(rec['dest'], rec['mask'])
+            self.assertEqual(len(routes), 1)
+            route = routes.pop()
+            self.assertNotEqual(route, None)
+            self.assertEqual(route.get_iface(), rec['iface'])
+            self.assertEqual(route.get_gw(), rec['gw'])
+
+    def test_get_nonexistent_route(self):
+        routes = self.route_table.get_routes('192.145.2.5','255.255.255.0')
+        self.assertEqual(routes, [])
+        routes = self.route_table.get_routes('192.168.0.0','255.255.254.0')
+        self.assertEqual(routes, [])
+
+    def test_get_missing_routes(self):
+        route_obj = route.Route(**self.route_recs[0])
+        rt = route.RouteTable([route_obj])
+        missing = self.route_table.get_missing(rt)
+        self.assertEqual(len(missing), 1)
+
+    def test_get_no_missing_routes(self):
+        missing = self.route_table.get_missing(self.route_table)
+        self.assertEqual(missing, [])
+
 class RouteMethodTests(unittest.TestCase):
 
     route_table = \
