@@ -32,6 +32,7 @@ SUPP_PACK_TARBALL := $(MY_OBJ_DIR)/xenserver-auto-cert-kit.tar.gz
 SUPP_PACK_SOURCES := $(MY_OUTPUT_DIR)/SOURCES/xenserver-auto-cert-kit-src.tar.gz
 SUPP_PACK_SOURCES_ISO := $(MY_OUTPUT_DIR)/SOURCES/xs-auto-cert-kit-sources.iso
 
+PY_PACKAGE := pypackages
 TEST_KIT_RPM := $(MY_OUTPUT_DIR)/RPMS/noarch/xenserver-auto-cert-kit-$(PRODUCT_VERSION)-$(BUILD_NUMBER).noarch.rpm
 TEST_KIT_RPM_TMP_DIR := $(MY_OBJ_DIR)/RPM_BUILD_DIRECTORY/tmp/xenserver-auto-cert-kit
 
@@ -92,6 +93,9 @@ $(TEST_KIT_SPEC): $(REPO)/xenserver-auto-cert-kit.spec.in
 $(TEST_KIT_RPM): $(TEST_KIT_SPEC)
 	mkdir -p $(dir $@)
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
+	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)
+	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools
+	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/net
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(XAPI_PLUGIN_DEST)
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(STARTUP_SCRIPT_DEST)
 	cp -r $(TEST_KIT)/*.py  $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
@@ -105,7 +109,10 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC)
 	cp -r $(REPO)/overlay/* $(TEST_KIT_RPM_TMP_DIR)/
 	cp -r $(REPO)/plugins/* $(TEST_KIT_RPM_TMP_DIR)/$(XAPI_PLUGIN_DEST)
 	cp -r $(REPO)/init.d/* $(TEST_KIT_RPM_TMP_DIR)/$(STARTUP_SCRIPT_DEST)
-	cp -r $(REPO)/config $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
+	cp -r $(REPO)/config $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)    
+	cp $(REPO)/acktools/*.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/
+	cp $(REPO)/acktools/net/*.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/net/
+	cp -r $(REPO)/mk/acktools-setup.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/setup.py
 	cp $(DEMO_LINUX_XVA) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cp $(IPERF_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cp $(BONNIE_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
