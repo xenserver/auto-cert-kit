@@ -21,6 +21,8 @@ exit 0
 
 %post
 chkconfig --add auto-cert-kit
+pushd /opt/xensource/packages/files/auto-cert-kit/pypackages
+python setup.py install
 exit 0
 
 %preun
@@ -59,3 +61,8 @@ exit 0
 /etc/xensource/bugtool/Auto_Cert_Kit.xml
 /etc/xensource/bugtool/Auto_Cert_Kit/auto_cert_kit_logs.xml
 /etc/logrotate.d/autocertkit
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/__init__.py
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/__init__.py
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/route.py
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/utils.py
+/opt/xensource/packages/files/auto-cert-kit/pypackages/setup.py

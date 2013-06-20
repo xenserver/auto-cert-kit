@@ -332,7 +332,18 @@ class NetworkTestClass(TestClass):
     def host_setup(self):
         """Overload setup function. Setup networking backend"""
         master_ref = get_pool_master(self.session)
+    
+        host_refs = self.session.xenapi.host.get_all()
 
+        for host_ref in host_refs:
+            oc = self.session.xenapi.host.get_other_config(host_ref)
+            default_routes_key = 'default_routes'
+            if default_routes_key not in oc.keys():
+                routes = get_network_routes(self.session, host_ref)
+                route_recs = [route.get_record() for route in routes]
+                oc[default_routes_key] = str(route_recs)
+                self.session.xenapi.host.set_other_config(host_ref, oc)
+    
         def plugin_call(method, args):
             return self.session.xenapi.host.call_plugin(master_ref,
                                                         'autocertkit',
