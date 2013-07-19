@@ -49,38 +49,42 @@ DEMO_LINUX_XVA := $(PROJECT_OUTPUTDIR)/vpx-dlvm/vpx-dlvm.xva
 
 #ACK_DISTFILES ?= /usr/groups/linux/distfiles/auto-cert-kit/
 ACK_DISTFILES = $(MY_DISTFILES)
-#Distfile Dependencies
-GMP_RPM := $(ACK_DISTFILES)/gmp-4.1.4-10.el5.i386.rpm
-GMP_SRC_RPM := $(ACK_DISTFILES)/gmp-4.1.4-10.el5.src.rpm
-PY_CRYPTO_RPM := $(ACK_DISTFILES)/python-crypto-2.0.1-13.1.el5.kb.1.i386.rpm
-PY_CRYPTO_SRC_RPM := $(ACK_DISTFILES)/python-crypto-2.0.1-13.1.el5.kb.1.src.rpm
-PARAMIKO_RPM := $(ACK_DISTFILES)/python-paramiko-1.7.6-1.el5.rf.noarch.rpm
-PARAMIKO_SRC_RPM := $(ACK_DISTFILES)/python-paramiko-1.7.6-1.src.rpm
-IPERF_RPM := $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.i386.rpm
-IPERF_SRC_RPM := $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.src.rpm
-BONNIE_RPM := $(ACK_DISTFILES)/bonnie++-1.94-1.el5.rf.i386.rpm
-BONNIE_SRC_RPM := $(ACK_DISTFILES)/bonnie++-1.94-1.rf.src.rpm
-IOZONE_RPM := $(ACK_DISTFILES)/iozone-3.394-1.el5.rf.i386.rpm
-IOZONE_SRC_RPM := $(ACK_DISTFILES)/iozone-3.394-1.rf.src.rpm
-LMBENCH_RPM := $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.el5.rf.i386.rpm
-LMBENCH_SRC_RPM := $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.rf.src.rpm
-MAKE_RPM := $(ACK_DISTFILES)/make-3.81-3.el5.i386.rpm
-MAKE_SRC_RPM := $(ACK_DISTFILES)/make-3.81-3.el5.src.rpm
 
-DEPS := $(GMP_RPM) $(PY_CRYPTO_RPM) $(PARAMIKO_RPM) $(IPERF_RPM) 
-SRC_DEPS := $(GMP_SRC_RPM) $(PY_CRYPTO_SRC_RPM) $(PARAMIKO_SRC_RPM) $(IPERF_SRC_RPM) $(BONNIE_SRC_RPM) $(IOZONE_SRC_RPM) $(LMBENCH_SRC_RPM) $(MAKE_SRC_RPM)
+# packages installed on domain0
+DOM0_RPMS :=
+# packages to be installed on VM
+VM_RPMS   :=
+# source packages
+SRC_RPMS  :=
+
+DOM0_RPMS += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.$(DOMAIN0_ARCH).rpm
+SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.src.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.7.5-2.1.el6.noarch.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.7.5-2.1.el6.src.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.5-3.el6.$(DOMAIN0_ARCH).rpm
+SRC_RPMS  += $(ACK_DISTFILES)/iperf-2.0.5-3.el6.src.rpm
+
+VM_RPMS   += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.i386.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.src.rpm
+VM_RPMS   += $(ACK_DISTFILES)/bonnie++-1.94-1.el5.rf.i386.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/bonnie++-1.94-1.rf.src.rpm
+VM_RPMS   += $(ACK_DISTFILES)/iozone-3.394-1.el5.rf.i386.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/iozone-3.394-1.rf.src.rpm
+VM_RPMS   += $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.el5.rf.i386.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.rf.src.rpm
+VM_RPMS   += $(ACK_DISTFILES)/make-3.81-3.el5.i386.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/make-3.81-3.el5.src.rpm
 
 OUTPUT := $(SUPP_PACK_ISO)
-
 
 .PHONY: build
 build: $(SUPP_PACK_ISO) $(SUPP_PACK_SOURCES_ISO)
 	@:
 
-$(SUPP_PACK_SOURCES): $(SRC_DEPS)
+$(SUPP_PACK_SOURCES): $(SRC_RPMS)
 	mkdir -p $(dir $@)
 	mkdir -p $(TMP_SRC_DIR)
-	cp $(SRC_DEPS) $(TMP_SRC_DIR)/
+	cp $(SRC_RPMS) $(TMP_SRC_DIR)/
 	tar -C $(MY_OBJ_DIR) -cvf $@ SOURCES/
 
 $(SUPP_PACK_SOURCES_ISO): $(SUPP_PACK_SOURCES)
@@ -115,15 +119,11 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC) $(RPM_DIRECTORIES)
 	cp $(REPO)/acktools/net/*.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/net/
 	cp -r $(REPO)/mk/acktools-setup.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/setup.py
 	cp $(DEMO_LINUX_XVA) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
-	cp $(IPERF_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
-	cp $(BONNIE_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
-	cp $(IOZONE_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
-	cp $(LMBENCH_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
-	cp $(MAKE_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
+	cp $(VM_RPMS) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cd $(TEST_KIT_RPM_TMP_DIR) && tar zcvf $(RPM_SOURCESDIR)/auto-cert-kit.tar.gz *
 	$(RPMBUILD) -bb $(TEST_KIT_SPEC)
 
-$(SUPP_PACK_ISO): $(TEST_KIT_RPM) $(DEPS)
+$(SUPP_PACK_ISO): $(TEST_KIT_RPM) $(DOM0_RPMS)
 	python setup-supp-pack.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --bld $(BUILD) $^
 
 pylint:
