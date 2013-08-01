@@ -7,48 +7,42 @@ Vendor: Citrix Systems, Inc.
 Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}
 BuildArch: noarch
+Source0: auto-cert-kit.tar.gz
 
 %description
 
-%prep
-exit 0
-
-%build
-exit 0
-
 %install
-exit 0
+cd %{buildroot}
+tar zxvf %{SOURCE0}
 
 %post
 chkconfig --add auto-cert-kit
-pushd /opt/xensource/packages/files/auto-cert-kit/pypackages
+cd /opt/xensource/packages/files/auto-cert-kit/pypackages
 python setup.py install
-exit 0
 
 %preun
 chkconfig --del auto-cert-kit
-exit 0
 
 %clean
-exit 0
+rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-/opt/xensource/packages/files/auto-cert-kit/__init__.py
-/opt/xensource/packages/files/auto-cert-kit/cpu_tests.py
-/opt/xensource/packages/files/auto-cert-kit/network_tests.py
-/opt/xensource/packages/files/auto-cert-kit/operations_tests.py
-/opt/xensource/packages/files/auto-cert-kit/storage_tests.py
-/opt/xensource/packages/files/auto-cert-kit/test_runner.py
-/opt/xensource/packages/files/auto-cert-kit/testbase.py
-/opt/xensource/packages/files/auto-cert-kit/utils.py
-/opt/xensource/packages/files/auto-cert-kit/test_report.py
+/opt/xensource/packages/files/auto-cert-kit/__init__.py*
+/opt/xensource/packages/files/auto-cert-kit/cpu_tests.py*
+/opt/xensource/packages/files/auto-cert-kit/network_tests.py*
+/opt/xensource/packages/files/auto-cert-kit/operations_tests.py*
+/opt/xensource/packages/files/auto-cert-kit/storage_tests.py*
+/opt/xensource/packages/files/auto-cert-kit/test_runner.py*
+/opt/xensource/packages/files/auto-cert-kit/testbase.py*
+/opt/xensource/packages/files/auto-cert-kit/utils.py*
+/opt/xensource/packages/files/auto-cert-kit/test_report.py*
 /opt/xensource/packages/files/auto-cert-kit/vpx-dlvm.xva
-/opt/xensource/packages/files/auto-cert-kit/ssh.py
-/opt/xensource/packages/files/auto-cert-kit/ack_cli.py
-/opt/xensource/packages/files/auto-cert-kit/status.py
-/opt/xensource/packages/files/auto-cert-kit/models.py
-/opt/xensource/packages/files/auto-cert-kit/test_generators.py
+/opt/xensource/packages/files/auto-cert-kit/ssh.py*
+/opt/xensource/packages/files/auto-cert-kit/ack_cli.py*
+/opt/xensource/packages/files/auto-cert-kit/status.py*
+/opt/xensource/packages/files/auto-cert-kit/models.py*
+/opt/xensource/packages/files/auto-cert-kit/test_generators.py*
 /opt/xensource/packages/files/auto-cert-kit/iperf-2.0.4-1.el5.rf.i386.rpm
 /opt/xensource/packages/files/auto-cert-kit/bonnie++-1.94-1.el5.rf.i386.rpm
 /opt/xensource/packages/files/auto-cert-kit/iozone-3.394-1.el5.rf.i386.rpm
@@ -61,8 +55,8 @@ exit 0
 /etc/xensource/bugtool/Auto_Cert_Kit.xml
 /etc/xensource/bugtool/Auto_Cert_Kit/auto_cert_kit_logs.xml
 /etc/logrotate.d/autocertkit
-/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/__init__.py
-/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/__init__.py
-/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/route.py
-/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/utils.py
-/opt/xensource/packages/files/auto-cert-kit/pypackages/setup.py
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/__init__.py*
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/__init__.py*
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/route.py*
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/utils.py*
+/opt/xensource/packages/files/auto-cert-kit/pypackages/setup.py*
