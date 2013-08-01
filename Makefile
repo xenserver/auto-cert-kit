@@ -90,7 +90,8 @@ $(TEST_KIT_SPEC): $(REPO)/xenserver-auto-cert-kit.spec.in
 	mkdir -p $(dir $@)
 	$(call brand,$^) >$@
 
-$(TEST_KIT_RPM): $(TEST_KIT_SPEC)
+$(TEST_KIT_RPM): $(TEST_KIT_SPEC) $(RPM_DIRECTORIES)
+	rm -rf $(dir $@)
 	mkdir -p $(dir $@)
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	mkdir -p $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)
@@ -119,6 +120,7 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC)
 	cp $(IOZONE_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cp $(LMBENCH_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cp $(MAKE_RPM) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
+	cd $(TEST_KIT_RPM_TMP_DIR) && tar zcvf $(RPM_SOURCESDIR)/auto-cert-kit.tar.gz *
 	$(RPMBUILD) -bb $(TEST_KIT_SPEC)
 
 $(SUPP_PACK_ISO): $(TEST_KIT_RPM) $(DEPS)
