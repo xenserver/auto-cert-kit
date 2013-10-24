@@ -710,12 +710,19 @@ class PIFParamTestClass(IperfTestClass):
 
     num_ips_required = 2
 
+    def __init__(self, session, config):
+        self.ethtool_failure = set()
+        IperfTestClass.__init__(self, session, config)
+
     def _set_offload_params(self, session, pif, config):
         log.debug(config)
         device = session.xenapi.PIF.get_device(pif)
         log.debug("Device: %s" % device)
         for k, v in config.iteritems():
-            set_hw_offload(session, device, k, v)
+            # in kernel 3.x in Dom0 (XenServer ver >= 7.0)
+            # This can fail due to hw restriction.
+            if set_hw_offload(session, device, k, v) != '0':
+                self.ethtool_failure.add(k)
 
 
     def _verify_ethtool_offloads(self, session, config, device):
@@ -727,7 +734,8 @@ class PIFParamTestClass(IperfTestClass):
         for k, v in hw_offloads.iteritems():
             log.debug("Device: %s (%s offload: %s)" % (device,k, v))
             if config[k] != v.strip():
-                raise Exception("%s offload was not in the correct state (is %s)" %
+                if not k in self.ethtool_failure:
+                    raise Exception("%s offload was not in the correct state (is %s)" %
                                 (k, v))
                                 
     def _setup_pif_params(self, session, network_ref):
