@@ -5,7 +5,7 @@ import mock
 
 from acktools import utils
 from acktools.net import route
-
+import acktools
 
 class RouteObjectTests(unittest.TestCase):
 
@@ -65,6 +65,20 @@ class RouteTableTests(unittest.TestCase):
         routes = self.route_table.get_routes()
         self.assertEqual(len(routes), 2)
 
+    def test_get_routes_non_matching_gw(self):
+        routes = self.route_table.get_routes(dest='192.168.0.0',
+                                             mask='255.255.255.0',
+                                             gw='192.168.0.2',
+                                             iface='eth3')
+        self.assertEqual(routes, [])
+
+    def test_get_routes_non_matching_iface(self):
+        routes = self.route_table.get_routes(dest='192.168.0.0',
+                                             mask='255.255.255.0',
+                                             gw='192.168.0.1',
+                                             iface='eth1')
+        self.assertEqual(routes, [])
+
     def test_get_route(self):
         for rec in self.route_recs:
             routes = self.route_table.get_routes(rec['dest'], rec['mask'])
@@ -121,6 +135,22 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
                 raise Exception("Error: route not in original list! " \
                                 "'%s'" % route)
 
+    def test_invalid_routing_table(self):
+        real_get_route_table = route.get_route_table
+        try:
+            setattr(route, 'get_route_table', mock.Mock(return_value="Blah"))
+            self.assertRaises(Exception, route.get_all_routes)
+        finally:
+            route.get_route_table = real_get_route_table
+
+    def test_get_route_table(self):
+        real_make_local_call = acktools.make_local_call
+        try:
+            setattr(acktools, 'make_local_call', mock.Mock())
+            route_table = route.get_route_table()
+            acktools.make_local_call.assert_called()
+        finally:
+            acktools.make_local_call = real_make_local_call
 
 if __name__ == "__main__":
     unittest.main()
