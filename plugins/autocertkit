@@ -500,7 +500,8 @@ def create_output_package(session, args):
     def add_if_exists(file_loc):
         if os.path.exists(file_loc):
             tar.add(file_loc)
-        log.debug("Cannot add %s to output package, does not exist" % file_loc)
+        else:
+            log.debug("Cannot add %s to output package, does not exist" % file_loc)
 
     tar.add(bugtool_loc)
     tar.add("%s/test_run.conf" % INSTALL_DIR)
