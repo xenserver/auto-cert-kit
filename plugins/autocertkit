@@ -1115,7 +1115,7 @@ def deploy_iozone(session, args):
 
     if not session.xenapi.VM.get_is_control_domain(vm_ref):
         # Only setup iperf if not control domain
-        # - that already has lmbench installed.
+        # - that already has iozone installed.
         i = 0
         limit = 5
         while i < limit:
@@ -1128,7 +1128,7 @@ def deploy_iozone(session, args):
                 time.sleep(5) #Sleep 5 seconds
                 i = i + 1 #Increment counter
                 if i == limit:
-                    raise Exception("Cannot deploy LMbench")
+                    raise Exception("Cannot deploy Iozone")
                 
     log.debug("Iozone installation completed")
     return "OK"
@@ -1165,7 +1165,7 @@ def deploy_bonnie(session, args):
 
     if not session.xenapi.VM.get_is_control_domain(vm_ref):
         # Only setup iperf if not control domain
-        # - that already has lmbench installed.
+        # - that already has bonnie++ installed.
         i = 0
         limit = 5
         while i < limit:
@@ -1180,7 +1180,7 @@ def deploy_bonnie(session, args):
                 time.sleep(5) #Sleep 5 seconds
                 i = i + 1 #Increment counter
                 if i == limit:
-                    raise Exception("Cannot deploy LMbench")
+                    raise Exception("Cannot deploy Bonnie++")
                 
     log.debug("Bonnie++ installation completed")
     return "OK"
