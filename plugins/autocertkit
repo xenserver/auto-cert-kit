@@ -457,10 +457,10 @@ def get_pci_id(bus_id):
     """Return the PCI id for a specified bus location"""
     call = ['/sbin/lspci', '-n', '-s', bus_id]
     try:
-    	res = make_local_call(call)
-    	return res.split()[2]
+        res = make_local_call(call)
+        return res.split()[2]
     except Exception, e:
-    	log.debug("Exception: %s" % str(e))
+        log.debug("Exception: %s" % str(e))
 
 def get_pci_description(bus_id):
     """Return the PCI description for a specified bus location"""    
@@ -500,7 +500,7 @@ def create_output_package(session, args):
     def add_if_exists(file_loc):
         if os.path.exists(file_loc):
             tar.add(file_loc)
-       	log.debug("Cannot add %s to output package, does not exist" % file_loc)
+        log.debug("Cannot add %s to output package, does not exist" % file_loc)
 
     tar.add(bugtool_loc)
     tar.add("%s/test_run.conf" % INSTALL_DIR)
@@ -540,9 +540,9 @@ def compat_biosdevname():
     pattern = re.compile(r'\d*:?[a-f0-9]+:[a-f0-9]+\.[a-f0-9]')
 
     for eth, rec in devs.iteritems():
-    	if pattern.match(rec['Bus Info']):
-        	log.debug("Found %s" % eth)
-        	devices.append(rec)
+        if pattern.match(rec['Bus Info']):
+            log.debug("Found %s" % eth)
+            devices.append(rec)
 
     return devices
 
@@ -1001,100 +1001,100 @@ def get_host_routes(session, args):
 
 @log_exceptions
 def install_rpm(session, rpm_name, vm_ref, username, password):
-	"""Install a predefined RPM"""
-	ip_address = wait_for_ip(session, vm_ref, 'eth0')
-	call = ['/usr/bin/scp', "-o", "StrictHostKeyChecking=no", "/opt/xensource/packages/files/auto-cert-kit/%s" % rpm_name, 'root@%s:' % ip_address]
-	log.debug(call)
-	make_local_call(call)
-	cmd_str = "rpm -i /root/%s --nosignature" % rpm_name
-	log.debug(cmd_str)
-	ssh_command(ip_address, username, password, cmd_str)
- 
- 
+    """Install a predefined RPM"""
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    call = ['/usr/bin/scp', "-o", "StrictHostKeyChecking=no", "/opt/xensource/packages/files/auto-cert-kit/%s" % rpm_name, 'root@%s:' % ip_address]
+    log.debug(call)
+    make_local_call(call)
+    cmd_str = "rpm -i /root/%s --nosignature" % rpm_name
+    log.debug(cmd_str)
+    ssh_command(ip_address, username, password, cmd_str)
+
+
 ############### LMbench Setup #########################
 @log_exceptions
 def copy_lmbench_config(session, vm_ref, username, password):
-	"""Copy the LMbench config file to a VM"""
-	if not os.path.exists(LMBENCH_CONF_LOC):
-		raise Exception("LMbench config file is not present in %s" % LMBENCH_CONF_LOC)
-	ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    """Copy the LMbench config file to a VM"""
+    if not os.path.exists(LMBENCH_CONF_LOC):
+        raise Exception("LMbench config file is not present in %s" % LMBENCH_CONF_LOC)
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
 
-	# Determine where lmbench will be looking for the config
-	# file, so that we can copy it to the correct place.
-	cmd_str = "/usr/lib/lmbench/scripts/config"
-	config_file_name = ssh_command(ip_address, username, password, cmd_str)
+    # Determine where lmbench will be looking for the config
+    # file, so that we can copy it to the correct place.
+    cmd_str = "/usr/lib/lmbench/scripts/config"
+    config_file_name = ssh_command(ip_address, username, password, cmd_str)
         
-	log.debug("Deterined that VM %s needs lmbench config file named: %s" % (vm_ref, config_file_name))
+    log.debug("Deterined that VM %s needs lmbench config file named: %s" % (vm_ref, config_file_name))
     
-	call = ['/usr/bin/scp',
-			"-o", "StrictHostKeyChecking=no",
-			LMBENCH_CONF_LOC,
-			'root@%s:/usr/lib/lmbench/bin/i686-pc-linux-gnu/%s' % (ip_address, config_file_name)]
-	log.debug(call)
-	return make_local_call(call)
+    call = ['/usr/bin/scp',
+            "-o", "StrictHostKeyChecking=no",
+            LMBENCH_CONF_LOC,
+            'root@%s:/usr/lib/lmbench/bin/i686-pc-linux-gnu/%s' % (ip_address, config_file_name)]
+    log.debug(call)
+    return make_local_call(call)
 
 @log_exceptions
 def deploy_lmbench(session, args):
-	"""Install LMbench on a VM"""
-	vm_ref = validate_exists(args, 'vm_ref')
-	username = validate_exists(args, 'username')
-	password = validate_exists(args, 'password')
+    """Install LMbench on a VM"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
 
-	if not session.xenapi.VM.get_is_control_domain(vm_ref):
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
         # Only setup iperf if not control domain
         # - that already has lmbench installed.
-		i = 0
-		limit = 5
-		while i < limit:
-			try:
-				install_ssh_key(session, vm_ref, username, password)
-				install_rpm(session, MAKE_RPM, vm_ref, username, password)
-				install_rpm(session, LMBENCH_RPM, vm_ref, username, password)
-				copy_lmbench_config(session, vm_ref, username, password)
-				break
-			except:
-				log.debug("Exception raised attempting to deploy LMbench. Attempt %d" % i)
-				time.sleep(5) #Sleep 5 seconds
-				i = i + 1 #Increment counter
-				if i == limit:
-					raise Exception("Cannot deploy LMbench")
+        i = 0
+        limit = 5
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                install_rpm(session, MAKE_RPM, vm_ref, username, password)
+                install_rpm(session, LMBENCH_RPM, vm_ref, username, password)
+                copy_lmbench_config(session, vm_ref, username, password)
+                break
+            except:
+                log.debug("Exception raised attempting to deploy LMbench. Attempt %d" % i)
+                time.sleep(5) #Sleep 5 seconds
+                i = i + 1 #Increment counter
+                if i == limit:
+                    raise Exception("Cannot deploy LMbench")
                 
-	log.debug("LMbench installation completed")
-	return "OK"
+    log.debug("LMbench installation completed")
+    return "OK"
 
 @log_exceptions
 def retrieve_lmbench_logs(session, args):
-	"""Copy the LMbench logs back to the log dir on the master host"""
-	vm_ref = validate_exists(args, 'vm_ref')
-	username = validate_exists(args, 'username')
-	password = validate_exists(args, 'password')
-	ip_address = wait_for_ip(session, vm_ref, 'eth0')
-	
-	# Make sure the logs exists
-	results_dir = '/usr/lib/lmbench/results/i686-pc-linux-gnu/'
-	cmd_str = "ls %s* | wc -l" % results_dir
-	log.debug(cmd_str)
-	response = ssh_command(ip_address, username, password, cmd_str)
+    """Copy the LMbench logs back to the log dir on the master host"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
 
-	if int(response) == 0:
-		raise Exception("Couldn't find any results files in directory '%s'" % results_dir)
+    # Make sure the logs exists
+    results_dir = '/usr/lib/lmbench/results/i686-pc-linux-gnu/'
+    cmd_str = "ls %s* | wc -l" % results_dir
+    log.debug(cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)
+
+    if int(response) == 0:
+        raise Exception("Couldn't find any results files in directory '%s'" % results_dir)
 
     # Make sure the local lmbench results dir exists
-	if not os.path.exists(LMBENCH_RESULTS_DIR):
-		os.makedirs(LMBENCH_RESULTS_DIR)
+    if not os.path.exists(LMBENCH_RESULTS_DIR):
+        os.makedirs(LMBENCH_RESULTS_DIR)
 
     # Create a directory per VM to save having to rename log files to
     # avoid overwritting other results.
-	vm_lmbench_results_dir = "%s/%s" % (LMBENCH_RESULTS_DIR, vm_ref)
-	os.mkdir(vm_lmbench_results_dir)
-	
-	# SCP the logs to the master host
-	call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", 
+    vm_lmbench_results_dir = "%s/%s" % (LMBENCH_RESULTS_DIR, vm_ref)
+    os.mkdir(vm_lmbench_results_dir)
+
+    # SCP the logs to the master host
+    call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", 
             "root@%s:/usr/lib/lmbench/results/i686-pc-linux-gnu/*" % ip_address, 
             vm_lmbench_results_dir]
 
-	log.debug(call)
-	return make_local_call(call)
+    log.debug(call)
+    return make_local_call(call)
 
 def lmbench_test(session):
     """Run LMbench"""
@@ -1107,102 +1107,102 @@ def lmbench_test(session):
 
 @log_exceptions
 def deploy_iozone(session, args):
-	"""Install Iozone on a VM"""
-	vm_ref = validate_exists(args, 'vm_ref')
-	username = validate_exists(args, 'username')
-	password = validate_exists(args, 'password')
+    """Install Iozone on a VM"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
 
-	if not session.xenapi.VM.get_is_control_domain(vm_ref):
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
         # Only setup iperf if not control domain
         # - that already has lmbench installed.
-		i = 0
-		limit = 5
-		while i < limit:
-			try:
-				install_ssh_key(session, vm_ref, username, password)
-				install_rpm(session, IOZONE_RPM, vm_ref, username, password)
-				break
-			except:
-				log.debug("Exception raised attempting to deploy Iozone. Attempt %d" % i)
-				time.sleep(5) #Sleep 5 seconds
-				i = i + 1 #Increment counter
-				if i == limit:
-					raise Exception("Cannot deploy LMbench")
+        i = 0
+        limit = 5
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                install_rpm(session, IOZONE_RPM, vm_ref, username, password)
+                break
+            except:
+                log.debug("Exception raised attempting to deploy Iozone. Attempt %d" % i)
+                time.sleep(5) #Sleep 5 seconds
+                i = i + 1 #Increment counter
+                if i == limit:
+                    raise Exception("Cannot deploy LMbench")
                 
-	log.debug("Iozone installation completed")
-	return "OK"
+    log.debug("Iozone installation completed")
+    return "OK"
 
 @log_exceptions
 def retrieve_iozone_logs(session, args):
-	"""Copy the Iozone logs back to the log dir on the master host"""
-	vm_ref = validate_exists(args, 'vm_ref')
-	username = validate_exists(args, 'username')
-	password = validate_exists(args, 'password')
-	ip_address = wait_for_ip(session, vm_ref, 'eth0')
-	
-	# Make sure the logs exists
-	cmd_str = "test -e /root/localhost.log"
-	log.debug(cmd_str)
-	response = ssh_command(ip_address, username, password, cmd_str)
-	if "error" in response:
-	    raise Exception("Cannot retrieve Iozone log from VM %s" % vm_ref)
-	
-	# SCP the logs to the master host
-	call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/iozone.log"]
-	log.debug(call)
-	return make_local_call(call)
+    """Copy the Iozone logs back to the log dir on the master host"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+
+    # Make sure the logs exists
+    cmd_str = "test -e /root/localhost.log"
+    log.debug(cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)
+    if "error" in response:
+        raise Exception("Cannot retrieve Iozone log from VM %s" % vm_ref)
+
+    # SCP the logs to the master host
+    call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/iozone.log"]
+    log.debug(call)
+    return make_local_call(call)
   
 
 ############### Bonnie++ Setup #########################
 
 @log_exceptions
 def deploy_bonnie(session, args):
-	"""Install Bonnie++ on a VM"""
-	vm_ref = validate_exists(args, 'vm_ref')
-	username = validate_exists(args, 'username')
-	password = validate_exists(args, 'password')
+    """Install Bonnie++ on a VM"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
 
-	if not session.xenapi.VM.get_is_control_domain(vm_ref):
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
         # Only setup iperf if not control domain
         # - that already has lmbench installed.
-		i = 0
-		limit = 5
-		while i < limit:
-			try:
-				install_ssh_key(session, vm_ref, username, password)
-				install_rpm(session, BONNIE_RPM, vm_ref, username, password)
-				vm_ip = wait_for_ip(session, vm_ref, 'eth0')
-				ssh_command(vm_ip, username, password, 'mkdir -m a=rwx /root/bonnie; useradd citrix; chown citrix /root/bonnie')
-				break
-			except:
-				log.debug("Exception raised attempting to deploy Bonnie++. Attempt %d" % i)
-				time.sleep(5) #Sleep 5 seconds
-				i = i + 1 #Increment counter
-				if i == limit:
-					raise Exception("Cannot deploy LMbench")
+        i = 0
+        limit = 5
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                install_rpm(session, BONNIE_RPM, vm_ref, username, password)
+                vm_ip = wait_for_ip(session, vm_ref, 'eth0')
+                ssh_command(vm_ip, username, password, 'mkdir -m a=rwx /root/bonnie; useradd citrix; chown citrix /root/bonnie')
+                break
+            except:
+                log.debug("Exception raised attempting to deploy Bonnie++. Attempt %d" % i)
+                time.sleep(5) #Sleep 5 seconds
+                i = i + 1 #Increment counter
+                if i == limit:
+                    raise Exception("Cannot deploy LMbench")
                 
-	log.debug("Bonnie++ installation completed")
-	return "OK"
+    log.debug("Bonnie++ installation completed")
+    return "OK"
 
 @log_exceptions
 def retrieve_bonnie_logs(session, args):
-	"""Copy the Bonnie++ logs back to the log dir on the master host"""
-	vm_ref = validate_exists(args, 'vm_ref')
-	username = validate_exists(args, 'username')
-	password = validate_exists(args, 'password')
-	ip_address = wait_for_ip(session, vm_ref, 'eth0')
-	
-	# Make sure the logs exists
-	cmd_str = "test -e /root/localhost.log"
-	log.debug(cmd_str)
-	response = ssh_command(ip_address, username, password, cmd_str)
-	if "error" in response:
-	    raise Exception("Cannot retrieve Bonnie++ log from VM %s" % vm_ref)
-	
-	# SCP the logs to the master host
-	call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/bonnie.log"]
-	log.debug(call)
-	return make_local_call(call)
+    """Copy the Bonnie++ logs back to the log dir on the master host"""
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+
+    # Make sure the logs exists
+    cmd_str = "test -e /root/localhost.log"
+    log.debug(cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)
+    if "error" in response:
+        raise Exception("Cannot retrieve Bonnie++ log from VM %s" % vm_ref)
+
+    # SCP the logs to the master host
+    call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/bonnie.log"]
+    log.debug(call)
+    return make_local_call(call)
   
 
 ############### Main #########################
@@ -1535,7 +1535,7 @@ if __name__ == '__main__':
                            'retrieve_bonnie_logs': retrieve_bonnie_logs,
                            'get_network_devices': get_network_devices,
                            'get_local_storage_devices': get_local_storage_devices,
-						   'get_iface_stats': get_iface_stats,
+                           'get_iface_stats': get_iface_stats,
                            'get_host_routes': get_host_routes,
                            'create_output_package': create_output_package,
                            'start_iperf_server': start_iperf_server,
