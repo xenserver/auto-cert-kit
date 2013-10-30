@@ -662,6 +662,17 @@ def get_xenserver_version(session):
             return version
     raise Exception("XenServer Version could not be detected! %s" % xs_str)
 
+def get_kernel_version(session):
+    """Return kernel version using uname"""
+    host = get_pool_master(session)    
+    log.debug("Checking version of kernel.")
+    res = session.xenapi.host.call_plugin(host,
+                                          'autocertkit',
+                                          'get_kernel_version',
+                                          {})
+    return res
+
+
 def eval_expr(expr, val):
     """Evaluate an expression against a provided value.
     Expressions should be in the form '<condition> <value>'"""
@@ -1084,7 +1095,7 @@ def add_network_interface(vm_ip, interface_name, interface_ip,
             (interface_name, interface_ip, interface_netmask)
 
     ssh_command(vm_ip, username, password, cmd, cmd, attempts=10)    
-		
+
 
 def destroy_vm(session, vm_ref, timeout=60):
     """Checks powerstate of a VM, destroys associated VDIs, 
