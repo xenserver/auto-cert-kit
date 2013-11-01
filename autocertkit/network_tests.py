@@ -710,13 +710,21 @@ class PIFParamTestClass(IperfTestClass):
 
     num_ips_required = 2
 
+    def __init__(self, session, config):
+        super(PIFParamTestClass, self).__init__(session, config)
+        version = get_kernel_version(session)
+        # In kernel 3.x of Dom0, ethtool may fail
+        # due to hw restriction.
+        if version.startswith('3.'):
+            self.ethtool_can_fail = True
+
     def _set_offload_params(self, session, pif, config):
+        """ Set offload setting."""
         log.debug(config)
         device = session.xenapi.PIF.get_device(pif)
         log.debug("Device: %s" % device)
         for k, v in config.iteritems():
-            set_hw_offload(session, device, k, v)
-
+            res = set_hw_offload(session, device, k, v)
 
     def _verify_ethtool_offloads(self, session, config, device):
         """Check that the device specified has the correct
@@ -727,8 +735,8 @@ class PIFParamTestClass(IperfTestClass):
         for k, v in hw_offloads.iteritems():
             log.debug("Device: %s (%s offload: %s)" % (device,k, v))
             if config[k] != v.strip():
-                raise Exception("%s offload was not in the correct state (is %s)" %
-                                (k, v))
+                if not self.ethtool_can_fail:
+                    raise Exception("%s offload was not in the correct state (is %s)" % (k, v))
                                 
     def _setup_pif_params(self, session, network_ref):
         pifs = session.xenapi.network.get_PIFs(network_ref)        
