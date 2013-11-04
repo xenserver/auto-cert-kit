@@ -703,32 +703,29 @@ class PIFParamTestClass(IperfTestClass):
                       'gro': 'off',
                       'ufo': 'off',
                       'lro': 'off',
-                      'rxvlan': 'off',
-                      'txvlan': 'off',
                       'ntuple': 'off',
                       'rxhash': 'off'}
 
     num_ips_required = 2
 
     def _set_offload_params(self, session, pif, config):
+        """ Set offload setting."""
         log.debug(config)
         device = session.xenapi.PIF.get_device(pif)
         log.debug("Device: %s" % device)
         for k, v in config.iteritems():
             set_hw_offload(session, device, k, v)
 
-
     def _verify_ethtool_offloads(self, session, config, device):
         """Check that the device specified has the correct
-        hw offload configuration"""#
+        hw offload configuration"""
 
         hw_offloads = get_hw_offloads(session, device)
         log.debug("verify offloads...%s" % hw_offloads)
         for k, v in hw_offloads.iteritems():
             log.debug("Device: %s (%s offload: %s)" % (device,k, v))
-            if config[k] != v.strip():
-                raise Exception("%s offload was not in the correct state (is %s)" %
-                                (k, v))
+            if k in config and config[k] != v.strip():
+                raise Exception("%s offload was not in the correct state (is %s)" % (k, v))
                                 
     def _setup_pif_params(self, session, network_ref):
         pifs = session.xenapi.network.get_PIFs(network_ref)        
@@ -788,8 +785,6 @@ class Dom0PIFParamTestClass1(PIFParamTestClass):
                       'gro': 'off',
                       'ufo': 'off',
                       'lro': 'off',
-                      'rxvlan': 'off',
-                      'txvlan': 'off',
                       'ntuple': 'off',
                       'rxhash': 'off'}
 
@@ -805,8 +800,6 @@ class Dom0PIFParamTestClass2(Dom0PIFParamTestClass1):
                       'gro': 'off',
                       'ufo': 'off',
                       'lro': 'off',
-                      'rxvlan': 'off',
-                      'txvlan': 'off',
                       'ntuple': 'off',
                       'rxhash': 'off'}
 
@@ -822,8 +815,6 @@ class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
                       'gro': 'on',
                       'ufo': 'off',
                       'lro': 'off',
-                      'rxvlan': 'off',
-                      'txvlan': 'off',
                       'ntuple': 'off',
                       'rxhash': 'off'}
 
@@ -845,8 +836,6 @@ class Dom0BridgePIFParamTestClass1(PIFParamTestClass):
                       'gro': 'off',
                       'ufo': 'off',
                       'lro': 'off',
-                      'rxvlan': 'off',
-                      'txvlan': 'off',
                       'ntuple': 'off',
                       'rxhash': 'off'}
 
@@ -861,8 +850,6 @@ class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
                       'gro': 'off',
                       'ufo': 'off',
                       'lro': 'off',
-                      'rxvlan': 'off',
-                      'txvlan': 'off',
                       'ntuple': 'off',
                       'rxhash': 'off'}
 
@@ -877,8 +864,6 @@ class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
                       'gro': 'on',
                       'ufo': 'off',
                       'lro': 'off',
-                      'rxvlan': 'off',
-                      'txvlan': 'off',
                       'ntuple': 'off',
                       'rxhash': 'off'}
 
