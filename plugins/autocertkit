@@ -134,7 +134,7 @@ def log_exceptions(func):
 
 class Iface(object):
     """Class representing an ethernet interface"""
-    
+
     required_keys = ["ip","mask","mac"]
 
     def __init__(self, rec):
@@ -351,7 +351,7 @@ def save_bugtool():
     """Saves a bugtool and returns the name"""
     log.debug("Collecting a bugtool report")
     call = ["xen-bugtool", "--yestoall"]
-    info = make_local_call(call)
+    info = make_local_call(call)["stdout"]
     where = info.find('/var/opt/xen/bug-report')
     bugtool_loc = ((info[where:]).split())[0]
     log.debug("Bugtool saved: %s" % bugtool_loc)
@@ -378,15 +378,13 @@ def make_local_call(call):
     log.debug("make_local_call: %s" % (" ".join(call)))
     process = subprocess.Popen(call, stdout=subprocess.PIPE)
     stdout, stderr = process.communicate()
-    if process.returncode == 0:
-        res = str(stdout).strip()
-        return str(stdout).strip()
-    else:
+    res = {"returncode": process.returncode, "stdout": str(stdout).strip(), "stderr": str(stderr).strip()}
+    if res["returncode"] != 0:
         msg = "ERR: Could not make local call %s" % ' '.join(call)
         log.error(msg)
         log.debug("stdout: %s"  % str(stdout))
         log.debug("stderr: %s" % str(stderr))
-        return str(stdout).strip()
+    return res
 
 def validate_xml_key(key):
     """Check that a key will be acceptable for an XML attribute
@@ -458,7 +456,7 @@ def get_pci_id(bus_id):
     call = ['/sbin/lspci', '-n', '-s', bus_id]
     try:
         res = make_local_call(call)
-        return res.split()[2]
+        return res["stdout"].split()[2]
     except Exception, e:
         log.debug("Exception: %s" % str(e))
 
@@ -689,7 +687,7 @@ def set_hw_offload(session, args):
     offload_state = validate_exists(args, 'state')
     call = [ETHTOOL, '-K', eth_dev, offload_type, offload_state]
     log.debug("Ethtool Command: %s" % call)
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
 
 @log_exceptions
 def get_hw_offloads(session, args):
@@ -697,7 +695,7 @@ def get_hw_offloads(session, args):
     and whether they are on or off (as true or false)"""
     eth_dev = validate_exists(args, 'eth_dev')
     call = [ETHTOOL, '-k', eth_dev]
-    offloads = make_local_call(call).split('\n')
+    offloads = make_local_call(call)["stdout"].split('\n')
     #Remove the item at the top of the list
     # "Offload parameters for ethX:"
     offloads.pop(0)
@@ -724,7 +722,7 @@ def set_network_backend(session, args):
     #Note, this requires a host reboot to become effective
     backend = validate_exists(args, 'backend')
     call = ['/opt/xensource/bin/xe-switch-network-backend', backend]
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
 
 @log_exceptions
 def iperf_test(session, args):
@@ -761,7 +759,7 @@ def iperf_test(session, args):
     #Print MTU size
     call.append('-m')
 
-    return make_local_call(call)   
+    return make_local_call(call)["stdout"]
     
 def parse_proc_net_dev(data):
     """Taking the contents of /proc/net/dev parse to provide a record"""
@@ -846,7 +844,7 @@ def add_route(session, args):
                 "dev",
                 device]
 
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
 
 
 @log_exceptions
@@ -939,10 +937,10 @@ def get_iface_stats(session, args):
         if host_ref == session.xenapi.host.get_by_uuid(this_host_uuid):
             # Execute call locally
             call = [CAT, '/proc/net/dev']
-            data = make_local_call(call)
+            data = make_local_call(call)["stdout"]
             log.debug("Net Stats: %s" % data)
             call = [UNAME, '-i']
-            arch = make_local_call(call)
+            arch = make_local_call(call)["stdout"]
 
         else:
             # Proxy the command to the correct host
@@ -962,11 +960,11 @@ def get_iface_stats(session, args):
         call = [SSH, vm_m_ip, CAT, '/proc/net/dev']     
         log.debug("About to make SSH call: %s" % call)
 
-        data = make_local_call(call)
+        data = make_local_call(call)["stdout"]
 
         call = [SSH, vm_m_ip, UNAME, '-i']
         log.debug("About to make SSH call: %s" % call)
-        arch = make_local_call(call)
+        arch = make_local_call(call)["stdout"]
 
     if not data:
         log.error("Error: no data obtained from calls")
@@ -1032,7 +1030,7 @@ def copy_lmbench_config(session, vm_ref, username, password):
             LMBENCH_CONF_LOC,
             'root@%s:/usr/lib/lmbench/bin/i686-pc-linux-gnu/%s' % (ip_address, config_file_name)]
     log.debug(call)
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
 
 @log_exceptions
 def deploy_lmbench(session, args):
@@ -1095,13 +1093,13 @@ def retrieve_lmbench_logs(session, args):
             vm_lmbench_results_dir]
 
     log.debug(call)
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
 
 def lmbench_test(session):
     """Run LMbench"""
     call = [LMBENCH]
     log.debug(call)
-    return make_local_call(call)  
+    return make_local_call(call)["stdout"]
     
 
 ############### Iozone Setup #########################
@@ -1151,7 +1149,7 @@ def retrieve_iozone_logs(session, args):
     # SCP the logs to the master host
     call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/iozone.log"]
     log.debug(call)
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
   
 
 ############### Bonnie++ Setup #########################
@@ -1203,7 +1201,7 @@ def retrieve_bonnie_logs(session, args):
     # SCP the logs to the master host
     call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/bonnie.log"]
     log.debug(call)
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
   
 
 ############### Main #########################
@@ -1254,10 +1252,10 @@ def droid_template_import(session, args):
     filename = DROID_VM_LOC
     sr_uuid = validate_exists(args, 'sr_uuid')
     call = [XE, 'vm-import', 'filename=%s' % filename, 'sr-uuid=%s' % sr_uuid]
-    return make_local_call(call)
+    return make_local_call(call)["stdout"]
 
 def process_running(process_name):
-    process_list = make_local_call(['ps','aux']).split('\n')
+    process_list = make_local_call(['ps','aux'])["stdout"].split('\n')
     for process in process_list:
         if process_name in process:
             log.debug("Process Found: %s" % process)
@@ -1265,7 +1263,7 @@ def process_running(process_name):
     return False
 
 def kill_processes(process_name):
-    process_list = make_local_call(['pgrep', process_name]).split('\n')
+    process_list = make_local_call(['pgrep', process_name])["stdout"].split('\n')
     log.debug("Process List: %s" % process_list)
 
     pattern = "\d+"
@@ -1309,7 +1307,7 @@ def run_dhclient(device):
     cmd_str = " ".join(cmd)
 
     call = [PS, 'aux']
-    processes = make_local_call(call).split('\n')
+    processes = make_local_call(call)["stdout"].split('\n')
 
     for process in processes:
         if cmd_str in process:
@@ -1318,7 +1316,7 @@ def run_dhclient(device):
             pid = arr[1]
             make_local_call([KILL, '-9', pid])
 
-    res = make_local_call(cmd)
+    res = make_local_call(cmd)["stdout"]
 
 
     return res
@@ -1382,7 +1380,7 @@ def _get_local_device(device_name):
     If one doesn't exist, return None"""
 
     call = [IFCONFIG, device_name]
-    data = make_local_call(call)
+    data = make_local_call(call)["stdout"]
 
     ip_pattern = "(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})"
     pattern = "inet addr:(?P<ip>%s)(\ )+Bcast:(?P<broadcast>%s)(\ )+Mask:(?P<mask>%s)" % \
@@ -1517,6 +1515,15 @@ def start_iperf_server(session, args):
     else:
         raise Exception("ERR: did not kill all iperf processes")
 
+############# Utility function #####################
+
+@log_exceptions
+def get_kernel_version(session, args):
+    """Check kernel version using uname."""
+    return make_local_call(['uname', '-r'])["stdout"]
+
+#####################################################
+
 if __name__ == '__main__':
     XenAPIPlugin.dispatch({'get_hw_offloads': get_hw_offloads,
                            'set_hw_offload': set_hw_offload,
@@ -1546,5 +1553,6 @@ if __name__ == '__main__':
                            'configure_local_device': configure_local_device,
                            'get_local_device_ip': get_local_device_ip,
                            'get_local_device_info': get_local_device_info,
-                           'inject_ssh_key': inject_ssh_key
+                           'inject_ssh_key': inject_ssh_key,
+                           'get_kernel_version': get_kernel_version
                            })
