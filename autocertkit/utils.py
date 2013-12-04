@@ -1814,7 +1814,7 @@ def set_nic_device_status(interface, status, creds=None):
                           creds['user'],
                           creds['pass'],
                           ' '.join(call))
-    time.sleep(5)
+    time.sleep(10)
     return res
 
 class TestThread(threading.Thread):
