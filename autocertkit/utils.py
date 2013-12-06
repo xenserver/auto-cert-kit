@@ -998,11 +998,6 @@ def wait_for_ip(session, vm_ref, device, timeout=300):
         raise Exception("Invalid device specified, it should be in the format 'ethX'")
 
     start = time.time()
-
-    def should_timeout(start, timeout):
-        """Method for evaluating whether a time limit has been met"""
-        return time.time() - start > float(timeout)
-
     i = 0
     while not should_timeout(start, timeout):
         log.debug("Trying to retrieve VM IP address - Attempt %d" % i)
@@ -1803,7 +1798,19 @@ def parse_csv_list(string):
         res.append(item.strip())
     return res
 
-def set_nic_device_status(interface, status, creds=None):
+def get_nic_device_status(interface, creds=None):
+    """Function to get the status of ethX interface from ifconfig status"""
+    call = ['cat', '/sys/class/net/%s/operstate' % interface]
+    if not creds:
+        res = make_local_call(call)
+    else:
+        res = ssh_command(creds['host'],
+                          creds['user'],
+                          creds['pass'],
+                          ' '.join(call))
+    return res
+
+def set_nic_device_status(interface, status, creds=None, timeout=30):
     """Function to set an ifconfig ethX interface up or down"""
     log.debug("Bringing %s network interface %s" % (status, interface))
     call = ['ifconfig', interface, status]
@@ -1814,8 +1821,15 @@ def set_nic_device_status(interface, status, creds=None):
                           creds['user'],
                           creds['pass'],
                           ' '.join(call))
-    time.sleep(5)
-    return res
+
+    start = time.time()
+    while not should_timeout(start, timeout):
+        time.sleep(1)
+        cur_status = get_nic_device_status(interface, creds)
+        if cur_status == status:
+            return res
+
+    raise Exception("NIC %s interface could not set to status %s in the given timeout." % (interface, status))
 
 class TestThread(threading.Thread):
     """Threading class that runs a function"""
