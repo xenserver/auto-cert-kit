@@ -158,15 +158,15 @@ def parse_netconf_file(filename):
     rec = {}
     for arr in arrs:
 
-        if '=' not in arr:
+        if arr.count('=') != 1:
             raise Exception("Error: format of netconf file should be 'key = value'")
         
-        key, value = arr.split('=')
+        key, value = [items.strip() for items in arr.split('=')]
 
         if key.startswith('eth'):
             # Each line is in the format:
             # ethX = 3,[235,236,237]
-            csv = value.split(',')
+            csv = [v.strip() for v in value.split(',')]
 
             # Ethernet Interface
             utils.log.debug("Ethernet Interface: '%s'" % key)
@@ -191,7 +191,7 @@ def parse_netconf_file(filename):
                 raise utils.InvalidArgument('VLAN IDs', vlan_str, '%d < x < %d: x = INT' %
                                             (MIN_VLAN, MAX_VLAN))
 
-            rec[key.strip()] = {'network_id': network_id, 'vlan_ids': vlan_ids}
+            rec[key] = {'network_id': network_id, 'vlan_ids': vlan_ids}
 
         elif key.startswith('static'):
             # Definition of network properties (e.g. dhcp/static)
@@ -200,7 +200,11 @@ def parse_netconf_file(filename):
                 raise Exception("Error: invalid argument %s" % arr)
             net = arr[1]
             vlan = arr[2]
-            rec[key.strip()] = parse_static_config(value.strip())
+            if unicode(net.strip()).isdecimal() and unicode(vlan.strip()).isdecimal():
+                rec[key] = parse_static_config(value)
+            else:
+                raise Exception("Error: unable to determine network and/or vlan from '%s'" % key)
+
         else:
             raise Exception("Error: unable to parse line: '%s'" % arr)
                         
