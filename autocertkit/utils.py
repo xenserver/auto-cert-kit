@@ -46,7 +46,7 @@ import base64
 import threading
 import re
 
-from acktools.net import route
+from acktools.net import route, generate_mac
 
 K = 1024
 M = 1024 * K
@@ -937,7 +937,8 @@ def setup_vm_on_network(session, vm_ref, network_ref, iface='eth0', wipe=True):
     log.debug("Create a new VIF for VM")
     log.debug("Network ref = %s" % network_ref)
     #2. Create a new VIF attached to the specified network reference
-    vif_ref = create_vif(session, iface.replace('eth',''), network_ref, vm_ref)
+    vif_ref = create_vif(session, iface.replace('eth',''),
+                        network_ref, vm_ref, mac=generate_mac())
     
     if session.xenapi.VM.get_power_state(vm_ref) == "Running":
         log.debug("Plug VIF %s" % vif_ref)
