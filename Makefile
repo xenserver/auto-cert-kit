@@ -58,13 +58,13 @@ VM_RPMS   :=
 SRC_RPMS  :=
 
 ifeq ($(shell rpm -q centos-release --qf '%{version}\n'),5)
-DOM0_RPMS += $(ACK_DISTFILES)/gmp-4.1.4-10.el5.i386.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/gmp-4.1.4-10.el5.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/gmp-4.1.4-10.el5.src.rpm
-DOM0_RPMS += $(ACK_DISTFILES)/python-crypto-2.0.1-13.1.el5.kb.1.i386.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/python-crypto-2.0.1-13.1.el5.kb.1.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.0.1-13.1.el5.kb.1.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.7.6-1.el5.rf.noarch.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.7.6-1.src.rpm
-DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.i386.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.$(DOMAIN0_ARCH).rpm
 else
 DOM0_RPMS += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.src.rpm
