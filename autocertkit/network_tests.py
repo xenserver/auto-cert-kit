@@ -700,11 +700,17 @@ class PIFParamTestClass(IperfTestClass):
                       'sg': 'on',
                       'tso': 'on',
                       'gso': 'on',
-                      'gro': 'off',
-                      'ufo': 'off',
-                      'lro': 'off',
-                      'ntuple': 'off',
-                      'rxhash': 'off'}
+                      'gro': 'off'}
+
+    # OPTIONAL settings are commonly used for all tests.
+    # This settings won't be verified after ACK sets them as they may fail due
+    # to NIC hardware ristriction.
+    OFFLOAD_CONFIG_OPTIONAL = {'ufo': 'off',
+                               'lro': 'off',
+                               'rxvlan': 'off',
+                               'txvlan': 'off',
+                               'ntuple': 'off',
+                               'rxhash': 'off'}
 
     num_ips_required = 2
 
@@ -724,8 +730,12 @@ class PIFParamTestClass(IperfTestClass):
         log.debug("verify offloads...%s" % hw_offloads)
         for k, v in hw_offloads.iteritems():
             log.debug("Device: %s (%s offload: %s)" % (device,k, v))
-            if k in config and config[k] != v.strip():
-                raise Exception("%s offload was not in the correct state (is %s)" % (k, v))
+            if k in config and not v.strip().startswith(config[k]):
+                # Newest ethtool will tell whether the offload setting can be changed.
+                # If it is not possible due to the hardware ristriction, then ACK should
+                # ignore this failure and keep running tests.
+                if not '[fixed]' in v:
+                    raise Exception("%s offload was not in the correct state (is %s)" % (k, v))
                                 
     def _setup_pif_params(self, session, network_ref):
         pifs = session.xenapi.network.get_PIFs(network_ref)        
@@ -733,6 +743,7 @@ class PIFParamTestClass(IperfTestClass):
         #Set argument on PIF
         for pif in pifs:
             self._set_offload_params(session, pif, self.OFFLOAD_CONFIG)
+            self._set_offload_params(session, pif, self.OFFLOAD_CONFIG_OPTIONAL)
             device = session.xenapi.PIF.get_device(pif)
             self._verify_ethtool_offloads(session, self.OFFLOAD_CONFIG, device)        
         
@@ -782,12 +793,7 @@ class Dom0PIFParamTestClass1(PIFParamTestClass):
                       'sg': 'on',
                       'tso': 'on',
                       'gso': 'on',
-                      'gro': 'off',
-                      'ufo': 'off',
-                      'lro': 'off',
-                      'ntuple': 'off',
-                      'rxhash': 'off'}
-
+                      'gro': 'off'}
 
 class Dom0PIFParamTestClass2(Dom0PIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
@@ -797,11 +803,7 @@ class Dom0PIFParamTestClass2(Dom0PIFParamTestClass1):
                       'sg': 'on',
                       'tso': 'on',
                       'gso': 'on',
-                      'gro': 'off',
-                      'ufo': 'off',
-                      'lro': 'off',
-                      'ntuple': 'off',
-                      'rxhash': 'off'}
+                      'gro': 'off'}
 
 class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
@@ -812,12 +814,7 @@ class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
                       'sg': 'on',
                       'tso': 'on',
                       'gso': 'on',
-                      'gro': 'on',
-                      'ufo': 'off',
-                      'lro': 'off',
-                      'ntuple': 'off',
-                      'rxhash': 'off'}
-
+                      'gro': 'on'}
 
 ########## Dom0 to Dom0 *Bridge* PIF parameter test classes #########
 
@@ -833,11 +830,7 @@ class Dom0BridgePIFParamTestClass1(PIFParamTestClass):
                       'sg': 'on',
                       'tso': 'on',
                       'gso': 'on',
-                      'gro': 'off',
-                      'ufo': 'off',
-                      'lro': 'off',
-                      'ntuple': 'off',
-                      'rxhash': 'off'}
+                      'gro': 'off'}
 
 class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
@@ -847,11 +840,7 @@ class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
                       'sg': 'on',
                       'tso': 'on',
                       'gso': 'on',
-                      'gro': 'off',
-                      'ufo': 'off',
-                      'lro': 'off',
-                      'ntuple': 'off',
-                      'rxhash': 'off'}
+                      'gro': 'off'}
 
 class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
@@ -861,11 +850,7 @@ class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
                       'sg': 'on',
                       'tso': 'on',
                       'gso': 'on',
-                      'gro': 'on',
-                      'ufo': 'off',
-                      'lro': 'off',
-                      'ntuple': 'off',
-                      'rxhash': 'off'}
+                      'gro': 'on'}
 
 ########## Jumbo Frames (Large MTU) Test Classes ###########
     
