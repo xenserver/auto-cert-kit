@@ -353,6 +353,12 @@ class Device(object):
         except Exception, e:
             log.error("Exception occurred getting ID: '%s'" % str(e))
         return "Unknown ID"
+
+    def get_subsystem(self):
+        """Return the information of PCI subsysem if it exists."""
+        if self.tag == "NA" and "PCI_subsystem" in self.config:
+            return self.config["PCI_subsystem"]
+        return ""
         
     def get_description(self):
         """Depending on the type, return the appropriate description
@@ -433,6 +439,9 @@ class Device(object):
         stream.write("\n")
         stream.write("Device ID: %s\n" % self.get_id())
         stream.write("Description: %s\n" % self.get_description())
+        subsystem = self.get_subsystem()
+        if subsystem and len(subsystem) > 0:
+            subsystem = stream.write("%s\n" % subsystem)
         stream.write("#########################\n\n")
 
         if not self.has_passed():
