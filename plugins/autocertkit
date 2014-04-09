@@ -705,7 +705,8 @@ def get_hw_offloads(session, args):
         if len(arr) != 2:
             raise Exception("Unexpected format from ethtool -k " +
                             "has been returned. %s" % offloads)
-        rec[OFFLOAD_CODES[arr[0]]] = arr[1]
+        if arr[0] in OFFLOAD_CODES:
+            rec[OFFLOAD_CODES[arr[0]]] = arr[1]
     return to_xml(rec, 'hw_offloads')
 
 @log_exceptions
