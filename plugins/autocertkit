@@ -483,7 +483,19 @@ def get_pci_description(bus_id):
     vendor = IDS.findVendor(dev_rec['vendor'])
     description = IDS.findDevice(dev_rec['vendor'], dev_rec['device'])
     return "%s %s" % (vendor, description)
-        
+
+def get_pci_subsystem(bus_id):
+    """Return the PCI subsystem information for a specified bus location:"""
+    log.debug("Getting subsystem for PCI device at bus id: %s" % bus_id)
+    
+    call = ['/sbin/lspci', '-nn', '-v', '-s', bus_id]
+    try:
+        res = make_local_call(call)
+        return res["stdout"].split('\n')[1].strip()
+    except Exception, e:
+        log.debug("Exception: %s" % str(e))
+    return ""
+
 @log_exceptions
 def create_output_package(session, args):
     """Create an output package for submission to Citrix"""
@@ -560,6 +572,7 @@ def get_network_devices(session, args):
         device['PCI_id'] = pci_id
         log.debug("Bus Id %s" % device['Bus Info'])
         device['PCI_description'] = get_pci_description(device['Bus Info'])
+        device['PCI_subsystem'] = get_pci_subsystem(device['Bus Info'])
         devices.append(device)
 
     return list_to_xml(devices, 'device')
