@@ -231,9 +231,6 @@ class StaticIPManager(object):
     """Class for managing static IP address provided by
     the caller. Allows us to do simple 'leasing' operations"""
 
-    free = []
-    in_use = []
-    
     def __init__(self, conf):
         # Populate the internal list of IPs
         free = []
@@ -243,7 +240,10 @@ class StaticIPManager(object):
                                  conf['netmask'],
                                  conf['gw']))
 
-        self.free = free
+        self.ip_pool = free # All the list of IPs
+        self.in_use = []    # Index list of used IP from ip_pool.
+        self.last_used = -1   # Index of IP lastly picked. Next will be 0.
+        self.total_ips = len(free)
 
     def generate_ip_list(self, ip_start, ip_end):
         """Take an IP address start, and end, and compose a list of all 
@@ -324,44 +324,40 @@ class StaticIPManager(object):
 
     def get_ip(self):
         """Return an unused IP object (if one exists)"""
-        if self.free:
-            free_list = list(self.free)
-            in_use_list = list(self.in_use)
-            ip = free_list.pop()
-            in_use_list.append(ip)
-            self.free = free_list
-            self.in_use = in_use_list
-            return ip
-        else:
+        if len(self.in_use) >= self.total_ips:
             raise Exception("Error: no more IP addresses to allocate! (%d in use)" %
                             len(self.in_use))
+            
+        index = self.last_used + 1
+        while True:
+            if not index in self.in_use:
+                self.last_used = index
+                self.in_use.append(index)
+                return self.ip_pool[index]
+            index = (index + 1) % self.total_ips
                 
     def return_ip(self, ip):
         """For a given IP object, attempt to remove from the 'in_use' list, and put
         it back into circulation for others to use"""
-        try:
-            in_use = list(self.in_use)
-            free = list(self.free)
-            
-            in_use.remove(ip)
-            free.append(ip)
-
-            self.in_use = list(in_use)
-            self.free = list(free)
-            
-        except ValueError, e:
-            log.debug("Exception: %s" % str(e))
+        if not ip in self.ip_pool:
+            log.debug("IP(%s) does not exist in IP pool." % (ip,))
             raise Exception("Trying to return an IP address that did not orginally exist!")
+
+        index = self.ip_pool.index(ip)
+        if index in self.in_use:
+            log.debug("IP %s is in use. Removing..." % (ip,))
+            self.in_use.remove(index)
+        else:
+            log.debug("IP %s is not in use. Passing." % (ip,))
 
     def release_all(self):
         """Return all of the IP addresses that are currently in use"""
-        in_use = list(self.in_use)
-        free = list(self.free)
-        for item in in_use:
-            free.append(item)
-
+        log.debug("Clearing in-use IP list.")
         self.in_use = []
-        self.free = free
+
+    def available_ips(self):
+        """Return number of unused IP in IP pool"""
+        return self.total_ips - len(self.in_use)
 
 class IfaceStats(object):
     """Class object for representing network statistics associated
