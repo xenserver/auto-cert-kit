@@ -168,7 +168,7 @@ class NetworkAdapterTestGenerator(TestGenerator):
     def prereq_check(self):
         if 'static' in self.config.keys():
             ip_manager = utils.StaticIPManager(self.config['static'])
-            num_ips_provided = len(ip_manager.free)
+            num_ips_provided = ip_manager.total_ips
 
             # Work out the maximum required number of IPs of tests
             # which are going to be run.

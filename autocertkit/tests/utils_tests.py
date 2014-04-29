@@ -90,7 +90,7 @@ class StaticIPUtilsTests(unittest_base.DevTestCase):
                      '10.80.227.151']
 
         sim = utils.StaticIPManager(conf)
-        free_list = sim.free
+        free_list = sim.ip_pool
 
         if len(free_list) != len(full_list):
             raise Exception("Error: we expect there to be %d IPs, enumerate produced %d." % 
@@ -110,12 +110,12 @@ class StaticIPUtilsTests(unittest_base.DevTestCase):
         sim = utils.StaticIPManager(conf)
 
         borrowed_ip = sim.get_ip()
-        assert(len(sim.free) == 5)
+        assert(sim.available_ips() == 5)
         assert(len(sim.in_use) == 1)
         
         sim.return_ip(borrowed_ip)
 
-        assert(len(sim.free) == 6)
+        assert(sim.available_ips() == 6)
         assert(len(sim.in_use) == 0)
 
         
