@@ -328,7 +328,7 @@ class StaticIPManager(object):
             raise Exception("Error: no more IP addresses to allocate! (%d in use)" %
                             len(self.in_use))
             
-        index = self.last_used + 1
+        index = (self.last_used + 1) % self.total_ips
         while True:
             if not index in self.in_use:
                 self.last_used = index
