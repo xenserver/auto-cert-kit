@@ -1219,13 +1219,27 @@ def pool_wide_network_cleanup(session, tag):
     for network in networks:
         if tag in session.xenapi.network.get_other_config(network):
             pifs = session.xenapi.network.get_PIFs(network)
-            log.debug("Pifs to cleanup: %s" % pifs)
+            log.debug("Pifs to cleanup: %s from network %s" % (pifs, network))
             for pif in pifs:
                 session.xenapi.PIF.unplug(pif)
                 session.xenapi.PIF.destroy(pif)
             session.xenapi.network.destroy(network)
         elif session.xenapi.network.get_MTU(network) != '1500':
             set_network_mtu(session, network, '1500')
+    for host in session.xenapi.host.get_all():
+        for pif in session.xenapi.host.get_PIFs(host):
+            oc = session.xenapi.PIF.get_other_config(pif)
+            if oc.pop(tag, None):
+                log.debug("Pif to cleanup: %s from host %s" % (pif, host))
+                call_ack_plugin(session,
+                    'configure_local_device',
+                    {'device': session.xenapi.PIF.get_device(pif),
+                        'mode': 'static',
+                        'ip_addr': '0.0.0.0',
+                        'ip_netmast': '255.255.255.255'},
+                    host = host)
+                session.xenapi.PIF.set_other_config(pif, oc)
+
 
 def get_pool_management_device(session):
     """Returns the device used for XAPI mangagment"""
