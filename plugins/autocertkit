@@ -733,6 +733,22 @@ def get_network_backend(session, args):
     return backend.strip()
 
 @log_exceptions
+def set_network_backend_pool(session, args):
+    """Set the backend used by the pool"""
+    backend = validate_exists(args, 'backend')
+    pool_ref = session.xenapi.pool.get_all()[0]
+    master_ref = session.xenapi.pool.get_master(pool_ref)
+    result = ""
+    for host_ref in session.xenapi.host.get_all():
+        out = session.xenapi.host.call_plugin(host_ref,
+                                        'autocertkit',
+                                        'set_network_backend',
+                                        args)
+        result += "%s: %s " % (host_ref, out)
+
+    return result
+
+@log_exceptions
 def set_network_backend(session, args):
     """Set the backend used by the pool"""
     #Note, this requires a host reboot to become effective
@@ -1551,6 +1567,7 @@ if __name__ == '__main__':
                            'deploy_iozone': deploy_iozone,
                            'deploy_bonnie': deploy_bonnie,
                            'get_network_backend': get_network_backend,
+                           'set_network_backend_pool': set_network_backend_pool,
                            'set_network_backend': set_network_backend,
                            'droid_set_static_conf': droid_set_static_conf,
                            'droid_template_import': droid_template_import,
