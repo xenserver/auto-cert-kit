@@ -580,7 +580,9 @@ def get_network_devices(session, args):
 def _get_local_storage_disk(session):
     disk_path = get_from_xensource_inventory('PRIMARY_DISK')
     log.debug("Local Storage Disk Path: %s" % disk_path)
-    return os.path.basename(os.readlink(disk_path))
+    if os.path.islink(disk_path):
+        return os.path.basename(os.readlink(disk_path))
+    return os.path.basename(disk_path)
 
 def find_dir(dirpath, dirname, max_depth=2):
     """Find a file in a given directory, recursing a limited number of times"""
