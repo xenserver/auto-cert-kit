@@ -355,11 +355,11 @@ class NetworkTestClass(TestClass):
         log.debug("self.network_backend %s" % self.network_backend)
         if self.network_backend == 'vswitch' and backend == 'bridge':
             #Switch backend to vswitch
-            plugin_call('set_network_backend', {'backend': 'openvswitch'})
+            plugin_call('set_network_backend_pool', {'backend': 'openvswitch'})
             host_reboot(self.session)
         elif self.network_backend == 'bridge' and backend == 'openvswitch':
             #Switch backend to bridge
-            plugin_call('set_network_backend', {'backend': 'bridge'})
+            plugin_call('set_network_backend_pool', {'backend': 'bridge'})
             host_reboot(self.session)
         #Nothing to do, just return
         return
