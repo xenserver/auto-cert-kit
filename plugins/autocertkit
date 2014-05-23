@@ -357,6 +357,30 @@ def save_bugtool():
     log.debug("Bugtool saved: %s" % bugtool_loc)
     return bugtool_loc
 
+def run_ack_logrotate(session, args):
+    """Run logrotate for ACK logs"""
+    ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
+    # Create the logrotate conf file if not existent for auto-cert-kit
+    conf = """compress
+/var/log/auto-cert-kit.log {
+        rotate 50
+        size 10M
+        missingok
+}
+/var/log/auto-cert-kit-plugin.log {
+        rotate 50
+        size 10M
+        missingok
+}
+"""
+    fh = open(ack_logrotate_dconf, 'w')
+    fh.write(conf)
+    fh.close()
+    try:
+        call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
+        return make_local_call(call)['stdout']
+    except Exception, e:
+        log.debug("Exception: %s" % str(e))
 
 ############### IPERF Setup #########################
 
@@ -580,7 +604,9 @@ def get_network_devices(session, args):
 def _get_local_storage_disk(session):
     disk_path = get_from_xensource_inventory('PRIMARY_DISK')
     log.debug("Local Storage Disk Path: %s" % disk_path)
-    return os.path.basename(os.readlink(disk_path))
+    if os.path.islink(disk_path):
+        return os.path.basename(os.readlink(disk_path))
+    return os.path.basename(disk_path)
 
 def find_dir(dirpath, dirname, max_depth=2):
     """Find a file in a given directory, recursing a limited number of times"""
@@ -729,6 +755,22 @@ def get_network_backend(session, args):
     backend = fh.read()
     fh.close()
     return backend.strip()
+
+@log_exceptions
+def set_network_backend_pool(session, args):
+    """Set the backend used by the pool"""
+    backend = validate_exists(args, 'backend')
+    pool_ref = session.xenapi.pool.get_all()[0]
+    master_ref = session.xenapi.pool.get_master(pool_ref)
+    result = ""
+    for host_ref in session.xenapi.host.get_all():
+        out = session.xenapi.host.call_plugin(host_ref,
+                                        'autocertkit',
+                                        'set_network_backend',
+                                        args)
+        result += "%s: %s " % (host_ref, out)
+
+    return result
 
 @log_exceptions
 def set_network_backend(session, args):
@@ -1549,6 +1591,7 @@ if __name__ == '__main__':
                            'deploy_iozone': deploy_iozone,
                            'deploy_bonnie': deploy_bonnie,
                            'get_network_backend': get_network_backend,
+                           'set_network_backend_pool': set_network_backend_pool,
                            'set_network_backend': set_network_backend,
                            'droid_set_static_conf': droid_set_static_conf,
                            'droid_template_import': droid_template_import,
@@ -1568,5 +1611,5 @@ if __name__ == '__main__':
                            'get_local_device_ip': get_local_device_ip,
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key,
-                           'get_kernel_version': get_kernel_version
-                           })
+                           'get_kernel_version': get_kernel_version,
+                           'run_ack_logrotate': run_ack_logrotate})
