@@ -1945,10 +1945,10 @@ def enumerate_test_classes():
 
 def read_valid_lines(filename):
     """Utility function for returning alist of uncommented lines (as indicated by '#')."""
-    comment_symbols = ['#', ' ','\n']
+    comment_symbols = ['#']
     fh = open(filename, 'r')
-    res = [line.strip() for line in fh.readlines()
-           if line[0] not in comment_symbols]
+    res = [line for line in [line.strip() for line in fh.readlines()]
+        if len(line) > 0 and line[0] not in comment_symbols]
     fh.close()
     return res
 
