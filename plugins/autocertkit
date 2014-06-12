@@ -357,6 +357,30 @@ def save_bugtool():
     log.debug("Bugtool saved: %s" % bugtool_loc)
     return bugtool_loc
 
+def run_ack_logrotate(session, args):
+    """Run logrotate for ACK logs"""
+    ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
+    # Create the logrotate conf file if not existent for auto-cert-kit
+    conf = """compress
+/var/log/auto-cert-kit.log {
+        rotate 50
+        size 10M
+        missingok
+}
+/var/log/auto-cert-kit-plugin.log {
+        rotate 50
+        size 10M
+        missingok
+}
+"""
+    fh = open(ack_logrotate_dconf, 'w')
+    fh.write(conf)
+    fh.close()
+    try:
+        call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
+        return make_local_call(call)['stdout']
+    except Exception, e:
+        log.debug("Exception: %s" % str(e))
 
 ############### IPERF Setup #########################
 
@@ -1587,5 +1611,5 @@ if __name__ == '__main__':
                            'get_local_device_ip': get_local_device_ip,
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key,
-                           'get_kernel_version': get_kernel_version
-                           })
+                           'get_kernel_version': get_kernel_version,
+                           'run_ack_logrotate': run_ack_logrotate})
