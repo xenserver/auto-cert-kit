@@ -50,6 +50,7 @@ rm -rf %{buildroot}
 /opt/xensource/packages/files/auto-cert-kit/make-3.81-3.el5.i386.rpm
 /opt/xensource/packages/files/auto-cert-kit/networkconf.example
 /opt/xensource/packages/files/auto-cert-kit/config/lmbench.conf
+/opt/xensource/packages/files/auto-cert-kit/config/logrotate.conf
 /etc/xapi.d/plugins/autocertkit
 /etc/init.d/auto-cert-kit
 /etc/xensource/bugtool/Auto_Cert_Kit.xml

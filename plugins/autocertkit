@@ -39,6 +39,7 @@ import XenAPIPlugin
 import subprocess
 import xmlrpclib
 import os, sys
+import shutil
 import time
 import logging
 import logging.handlers
@@ -74,6 +75,7 @@ IPERF = '/usr/bin/iperf'
 DROID_VM_LOC = '%s/vpx-dlvm.xva' % INSTALL_DIR
 XS_INVENTORY_PATH = "/etc/xensource-inventory"
 LMBENCH_CONF_LOC = "%s/config/lmbench.conf" % INSTALL_DIR
+LOGROTATE_CONF_LOC = "%s/config/logrotate.conf" % INSTALL_DIR
 FOR_CLEANUP = "for_cleanup"
 SSH = "/usr/bin/ssh"
 IP = "/sbin/ip"
@@ -357,6 +359,18 @@ def save_bugtool():
     log.debug("Bugtool saved: %s" % bugtool_loc)
     return bugtool_loc
 
+def run_ack_logrotate(session, args):
+    """Run logrotate for ACK logs"""
+    ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
+
+    try:
+        shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
+        call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
+        res = make_local_call(call)['stdout']
+    except Exception, e:
+        res = str(e)
+        log.debug("Exception: %s" % res)
+    return res
 
 ############### IPERF Setup #########################
 
@@ -1587,5 +1601,5 @@ if __name__ == '__main__':
                            'get_local_device_ip': get_local_device_ip,
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key,
-                           'get_kernel_version': get_kernel_version
-                           })
+                           'get_kernel_version': get_kernel_version,
+                           'run_ack_logrotate': run_ack_logrotate})
