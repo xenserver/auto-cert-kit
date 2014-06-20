@@ -44,59 +44,59 @@ DEFAULT_RUN_LEVEL = 3
 running = False
 
 def get_process_strings():
-	ps = subprocess.Popen(['ps', 'aux'], stdout=subprocess.PIPE).communicate()[0]
-	process_strings = []
-	for line in ps.split('\n'):
-		if 'ack_cli.py' in line or 'test_runner.py' in line:
-			process_strings.append(line)
-	return process_strings
+    ps = subprocess.Popen(['ps', 'aux'], stdout=subprocess.PIPE).communicate()[0]
+    process_strings = []
+    for line in ps.split('\n'):
+        if 'ack_cli.py' in line or 'test_runner.py' in line:
+            process_strings.append(line)
+    return process_strings
 
 def check_for_process():
-	process_strings = get_process_strings()
-	my_pid = str(os.getpid())	
-	for line in process_strings:
-		if my_pid in line:
-			process_strings.remove(line)
-	if process_strings:
-		return True
+    process_strings = get_process_strings()
+    my_pid = str(os.getpid())    
+    for line in process_strings:
+        if my_pid in line:
+            process_strings.remove(line)
+    if process_strings:
+        return True
 
 def get_run_level():
-	output = subprocess.Popen(['/sbin/runlevel'], stdout=subprocess.PIPE).communicate()[0]
-	_, level = output.split()
-	return int(level)
+    output = subprocess.Popen(['/sbin/runlevel'], stdout=subprocess.PIPE).communicate()[0]
+    _, level = output.split()
+    return int(level)
 
 def main():
-	running = False
-	
-	#Check for manifest file
-	if not os.path.exists(TEST_FILE):
-		print "4:Manifest file has not been created. Have run the kit? (Has an error occured?)"
-		sys.exit(0)
-	
-	#Check for the python process
-	if check_for_process():
-		running = True
-	
-	#Check the XML file to find out how many tests have been run
-	try:
-		ack_run = models.parse_xml(TEST_FILE)
-	except:
-		print "5:An error has occured reading. %s" % TEST_FILE
-		sys.exit(1)
-	
-	p, f, w = ack_run.get_status()
-	
-	perc = float(p+f)/float(w+p+f) * 100
-	
-	if w == 0:
-		print "0:Finished (Passed:%d, Failed:%d)" % (p, f)
-	elif not running and utils.get_reboot_flag():
-		print "3:Server rebooting... (Passed:%d, Failed:%d, Waiting:%d)" % (p,f,w)
-	elif not running and not utils.get_reboot_flag():
-		print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Waiting:%d)" % (p,f,w)
-		sys.exit(1)
-	else:
-		print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Waiting:%d)" % (perc, p, f, w)
+    running = False
+
+    #Check for manifest file
+    if not os.path.exists(TEST_FILE):
+        print "4:Manifest file has not been created. Have run the kit? (Has an error occured?)"
+        sys.exit(0)
+
+    #Check for the python process
+    if check_for_process():
+        running = True
+
+    #Check the XML file to find out how many tests have been run
+    try:
+        ack_run = models.parse_xml(TEST_FILE)
+    except:
+        print "5:An error has occured reading. %s" % TEST_FILE
+        sys.exit(1)
+
+    p, f, w = ack_run.get_status()
+
+    perc = float(p+f)/float(w+p+f) * 100
+
+    if w == 0:
+        print "0:Finished (Passed:%d, Failed:%d)" % (p, f)
+    elif not running and utils.get_reboot_flag():
+        print "3:Server rebooting... (Passed:%d, Failed:%d, Waiting:%d)" % (p,f,w)
+    elif not running and not utils.get_reboot_flag():
+        print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Waiting:%d)" % (p,f,w)
+        sys.exit(1)
+    else:
+        print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Waiting:%d)" % (perc, p, f, w)
 
 if __name__ == "__main__":
     main()
