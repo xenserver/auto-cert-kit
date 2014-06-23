@@ -32,6 +32,7 @@
 
 import traceback
 import re
+import signal
 from utils import *
 log = get_logger('auto-cert-kit')
 
@@ -98,7 +99,11 @@ class TestClass(object):
             # This assumes that we do not keep IPs across individual tests
             for vlan, sm in self.static_managers.iteritems():
                 sm.release_all()
-                
+
+            # Release Alarm signal to prevent handled signal from previous test
+            # interrupts this test. When there is no SIG_ALRM, this does nothing.
+            signal.alarm(0)
+
             # Ensure that we cleanup before running tests, in case
             # the system has been left in a failed state. 
             pool_wide_cleanup(self.session)
