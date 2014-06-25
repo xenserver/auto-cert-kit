@@ -135,13 +135,19 @@ class DeviceTestClassMethod(object):
         return self.name
 
     def has_passed(self):
+        """ This method has passed. """
         return self._match_result('pass')
 
     def has_failed(self):
-        """To differentiate between waiting and failed"""
+        """ This method has failed. """
         return self._match_result('fail')
 
+    def has_skipped(self):
+        """ This method has not run. """
+        return self._match_result('skip')
+
     def is_waiting(self):
+        """ This method has not been executed yet. """
         return self._match_result('NULL')
 
     def create_xml_node(self,dom):
@@ -213,7 +219,7 @@ class DeviceTestClass(object):
     
     def has_passed(self):
         for method in self.get_methods():
-            if not method.has_passed():
+            if not method.has_passed() and not method.has_skipped():
                 return False
         # Otherwise, we have passed all required
         # Tests.
@@ -429,9 +435,10 @@ class Device(object):
 
         tests_passed = [tm for tm in self.get_test_results() if tm.has_passed()]
         tests_failed = [tm for tm in self.get_test_results() if tm.has_failed()]
+        tests_skipped = [tm for tm in self.get_test_results() if tm.has_skipped()]
         tests_waiting = [tm for tm in self.get_test_results() if tm.is_waiting()]
 
-        return len(tests_passed), len(tests_failed), len(tests_waiting)
+        return len(tests_passed), len(tests_failed), len(tests_skipped), len(tests_waiting)
         
 
     def print_report(self, stream):
@@ -454,17 +461,19 @@ class Device(object):
             stream.write("Capabilities:\n")
             for k,v in self.get_caps().iteritems():
                 if v:
-                    str = "Supported"
+                    reqval = "Supported"
                 else:
-                    str = "Unsupported"
+                    reqval = "Unsupported"
 
-                stream.write("%s: %s" % (k, str))
+                stream.write("%s: %s" % (k, reqval))
             stream.write("\n")
 
         tests_passed = [test_method for test_method in self.get_test_results()
                         if test_method.has_passed()]
         tests_failed = [test_method for test_method in self.get_test_results()
                         if not test_method.has_passed()]
+        tests_skipped = [test_method for test_method in self.get_test_results()
+                        if test_method.has_skipped()]
 
         if tests_passed:
             stream.write("\nTests that passed:\n")
@@ -475,7 +484,12 @@ class Device(object):
             stream.write("\nTests that failed:\n")
             for test in tests_failed:
                 stream.write("%s\n" % test.name)    
-        
+
+        if tests_skipped:
+            stream.write("\nTests that skipped:\n")
+            for test in tests_skipped:
+                stream.write("%s\n" % test.name)    
+
 class AutoCertKitRun(object):
     """Python class for representing the XML config file as an object"""
 
@@ -507,17 +521,19 @@ class AutoCertKitRun(object):
         are waiting to be executed."""
         passed = 0
         failed = 0 
+        skipped = 0
         waiting = 0
         for device in self.devices:
-            p, f, w = device.get_status()
+            p, f, s, w = device.get_status()
             passed = passed + p
             failed = failed + f
+            skipped = skipped + s
             waiting = waiting + w
-        return passed, failed, waiting
+        return passed, failed, skipped, waiting
     
     def is_finished(self):
         """Return true if the test run has finished"""
-        _,_,w = self.get_status()
+        _,_,_,w = self.get_status()
         return not w
 
     def get_next_test_class(self):
@@ -548,7 +564,6 @@ class AutoCertKitRun(object):
 
         # Return the test class at the top of the list
         return tcs_to_run.pop()[0]
-
 
 
 def create_models(xml_file):

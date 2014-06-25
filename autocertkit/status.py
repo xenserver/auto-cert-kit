@@ -84,18 +84,18 @@ def main():
         print "5:An error has occured reading. %s" % TEST_FILE
         sys.exit(1)
 
-    p, f, w = ack_run.get_status()
+    p, f, s, w = ack_run.get_status()
 
     if w == 0:
-        print "0:Finished (Passed:%d, Failed:%d)" % (p, f)
+        print "0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p,f,s)
     elif not running and utils.get_reboot_flag():
-        print "3:Server rebooting... (Passed:%d, Failed:%d, Waiting:%d)" % (p,f,w)
+        print "3:Server rebooting... (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d)" % (p,f,s,w)
     elif not running and not utils.get_reboot_flag():
-        print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Waiting:%d)" % (p,f,w)
+        print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Skipped: %d, Waiting:%d)" % (p,f,s,w)
         sys.exit(1)
     else:
-        perc = float(p+f)/float(w+p+f) * 100
-        print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Waiting:%d)" % (perc, p, f, w)
+        perc = float(p + f + s)/float(w + p + f + s) * 100
+        print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d)" % (perc,p,f,s,w)
 
 if __name__ == "__main__":
     main()

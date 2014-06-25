@@ -111,11 +111,17 @@ class TestClass(object):
             try:
                 log.debug("******** %s.%s ********" % (self.__class__.__name__, str(test)))
                 res = getattr(self, test)(self.session)
-                #The test executed without failure so has passed
-                rec['result'] = 'pass'
+
+                # If test executed without failure it can be either skipped or passed.
+                if 'skipped' in res and res['skipped']:
+                    rec['result'] = 'skip'
+                    if 'warning' in res:
+                        rec['warning'] = res['warning']
+                else:
+                    rec['result'] = 'pass'
 
                 def copy_field(rec, res, field):
-                    if res.has_key(field):
+                    if field in res:
                         rec[field] = res[field]
                     else:
                         rec[field] = ""
