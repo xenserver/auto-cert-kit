@@ -192,7 +192,6 @@ class DeviceTestClassMethod(object):
 
 class DeviceTestClass(object):
     """Model for a test class"""
-    caps = []
     test_methods = []
     config = {}
 
@@ -219,7 +218,7 @@ class DeviceTestClass(object):
     
     def has_passed(self):
         for method in self.get_methods():
-            if not method.has_passed() and not method.has_skipped():
+            if not method.has_passed() and self.is_required():
                 return False
         # Otherwise, we have passed all required
         # Tests.
@@ -244,8 +243,8 @@ class DeviceTestClass(object):
         """Return the device specific config record"""
         return self.parent.config
 
-    def is_essential(self):
-        return REQ_CAP in self.caps
+    def is_required(self):
+        return REQ_CAP in self.get_caps()
 
     def is_finished(self):
         for test_method in self.test_methods:
@@ -334,10 +333,12 @@ class Device(object):
             test_class_list.append(DeviceTestClass(self,test_node))
         self.test_classes = test_class_list
         
-    def get_test_results(self):
+    def get_test_results(self, filter_required = None):
         """Return a list of test methods"""
         res = []
         for test_class in self.test_classes:
+            if test_class.is_required() == filter_required:
+                continue
             for test_method in test_class.get_methods():
                 res.append(test_method)
         return res
@@ -425,7 +426,7 @@ class Device(object):
         # and if any of them have no passed (i.e. not passed 
         # required 
         for test_class in self.test_classes:
-            if test_class.is_essential() and not test_class.has_passed():
+            if test_class.is_required() and not test_class.has_passed():
                 return False
         return True
 
@@ -451,12 +452,24 @@ class Device(object):
             subsystem = stream.write("%s\n" % subsystem)
         stream.write("#########################\n\n")
 
+        tests_passed = [test_method for test_method in self.get_test_results()
+                        if test_method.has_passed()]
+        tests_failed_req = [test_method for test_method in self.get_test_results(False)
+                        if test_method.has_failed()]
+        tests_failed_noreq = [test_method for test_method in self.get_test_results(True)
+                        if test_method.has_failed()]
+        tests_skipped_req = [test_method for test_method in self.get_test_results(False)
+                        if test_method.has_skipped()]
+        tests_skipped_noreq = [test_method for test_method in self.get_test_results(True)
+                        if test_method.has_skipped()]
+
         if not self.has_passed():
             stream.write("This device has not passed all the neccessary tests and so will not be supported.")
             stream.write("In order for this device to be supported, this device must pass the following tests:\n")
-            for tc in self.test_classes:
-                if not tc.has_passed():
-                    stream.write("%s\n" % tc.name)
+            for method in tests_failed_req:
+                stream.write("%s\n" % method.get_name())
+            for method in tests_skipped_req:
+                stream.write("%s\n" % method.get_name())
         else:
             stream.write("Capabilities:\n")
             for k,v in self.get_caps().iteritems():
@@ -468,26 +481,26 @@ class Device(object):
                 stream.write("%s: %s" % (k, reqval))
             stream.write("\n")
 
-        tests_passed = [test_method for test_method in self.get_test_results()
-                        if test_method.has_passed()]
-        tests_failed = [test_method for test_method in self.get_test_results()
-                        if not test_method.has_passed()]
-        tests_skipped = [test_method for test_method in self.get_test_results()
-                        if test_method.has_skipped()]
-
         if tests_passed:
             stream.write("\nTests that passed:\n")
             for test in tests_passed:
                 stream.write("%s\n" % test.name)
 
-        if tests_failed:
+        if tests_failed_req:
             stream.write("\nTests that failed:\n")
-            for test in tests_failed:
+            for test in tests_failed_req:
                 stream.write("%s\n" % test.name)    
 
-        if tests_skipped:
+        if tests_failed_noreq:
+            stream.write("\nNone required tests that failed:\n")
+            for test in tests_failed_noreq:
+                stream.write("%s\n" % test.name)    
+
+        if tests_skipped_req or tests_skipped_noreq:
             stream.write("\nTests that skipped:\n")
-            for test in tests_skipped:
+            for test in tests_skipped_req:
+                stream.write("%s\n" % test.name)    
+            for test in tests_skipped_noreq:
                 stream.write("%s\n" % test.name)    
 
 class AutoCertKitRun(object):

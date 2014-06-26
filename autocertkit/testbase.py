@@ -115,20 +115,19 @@ class TestClass(object):
                 # If test executed without failure it can be either skipped or passed.
                 if 'skipped' in res and res['skipped']:
                     rec['result'] = 'skip'
-                    if 'warning' in res:
-                        rec['warning'] = res['warning']
                 else:
                     rec['result'] = 'pass'
 
-                def copy_field(rec, res, field):
+                def copy_field(rec, res, field, keep = True):
                     if field in res:
                         rec[field] = res[field]
-                    else:
+                    elif keep:
                         rec[field] = ""
                 
                 copy_field(rec, res, 'info')
                 copy_field(rec, res, 'data')
                 copy_field(rec, res, 'config')
+                copy_field(rec, res, 'warning', False)
 
             except Exception, e:
                 traceb = traceback.format_exc()

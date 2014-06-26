@@ -59,7 +59,6 @@ DROID_VM_LOC = '/opt/xensource/packages/files/auto-cert-kit/vpx-dlvm.xva'
 XE = '/opt/xensource/bin/xe'
 DROID_TEMPLATE_TAG = "droid_vm_template"
 REBOOT_ERROR_CODE = 3
-HWOFFLOADS = ["rx", "tx", "sg", "tso", "ufo", "gso", "gro", "lro"]
 REBOOT_FLAG_FILE = "/opt/xensource/packages/files/auto-cert-kit/reboot"
 
 # Capability Tags
@@ -1755,7 +1754,11 @@ def get_hw_offloads(session, device):
     """We want to call the XAPI plugin on the pool
     master to return the offload capabilites of a device."""
 
-    xml_res = call_ack_plugin(session, 'get_hw_offloads',
+    if call_ack_plugin(session, 'get_kernel_version').startswith('2.6'):
+        xml_res = call_ack_plugin(session, 'get_hw_offloads_from_core',
+                              {'eth_dev':device})
+    else:
+        xml_res = call_ack_plugin(session, 'get_hw_offloads',
                               {'eth_dev':device})
 
     return xml_to_dicts(xml_res, 'hw_offloads')[0]
