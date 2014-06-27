@@ -180,14 +180,6 @@ def run_tests_from_file(test_file):
 
     config = ack_model.get_global_config()
     
-    hosts = session.xenapi.host.get_all()
-    for host in hosts:
-        session.xenapi.host.call_plugin(host, 
-                                        'autocertkit',
-                                        'run_ack_logrotate', 
-                                        {})
-        log.debug("Running logrotate on host %s" % host)
-
     log.debug("ACK Model: %s" % ack_model.is_finished())
     while not ack_model.is_finished():
         log.debug("Test Run Status: P %d, F %d, W %d" % (ack_model.get_status()))

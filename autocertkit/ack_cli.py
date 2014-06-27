@@ -392,6 +392,14 @@ def main(config, test_run_file):
         utils.log.info("Test file generated")
         return "OK"
 
+    # Run log rotate before execute tests.
+    for host in session.xenapi.host.get_all():
+        utils.log.debug("Running logrotate on host %s" % host)
+        session.xenapi.host.call_plugin(host, 
+                                    'autocertkit',
+                                    'run_ack_logrotate', 
+                                    {})
+
     #Kick off the testrunner
     test_file, output = test_runner.run_tests_from_file(test_run_file)
 
