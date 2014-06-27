@@ -86,8 +86,6 @@ def main():
 
     p, f, w = ack_run.get_status()
 
-    perc = float(p+f)/float(w+p+f) * 100
-
     if w == 0:
         print "0:Finished (Passed:%d, Failed:%d)" % (p, f)
     elif not running and utils.get_reboot_flag():
@@ -96,6 +94,7 @@ def main():
         print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Waiting:%d)" % (p,f,w)
         sys.exit(1)
     else:
+        perc = float(p+f)/float(w+p+f) * 100
         print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Waiting:%d)" % (perc, p, f, w)
 
 if __name__ == "__main__":

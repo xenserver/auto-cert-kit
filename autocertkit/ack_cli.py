@@ -89,7 +89,13 @@ def parse_cmd_args():
                       help="Print out information about a specified test name.")
     parser.add_option("-m", "--mode",
                       dest="mode",
+                      default="ALL",
                       help="Specify the type of certification you wish to perform. (ALL (default) | NET | LSTOR | CPU | OPS).")
+    parser.add_option("-e","--exclude",
+                      dest="exclude",
+                      action="append",
+                      default=[],
+                      help="Exclude one or multiple set of tests. (OVS | BRIDGE | LSTOR | CPU | OPS).")
     parser.add_option("-n","--netconf",
                       dest="netconf",
                       help="Specify the network config file.")
@@ -116,10 +122,6 @@ def parse_cmd_args():
     if options.info:
         print_documentation(options.info)
 
-    if not options.mode:
-        #Default is attempt to run everything
-        options.mode = "ALL"
-
     validate_param(options.mode, ['ALL', 'NET', 'LSTOR', 'CPU', 'OPS'], "Run Mode")
 
     if options.netconf:
@@ -129,6 +131,7 @@ def parse_cmd_args():
         raise utils.ArgumentError("You must specify a network configuration file. %s" % options.mode)
 
     config['mode'] = options.mode
+    config['exclude'] = options.exclude
     utils.log.debug("Test Mode: %s" % options.netconf)
     if options.list_tests:
         print_all_test_classes()
@@ -301,7 +304,7 @@ def generate_test_config(session, config, test_run_file):
 
     # Take an interface to use for non-networking tests
     if not len(ifs):
-        raise Exception("Error: in order to run these tests, you need a least one network defined.")
+        raise Exception("Error: in order to run these tests, you need at least one network defined.")
 
     # Just pick any interface
     iface = ifs.pop()
@@ -317,7 +320,7 @@ def generate_test_config(session, config, test_run_file):
     if config['mode'] == 'ALL' or config['mode'] == 'OPS':
         optg = OperationsTestGenerator(session, config, iface)
         optg.append_xml_config(doc, devices_node)
-        
+
     fh = open(test_run_file, 'w')
     fh.write(doc.toxml())
     fh.close()

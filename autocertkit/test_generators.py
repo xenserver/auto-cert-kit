@@ -192,6 +192,15 @@ class NetworkAdapterTestGenerator(TestGenerator):
                     return False
             return True
 
+        if 'OVS' in self.config['exclude']:
+            test_classes = [(testname, testclass) for testname, testclass 
+                    in test_classes if not testclass.network_backend or
+                    testclass.network_backend == 'bridge']
+        if 'BRIDGE' in self.config['exclude']:
+            test_classes = [(testname, testclass) for testname, testclass 
+                    in test_classes if not testclass.network_backend or
+                    testclass.network_backend == 'vswitch']
+
         if 'singlenic' in self.config.keys() and self.config['singlenic'] == "true":
             dont_run = ["BondingTestClass", "MTUPingTestClass"]
             return [(testname, testclass) for testname, testclass 
@@ -205,6 +214,11 @@ class ProcessorTestGenerator(TestGenerator):
     """TestGenertor class specific to Processor tests"""
     TAG = 'CPU'
 
+    def filter_test_classes(self, test_classes):
+        if 'CPU' in self.config['exclude']:
+            return []
+        return test_classes
+
     def get_device_config(self):
         """Retrieve host cpu info from the pool master"""
         rec = super(ProcessorTestGenerator, self).get_device_config()
@@ -216,6 +230,11 @@ class StorageTestGenerator(TestGenerator):
     """TestGenertor class specific to Storage tests"""
     TAG = 'LS'
     
+    def filter_test_classes(self, test_classes):
+        if 'LSTOR' in self.config['exclude']:
+            return []
+        return test_classes
+
     def get_device_config(self):
         """Retrieve info regarding the local SCSI devices"""
         rec = super(StorageTestGenerator, self).get_device_config()
@@ -228,6 +247,11 @@ class OperationsTestGenerator(TestGenerator):
     """TestGenertor class specific to Operations tests"""
     TAG = 'OP'
     
+    def filter_test_classes(self, test_classes):
+        if 'OPS' in self.config['exclude']:
+            return []
+        return test_classes
+
     def get_device_config(self):
         """Retrieve XenServer version info from the pool master"""
         rec = super(OperationsTestGenerator, self).get_device_config()
