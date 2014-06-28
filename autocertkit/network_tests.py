@@ -711,6 +711,8 @@ class PIFParamTestClass(IperfTestClass):
                                'txvlan': 'off',
                                'ntuple': 'off',
                                'rxhash': 'off'}
+    # If a fixed offload makes test useless, then we can skip a test method.
+    OFFLOAD_TO_TEST = []
 
     num_ips_required = 2
 
@@ -729,16 +731,18 @@ class PIFParamTestClass(IperfTestClass):
         hw_offloads = get_hw_offloads(session, device)
         log.debug("verify offloads...%s" % hw_offloads)
         for k, v in hw_offloads.iteritems():
-            log.debug("Device: %s (%s offload: %s)" % (device,k, v))
+            log.debug("Device: %s (%s offload: %s)" % (device, k, v))
             if k in config and not v.strip().startswith(config[k]):
                 # Newest ethtool will tell whether the offload setting can be changed.
                 # If it is not possible due to the hardware ristriction, then ACK should
                 # ignore this failure and keep running tests.
-                if not '[fixed]' in v:
+                if '[fixed]' in v:
+                    log.debug("%s offload is fixed.")
+                else:
                     raise Exception("%s offload was not in the correct state (is %s)" % (k, v))
                                 
     def _setup_pif_params(self, session, network_ref):
-        pifs = session.xenapi.network.get_PIFs(network_ref)        
+        pifs = session.xenapi.network.get_PIFs(network_ref)
         log.debug("PIFs retrieved %s" % pifs)
         #Set argument on PIF
         for pif in pifs:
@@ -746,7 +750,6 @@ class PIFParamTestClass(IperfTestClass):
             self._set_offload_params(session, pif, self.OFFLOAD_CONFIG_OPTIONAL)
             device = session.xenapi.PIF.get_device(pif)
             self._verify_ethtool_offloads(session, self.OFFLOAD_CONFIG, device)        
-        
 
     def _setup_network(self, session):
         network_refs = IperfTestClass._setup_network(self, session)
@@ -762,7 +765,32 @@ class PIFParamTestClass(IperfTestClass):
                 self._setup_pif_params(session, network_ref)
 
         return network_refs
-        
+
+    def _check_offload_to_test(self, session):
+        """ check whether offload to test is fixed. """
+        fixed = []
+        for pif in session.xenapi.network.get_PIFs(self.get_networks()[0]):
+            device = session.xenapi.PIF.get_device(pif)
+            hw_offloads = get_hw_offloads(session, device)
+            log.debug("verify offloads...%s" % hw_offloads)
+            for k, v in hw_offloads.iteritems():
+                if k in self.OFFLOAD_TO_TEST:
+                    if '[fixed]' in v:
+                        log.debug("%s offload is fixed.")
+                        fixed.append(k)
+
+        return fixed
+
+    def _run_test(self, session, direction):
+        # If it is not possible to change offload in the given list
+        # then we can skip test.
+        fixed_offloads = self._check_offload_to_test(session)
+        if len(fixed_offloads) > 0:
+            return {'skipped': True,
+                'warning': 'Test skipped due to %s are fixed.' % fixed_offloads,
+                'info': 'Test has skipped.'}
+
+        return super(PIFParamTestClass, self)._run_test(session, direction)
 
 ########## Dom0 to VM Iperf Test Classes ##########
 
@@ -805,6 +833,8 @@ class Dom0PIFParamTestClass2(Dom0PIFParamTestClass1):
                       'gso': 'on',
                       'gro': 'off'}
 
+    OFFLOAD_TO_TEST = ['gro']
+
 class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
 
@@ -815,6 +845,8 @@ class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
                       'tso': 'on',
                       'gso': 'on',
                       'gro': 'on'}
+
+    OFFLOAD_TO_TEST = ['gro']
 
 ########## Dom0 to Dom0 *Bridge* PIF parameter test classes #########
 
@@ -842,6 +874,8 @@ class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
                       'gso': 'on',
                       'gro': 'off'}
 
+    OFFLOAD_TO_TEST = ['gro']
+
 class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
     
@@ -851,6 +885,8 @@ class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
                       'tso': 'on',
                       'gso': 'on',
                       'gro': 'on'}
+
+    OFFLOAD_TO_TEST = ['gro']
 
 ########## Jumbo Frames (Large MTU) Test Classes ###########
     
