@@ -38,6 +38,9 @@ import math
 
 log = get_logger('auto-cert-kit')
 
+class FixedOffloadException(Exception):
+    pass
+
 class IperfTest:
     """Utility class for running an Iperf test between two VMs
     or Dom0 + VM. This class can be setup and consumed by
@@ -695,23 +698,23 @@ class PIFParamTestClass(IperfTestClass):
     """A test calss for ensuring all PIF params
         can be set, modified, and op's verrified"""
 
-    OFFLOAD_CONFIG = {'tx': 'on',
-                      'rx': 'on',
-                      'sg': 'on',
-                      'tso': 'on',
-                      'gso': 'on',
-                      'gro': 'off'}
+    OFFLOAD_CONFIG = {}
 
     # OPTIONAL settings are commonly used for all tests.
     # This settings won't be verified after ACK sets them as they may fail due
     # to NIC hardware ristriction.
-    OFFLOAD_CONFIG_OPTIONAL = {'ufo': 'off',
-                               'lro': 'off',
-                               'rxvlan': 'off',
-                               'txvlan': 'off',
-                               'ntuple': 'off',
-                               'rxhash': 'off'}
-
+    OFFLOAD_OPTIONAL = {'tx': 'on',
+                        'rx': 'on',
+                        'sg': 'on',
+                        'tso': 'on',
+                        'gso': 'on',
+                        'gro': 'off',
+                        'ufo': 'off', 
+                        'lro': 'off',
+                        'rxvlan': 'off',
+                        'txvlan': 'off',
+                        'ntuple': 'off',
+                        'rxhash': 'off'}
     num_ips_required = 2
 
     def _set_offload_params(self, session, pif, config):
@@ -729,24 +732,25 @@ class PIFParamTestClass(IperfTestClass):
         hw_offloads = get_hw_offloads(session, device)
         log.debug("verify offloads...%s" % hw_offloads)
         for k, v in hw_offloads.iteritems():
-            log.debug("Device: %s (%s offload: %s)" % (device,k, v))
+            log.debug("Device: %s (%s offload: %s)" % (device, k, v))
             if k in config and not v.strip().startswith(config[k]):
                 # Newest ethtool will tell whether the offload setting can be changed.
                 # If it is not possible due to the hardware ristriction, then ACK should
                 # ignore this failure and keep running tests.
-                if not '[fixed]' in v:
+                if '[fixed]' in v:
+                    raise FixedOffloadException("%s offload is fixed to %s, expected to be %s" % (k, v, config[k]))
+                else:
                     raise Exception("%s offload was not in the correct state (is %s)" % (k, v))
                                 
     def _setup_pif_params(self, session, network_ref):
-        pifs = session.xenapi.network.get_PIFs(network_ref)        
+        pifs = session.xenapi.network.get_PIFs(network_ref)
         log.debug("PIFs retrieved %s" % pifs)
         #Set argument on PIF
         for pif in pifs:
+            self._set_offload_params(session, pif, self.OFFLOAD_OPTIONAL)
             self._set_offload_params(session, pif, self.OFFLOAD_CONFIG)
-            self._set_offload_params(session, pif, self.OFFLOAD_CONFIG_OPTIONAL)
             device = session.xenapi.PIF.get_device(pif)
             self._verify_ethtool_offloads(session, self.OFFLOAD_CONFIG, device)        
-        
 
     def _setup_network(self, session):
         network_refs = IperfTestClass._setup_network(self, session)
@@ -762,7 +766,17 @@ class PIFParamTestClass(IperfTestClass):
                 self._setup_pif_params(session, network_ref)
 
         return network_refs
-        
+
+    def _run_test(self, session, direction):
+        try:
+            return super(PIFParamTestClass, self)._run_test(session, direction)
+        except FixedOffloadException, e:
+            # If it is not possible to change offload in the given list
+            # then we can skip test.
+            log.debug(str(e))
+            return {'skipped': True,
+            'warning': str(e),
+            'info': 'Test has skipped.'}
 
 ########## Dom0 to VM Iperf Test Classes ##########
 
@@ -788,33 +802,15 @@ class Dom0PIFParamTestClass1(PIFParamTestClass):
 
     mode = "dom0-dom0"
 
-    OFFLOAD_CONFIG = {'tx': 'on',
-                      'rx': 'on',
-                      'sg': 'on',
-                      'tso': 'on',
-                      'gso': 'on',
-                      'gro': 'off'}
-
 class Dom0PIFParamTestClass2(Dom0PIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
 
-    OFFLOAD_CONFIG = {'tx': 'on',
-                      'rx': 'on',
-                      'sg': 'on',
-                      'tso': 'on',
-                      'gso': 'on',
-                      'gro': 'off'}
+    OFFLOAD_CONFIG = {'gro': 'off'}
 
 class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
 
-    
-    OFFLOAD_CONFIG = {'tx': 'on',
-                      'rx': 'on',
-                      'sg': 'on',
-                      'tso': 'on',
-                      'gso': 'on',
-                      'gro': 'on'}
+    OFFLOAD_CONFIG = {'gro': 'on'}
 
 ########## Dom0 to Dom0 *Bridge* PIF parameter test classes #########
 
@@ -825,32 +821,15 @@ class Dom0BridgePIFParamTestClass1(PIFParamTestClass):
     mode = "dom0-dom0"
     order = 5
 
-    OFFLOAD_CONFIG = {'tx': 'on',
-                      'rx': 'on',
-                      'sg': 'on',
-                      'tso': 'on',
-                      'gso': 'on',
-                      'gro': 'off'}
-
 class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
  
-    OFFLOAD_CONFIG = {'tx': 'on',
-                      'rx': 'on',
-                      'sg': 'on',
-                      'tso': 'on',
-                      'gso': 'on',
-                      'gro': 'off'}
+    OFFLOAD_CONFIG = {'gro': 'off'}
 
 class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
     
-    OFFLOAD_CONFIG = {'tx': 'on',
-                      'rx': 'on',
-                      'sg': 'on',
-                      'tso': 'on',
-                      'gso': 'on',
-                      'gro': 'on'}
+    OFFLOAD_CONFIG = {'gro': 'on'}
 
 ########## Jumbo Frames (Large MTU) Test Classes ###########
     
