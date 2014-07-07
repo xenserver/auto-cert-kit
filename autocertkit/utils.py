@@ -2003,14 +2003,10 @@ def wait_for_hosts(session, timeout=300):
 
 def get_ack_version(session, host):
     """Return the version string corresponding to the cert kit on a particular host"""
-#    sw = session.xenapi.host.get_software_version(host)
-#    key = 'xs:xs-auto-cert-kit'
-#    if key in sw.keys():
-#        return sw[key]
-    if os.path.exists('/etc/xensource/installed-repos/xs:xs-auto-cert-kit'):
-        return True
-    else:
-        return None
+    sw = session.xenapi.host.get_software_version(host)
+    key = 'xs:xs-auto-cert-kit'
+    if key in sw.keys():
+        return sw[key]
 
 def combine_recs(rec1, rec2):
     """Utility function for combining two records into one."""

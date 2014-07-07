@@ -378,9 +378,10 @@ def main(config, test_run_file):
     output file"""
     
     session = get_xapi_session(config)
-    config['xs_version'] = utils.get_xenserver_version(session)
 
     pre_flight_checks(session, config)
+
+    config['xs_version'] = utils.get_xenserver_version(session)
 
     generate_test_config(session, config, test_run_file)
     # Logout of XAPI session anyway - the test runner will create a new session
