@@ -968,3 +968,30 @@ class MTUPingTestClass(testbase.NetworkTestClass):
     def test_ping(self, session):
         log.debug("run test...")
         return self._run_test(session)
+
+
+class GROOffloadTestClass(testbase.NetworkTestClass):
+    """ Check whether GRO can be on. GRO is on by default from XS 6.5 """
+    REQUIRED_FOR = ">= 6.4"
+
+    def test_offload_config(self, session):
+        net_ref = self.get_networks()[0]
+        pifs = session.xenapi.network.get_PIFs(net_ref)
+        log.debug("PIFs to test: %s" % pifs)
+        #Set argument on PIF
+        for pif in pifs:
+            device = session.xenapi.PIF.get_device(pif)
+            set_hw_offload(session, device, 'gro', 'on')
+            gro_offload = get_hw_offloads(session, device)['gro']
+            if not gro_offload.startswith('on'):
+                raise Exception("GRO offload of %s is not set to on" % device)
+
+        return {'data': "GRO is set to on properly."}
+
+
+class GROOffloadBridgeTestClass(GROOffloadTestClass):
+    """ Check whether GRO can be on with bridge network backend.
+    GRO is on by default from XS 6.5 """
+    network_backend = "bridge"
+    order = 5
+    

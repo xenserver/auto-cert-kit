@@ -1,4 +1,3 @@
-
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
@@ -138,11 +137,22 @@ class TestGenerator(object):
 
         test_classes = self.get_test_classes()
         for test_class_name, test_class in test_classes:
+            skipthis = False
+            xs_version = utils.get_xenserver_version(self.session)
+            if test_class.REQUIRED_FOR:
+                if utils.eval_expr(test_class.REQUIRED_FOR, xs_version):
+                    if not utils.REQ_CAP in test_class.caps:
+                        test_class.caps.append(utils.REQ_CAP)
+                else:
+                    if utils.REQ_CAP in test_class.caps:
+                        test_class.caps.remove(utils.REQ_CAP)
+                    skipthis = True
+
             class_node = doc.createElement('test_class')
             class_node.setAttribute('name', test_class_name)
             class_node.setAttribute('caps', str(test_class(self.session,self.config).caps))
             class_node.setAttribute('order', str(test_class(self.session,self.config).order))
-            
+
             test_methods = test_class(self.session, self.config).list_tests()
             for method in test_methods:
                 method_node = doc.createElement('test_method')
@@ -150,8 +160,15 @@ class TestGenerator(object):
 
                 #Result/Info fields
                 result_node = doc.createElement('result')
-                result_node.appendChild(doc.createTextNode('NULL'))
                 info_node = doc.createElement('info')
+                if skipthis:
+                    result_node.appendChild(doc.createTextNode('skip'))
+                    reason_node = doc.createElement('reason')
+                    reason_node.appendChild(doc.createTextNode('%s is not required for XenServer %s.'
+                                            % (test_class_name, xs_version)))
+                    method_node.appendChild(reason_node)
+                else:
+                    result_node.appendChild(doc.createTextNode('NULL'))
                 
                 method_node.appendChild(result_node)
                 method_node.appendChild(info_node)
