@@ -135,13 +135,19 @@ class DeviceTestClassMethod(object):
         return self.name
 
     def has_passed(self):
+        """ This method has passed. """
         return self._match_result('pass')
 
     def has_failed(self):
-        """To differentiate between waiting and failed"""
+        """ This method has failed. """
         return self._match_result('fail')
 
+    def has_skipped(self):
+        """ This method has not run. """
+        return self._match_result('skip')
+
     def is_waiting(self):
+        """ This method has not been executed yet. """
         return self._match_result('NULL')
 
     def create_xml_node(self,dom):
@@ -186,7 +192,6 @@ class DeviceTestClassMethod(object):
 
 class DeviceTestClass(object):
     """Model for a test class"""
-    caps = []
     test_methods = []
     config = {}
 
@@ -213,7 +218,7 @@ class DeviceTestClass(object):
     
     def has_passed(self):
         for method in self.get_methods():
-            if not method.has_passed():
+            if not method.has_passed() and self.is_required():
                 return False
         # Otherwise, we have passed all required
         # Tests.
@@ -238,8 +243,8 @@ class DeviceTestClass(object):
         """Return the device specific config record"""
         return self.parent.config
 
-    def is_essential(self):
-        return REQ_CAP in self.caps
+    def is_required(self):
+        return REQ_CAP in self.get_caps()
 
     def is_finished(self):
         for test_method in self.test_methods:
@@ -328,10 +333,12 @@ class Device(object):
             test_class_list.append(DeviceTestClass(self,test_node))
         self.test_classes = test_class_list
         
-    def get_test_results(self):
+    def get_test_results(self, filter_required = None):
         """Return a list of test methods"""
         res = []
         for test_class in self.test_classes:
+            if test_class.is_required() == filter_required:
+                continue
             for test_method in test_class.get_methods():
                 res.append(test_method)
         return res
@@ -419,7 +426,7 @@ class Device(object):
         # and if any of them have no passed (i.e. not passed 
         # required 
         for test_class in self.test_classes:
-            if test_class.is_essential() and not test_class.has_passed():
+            if test_class.is_required() and not test_class.has_passed():
                 return False
         return True
 
@@ -429,9 +436,10 @@ class Device(object):
 
         tests_passed = [tm for tm in self.get_test_results() if tm.has_passed()]
         tests_failed = [tm for tm in self.get_test_results() if tm.has_failed()]
+        tests_skipped = [tm for tm in self.get_test_results() if tm.has_skipped()]
         tests_waiting = [tm for tm in self.get_test_results() if tm.is_waiting()]
 
-        return len(tests_passed), len(tests_failed), len(tests_waiting)
+        return len(tests_passed), len(tests_failed), len(tests_skipped), len(tests_waiting)
         
 
     def print_report(self, stream):
@@ -444,38 +452,57 @@ class Device(object):
             subsystem = stream.write("%s\n" % subsystem)
         stream.write("#########################\n\n")
 
+        tests_passed = [test_method for test_method in self.get_test_results()
+                        if test_method.has_passed()]
+        tests_failed_req = [test_method for test_method in self.get_test_results(False)
+                        if test_method.has_failed()]
+        tests_failed_noreq = [test_method for test_method in self.get_test_results(True)
+                        if test_method.has_failed()]
+        tests_skipped_req = [test_method for test_method in self.get_test_results(False)
+                        if test_method.has_skipped()]
+        tests_skipped_noreq = [test_method for test_method in self.get_test_results(True)
+                        if test_method.has_skipped()]
+
         if not self.has_passed():
             stream.write("This device has not passed all the neccessary tests and so will not be supported.")
             stream.write("In order for this device to be supported, this device must pass the following tests:\n")
-            for tc in self.test_classes:
-                if not tc.has_passed():
-                    stream.write("%s\n" % tc.name)
+            for method in tests_failed_req:
+                stream.write("%s\n" % method.get_name())
+            for method in tests_skipped_req:
+                stream.write("%s\n" % method.get_name())
         else:
             stream.write("Capabilities:\n")
             for k,v in self.get_caps().iteritems():
                 if v:
-                    str = "Supported"
+                    reqval = "Supported"
                 else:
-                    str = "Unsupported"
+                    reqval = "Unsupported"
 
-                stream.write("%s: %s" % (k, str))
+                stream.write("%s: %s" % (k, reqval))
             stream.write("\n")
-
-        tests_passed = [test_method for test_method in self.get_test_results()
-                        if test_method.has_passed()]
-        tests_failed = [test_method for test_method in self.get_test_results()
-                        if not test_method.has_passed()]
 
         if tests_passed:
             stream.write("\nTests that passed:\n")
             for test in tests_passed:
                 stream.write("%s\n" % test.name)
 
-        if tests_failed:
+        if tests_failed_req:
             stream.write("\nTests that failed:\n")
-            for test in tests_failed:
+            for test in tests_failed_req:
                 stream.write("%s\n" % test.name)    
-        
+
+        if tests_failed_noreq:
+            stream.write("\nNone required tests that failed:\n")
+            for test in tests_failed_noreq:
+                stream.write("%s\n" % test.name)    
+
+        if tests_skipped_req or tests_skipped_noreq:
+            stream.write("\nTests that skipped:\n")
+            for test in tests_skipped_req:
+                stream.write("%s\n" % test.name)    
+            for test in tests_skipped_noreq:
+                stream.write("%s\n" % test.name)    
+
 class AutoCertKitRun(object):
     """Python class for representing the XML config file as an object"""
 
@@ -507,17 +534,19 @@ class AutoCertKitRun(object):
         are waiting to be executed."""
         passed = 0
         failed = 0 
+        skipped = 0
         waiting = 0
         for device in self.devices:
-            p, f, w = device.get_status()
+            p, f, s, w = device.get_status()
             passed = passed + p
             failed = failed + f
+            skipped = skipped + s
             waiting = waiting + w
-        return passed, failed, waiting
+        return passed, failed, skipped, waiting
     
     def is_finished(self):
         """Return true if the test run has finished"""
-        _,_,w = self.get_status()
+        _,_,_,w = self.get_status()
         return not w
 
     def get_next_test_class(self):
@@ -548,7 +577,6 @@ class AutoCertKitRun(object):
 
         # Return the test class at the top of the list
         return tcs_to_run.pop()[0]
-
 
 
 def create_models(xml_file):

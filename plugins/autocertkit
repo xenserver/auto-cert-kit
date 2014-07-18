@@ -229,6 +229,16 @@ OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
                  'tx-vlan-offload': 'txvlan',
                  'ntuple-filters': 'ntuple',
                  'receive-hashing': 'rxhash'}
+OFFLOAD_FLAGS_OFFSET = {'sg': 1,
+                 'tso': 1<<16,
+                 'ufo': 1<<17,
+                 'gso': 1<<11,
+                 'gro': 1<<14,
+                 'lro': 1<<15,
+                 'rxvlan': 1<<8,
+                 'txvlan': 1<<7,
+                 'ntuple': 1<<27,
+                 'rxhash': 1<<28}
 
 
 ############# SSH KEY SETUP ##########################
@@ -718,6 +728,25 @@ def set_hw_offload(session, args):
     log.debug("Ethtool Command: %s" % call)
     return make_local_call(call)["stdout"]
 
+@log_exceptions
+def get_hw_offloads_from_core(session, args):
+    """Return a dictionary object specifying offload protocols by
+    checking /sys/class/net/ethX """
+    eth_dev = validate_exists(args, 'eth_dev')
+    if eth_dev.startswith('xenbr'):
+        eth_dev = eth_dev.replace('xenbr', 'eth')
+
+    rec = {}
+    flag = int(make_local_call(['cat', '/sys/class/net/%s/features' % eth_dev])['stdout'], 16)
+
+    for offload, offset in OFFLOAD_FLAGS_OFFSET.iteritems():
+        if offset & flag:
+            rec[offload] = 'on'
+        else:
+            rec[offload] = 'off'
+
+    return to_xml(rec, 'hw_offloads')
+        
 @log_exceptions
 def get_hw_offloads(session, args):
     """Return a dictionary object specifying offload protocols,
@@ -1572,6 +1601,7 @@ def get_kernel_version(session, args):
 
 if __name__ == '__main__':
     XenAPIPlugin.dispatch({'get_hw_offloads': get_hw_offloads,
+                           'get_hw_offloads_from_core': get_hw_offloads_from_core,
                            'set_hw_offload': set_hw_offload,
                            'iperf_test': iperf_test,
                            'lmbench_test': lmbench_test,
