@@ -52,6 +52,7 @@ class TestClass(object):
     session = None
     base_tag = "Base"
     XS = ["> 5.6"]
+    REQUIRED_FOR = None
 
     def __init__(self, session, config):
         """The constructor method.
@@ -118,16 +119,16 @@ class TestClass(object):
                 else:
                     rec['result'] = 'pass'
 
-                def copy_field(rec, res, field, keep = True):
+                def copy_field(rec, res, field, keep_tag = True):
                     if field in res:
                         rec[field] = res[field]
-                    elif keep:
+                    elif keep_tag:
                         rec[field] = ""
                 
                 copy_field(rec, res, 'info')
                 copy_field(rec, res, 'data')
                 copy_field(rec, res, 'config')
-                copy_field(rec, res, 'warning', False)
+                copy_field(rec, res, 'reason', False)
 
             except Exception, e:
                 traceb = traceback.format_exc()
