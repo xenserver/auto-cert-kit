@@ -608,6 +608,73 @@ def _get_local_storage_disk(session):
         return os.path.basename(os.readlink(disk_path))
     return os.path.basename(disk_path)
 
+__scsi_id_regex = re.compile("([\-\d\w\/]+)\-part\d+")
+def _get_local_storage_disks(session):
+    """ Find all local disk """
+
+    disks = {}
+    pool = session.xenapi.pool.get_all()[0]
+    host = session.xenapi.pool.get_master(pool)
+    srs = session.xenapi.SR.get_all()
+    for sr in srs:
+        srtype = session.xenapi.SR.get_type(sr)
+        if srtype not in ["ext", "lvm"]:
+            continue
+        for pbd in session.xenapi.SR.get_PBDs(sr):
+            if session.xenapi.PBD.get_host(pbd) != host:
+                continue
+            dev_con = session.xenapi.PBD.get_device_config(pbd)
+            if "device" not in dev_con:
+                continue
+            iface_path = dev_con["device"]
+            m = __scsi_id_regex.match(iface_path)
+            if m:
+                iface_path = m.groups()[0]
+            if os.path.islink(iface_path):
+                disks[os.path.basename(os.readlink(iface_path))] = sr
+            else:
+                disks[os.path.basename(iface_path)] = sr
+
+    return disks
+
+__bus_id_regex = re.compile("[0-9a-fA-F]{2}\:[0-9a-fA-F]{2}\.[0-9a-fA-F]")
+def _is_bus_id(bus_id):
+    """ Check given bus_id is format of bus id """
+    return __bus_id_regex.match(bus_id[-7:])
+
+def _get_bus_paths(disks):
+    """ Find bus path of given disk. """
+    # Looking for bus path for disks
+    device_path = "/sys/dev/block"
+    bus_paths = {}
+    for filename in os.listdir(device_path):
+        fullpath = device_path + os.sep + filename
+        if os.path.islink(fullpath) and os.path.basename(os.readlink(fullpath)) in disks.keys():
+            bus_paths[os.readlink(fullpath)] = disks[os.path.basename(os.readlink(fullpath))]
+
+    # paths in the list may not be the bus path but sym link to device.
+    # If bus path does not include bus id, follow link to get bus path
+    modified_bus_path = {}
+    for bus_path, sr in bus_paths.iteritems():
+        path_tokens = bus_path.split(os.sep)
+        if len(path_tokens) < 5 or not _is_bus_id(path_tokens[4]):
+            disk = path_tokens[-1]
+            newpath = "sys/block/%s/device" % disk
+            if os.path.exists(newpath) and os.path.islink(newpath):
+                linked_path = os.readlink(newpath)
+                if len(linked_path) < 5 or not _is_bus_id(linked_path.split(os.sep)[4]):
+                    log.debug("%s or %s is not proper bus path. Failed to obtain bus path for %s" %
+                        (bus_path, linked_path, disk))
+                else:
+                    modified_bus_path[linked_path] = sr
+            else:
+                log.debug("Cannot find physical device or bus path of %s. Perhaps it is a logical volume." % disk)
+        else:
+            modified_bus_path[bus_path] = sr
+
+    return modified_bus_path
+            
+
 def find_dir(dirpath, dirname, max_depth=2):
     """Find a file in a given directory, recursing a limited number of times"""
 
@@ -617,7 +684,7 @@ def find_dir(dirpath, dirname, max_depth=2):
         for root, dirs, filenames in os.walk(path):
             log.debug("Directories: %s" % dirs)
             if dname in dirs:
-                return True, "/".join([root, dname])
+                return True, os.sep.join([root, dname])
             else:
                 return False, dirs
 
@@ -663,46 +730,52 @@ def get_local_storage_devices(session, args):
 
     try:
         
-        disk = _get_local_storage_disk(session)
-    
-        try:
-            bus_path = os.readlink("/sys/block/%s/device" % disk)
-        except Exception, e:
-            log.debug("Could not read bus path '/sys/block/%s/device'. Exception: %s" % (disk, str(e)))
-            return list_to_xml([{'Exception':'StorageInfoNotAvailable'}], 'device')
-    
-        bus_id = bus_path.split('/')[4]
+        disks = _get_local_storage_disks(session)
+        log.debug("Local disks found: %s" % disks)
+        bus_paths = _get_bus_paths(disks)
+        log.debug("Buses found: %s" % bus_paths)
 
-        if bus_id.startswith('0000:'):
-            #We only care about the shortened id
-            bus_id = bus_id[5:]
+        if len(bus_paths) == 0:
+            return list_to_xml([{'Exception':'Cannot find Storage interface.'}], 'device')
 
         # Enumerate PCI Devices
         devices = PCIDevices()
-        
-        # Copy dictionary record for device at specified bus location
-        device = dict(devices.devs[bus_id])
 
-        driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:5])
-
-        log.debug("Searching for driver sym link in '%s'" % driver_root_dir)
-               
-        driver_links = find_dir(driver_root_dir, 'driver')
-
-        if driver_links:
-            log.debug("Found the following driver sym-links: %s" % driver_links)
-
-            # Take the first link - there should only be one, but this needs
-            # investigation on more bits of hardware, so let's not fail if there
-            # does exist more than one link.
-            driver_sym = driver_links[0]
-            log.debug("Reading driver from symlink: %s" % driver_sym)
-        
-            # Just check the path is still there.
-            if os.path.exists(driver_sym):
-                device['driver'] = os.path.basename(os.readlink(driver_sym))
-
-        return list_to_xml([device], 'device')
+        storage_devices = []
+        for bus_path, sr in bus_paths.iteritems():
+            
+            bus_id = bus_path.split(os.sep)[4]
+    
+            if bus_id.startswith('0000:'):
+                #We only care about the shortened id
+                bus_id = bus_id[5:]
+    
+            # Copy dictionary record for device at specified bus location
+            device = dict(devices.devs[bus_id])
+    
+            device['sr'] = sr
+            driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:5])
+    
+            log.debug("Searching for driver sym link in '%s'" % driver_root_dir)
+                   
+            driver_links = find_dir(driver_root_dir, 'driver')
+    
+            if driver_links:
+                log.debug("Found the following driver sym-links: %s" % driver_links)
+    
+                # Take the first link - there should only be one, but this needs
+                # investigation on more bits of hardware, so let's not fail if there
+                # does exist more than one link.
+                driver_sym = driver_links[0]
+                log.debug("Reading driver from symlink: %s" % driver_sym)
+            
+                # Just check the path is still there.
+                if os.path.exists(driver_sym):
+                    device['driver'] = os.path.basename(os.readlink(driver_sym))
+            if not device in storage_devices:
+                storage_devices.append(device)
+    
+        return list_to_xml(storage_devices, 'device')
 
     except Exception, e:
         log.debug("Could not get local storage info. Exception: %s" % str(e))

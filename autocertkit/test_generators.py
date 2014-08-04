@@ -248,6 +248,10 @@ class StorageTestGenerator(TestGenerator):
     """TestGenertor class specific to Storage tests"""
     TAG = 'LS'
     
+    def __init__(self, session, config, interface, device):
+        super(StorageTestGenerator, self).__init__(session, config, interface)
+        self.device = device
+
     def filter_test_classes(self, test_classes):
         if 'LSTOR' in self.config['exclude']:
             return []
@@ -256,10 +260,7 @@ class StorageTestGenerator(TestGenerator):
     def get_device_config(self):
         """Retrieve info regarding the local SCSI devices"""
         rec = super(StorageTestGenerator, self).get_device_config()
-        devices = utils.get_local_storage_info(self.session)
-        for device_rec in devices:
-            rec = utils.combine_recs(rec, device_rec)
-        return rec
+        return utils.combine_recs(rec, self.device)
     
 class OperationsTestGenerator(TestGenerator):
     """TestGenertor class specific to Operations tests"""

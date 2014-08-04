@@ -57,7 +57,13 @@ class PerfTestClass(testbase.LocalStorageTestClass):
         master host's local SR"""
         host_ref = get_pool_master(session)
         net_ref = get_management_network(session)
-        sr_ref = get_local_sr(session, host_ref)
+        if 'device_config' in self.config and 'sr' in self.config['device_config']:
+            sr_ref = self.config['device_config']['sr']
+        else:
+            log.debug("Local SR info is not available from device tag.")
+            log.debug("Choosing first local SR.")
+            sr_ref = get_local_sr(session, host_ref)
+        log.debug("%s is chosen for local storage test." % sr_ref)
         return deploy_count_droid_vms_on_host(session, 
                                               host_ref, 
                                               [net_ref], 
