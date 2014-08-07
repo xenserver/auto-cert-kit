@@ -271,6 +271,33 @@ def network_interfaces_to_test(session, config):
         ifaces.append(dev['Kernel_name']) 
     return ifaces
 
+def storage_interfaces_to_test(session):
+    """Return a list of all storage interface devices that connected to local
+    disks and must be tested by the auto cert kit."""
+
+    def comp_key(src, dst, key):
+        return key in src and key in dst and src[key] == dst[key]
+
+    # Get all interfaces that has a disk connected.
+    devices = utils.get_local_storage_info(session)
+
+    # Some devices, which can have multiple disks, only need to be tested once.
+    devices_to_test = []
+    for device in devices:
+        for existing in devices_to_test:
+            if comp_key(device, existing, 'vendor') and \
+                comp_key(device, existing, 'driver') and \
+                comp_key(device, existing, 'subclass') and \
+                comp_key(device, existing, 'class'):
+                break
+            if comp_key(device, existing, 'PCI_id'):
+                break
+        else:
+            devices_to_test.append(device)
+
+    return devices_to_test
+
+
 def generate_test_config(session, config, test_run_file):
     """Enumerate hardware on machine and setup test config file"""
 
@@ -314,8 +341,9 @@ def generate_test_config(session, config, test_run_file):
         cputg.append_xml_config(doc, devices_node)
 
     if config['mode'] == 'ALL' or config['mode'] == 'LSTOR':
-        lstg = StorageTestGenerator(session, config, iface)
-        lstg.append_xml_config(doc, devices_node)
+        for device in storage_interfaces_to_test(session):
+            lstg = StorageTestGenerator(session, config, iface, device)
+            lstg.append_xml_config(doc, devices_node)
 
     if config['mode'] == 'ALL' or config['mode'] == 'OPS':
         optg = OperationsTestGenerator(session, config, iface)
