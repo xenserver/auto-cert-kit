@@ -333,20 +333,17 @@ def generate_test_config(session, config, test_run_file):
     if not len(ifs):
         raise Exception("Error: in order to run these tests, you need at least one network defined.")
 
-    # Just pick any interface
-    iface = ifs.pop()
-
     if config['mode'] == 'ALL' or config['mode'] == 'CPU':
-        cputg = ProcessorTestGenerator(session, config, iface)
+        cputg = ProcessorTestGenerator(session, config)
         cputg.append_xml_config(doc, devices_node)
 
     if config['mode'] == 'ALL' or config['mode'] == 'LSTOR':
         for device in storage_interfaces_to_test(session):
-            lstg = StorageTestGenerator(session, config, iface, device)
+            lstg = StorageTestGenerator(session, config, device)
             lstg.append_xml_config(doc, devices_node)
 
     if config['mode'] == 'ALL' or config['mode'] == 'OPS':
-        optg = OperationsTestGenerator(session, config, iface)
+        optg = OperationsTestGenerator(session, config)
         optg.append_xml_config(doc, devices_node)
 
     fh = open(test_run_file, 'w')

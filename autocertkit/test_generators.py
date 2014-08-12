@@ -55,7 +55,7 @@ class TestGenerator(object):
     TAG = False
     uidlist = []
 
-    def __init__(self, session, config, interface):
+    def __init__(self, session, config, interface=None):
         self.session = session
         self.config = config
         self.interface = interface
@@ -108,6 +108,8 @@ class TestGenerator(object):
 
     def get_device_config(self):
         """Retrieve info about interface from biosdevname"""
+        if not self.interface:
+            return {}
         devices = utils.get_master_network_devices(self.session)
         for device_rec in devices:
             print device_rec
@@ -248,8 +250,8 @@ class StorageTestGenerator(TestGenerator):
     """TestGenertor class specific to Storage tests"""
     TAG = 'LS'
     
-    def __init__(self, session, config, interface, device):
-        super(StorageTestGenerator, self).__init__(session, config, interface)
+    def __init__(self, session, config, device):
+        super(StorageTestGenerator, self).__init__(session, config)
         self.device = device
 
     def filter_test_classes(self, test_classes):
