@@ -1091,6 +1091,27 @@ def add_network_interface(vm_ip, interface_name, interface_ip,
     ssh_command(vm_ip, username, password, cmd, cmd, attempts=10)    
 
 
+def plug_pif(session, pif):
+    """ Plug given pif"""
+    log.debug("Plugging PIF: %s" % pif)
+    session.xenapi.PIF.plug(pif)
+
+
+def unplug_pif(session, pif):
+    """Unplug a PIF"""
+    if session.xenapi.PIF.get_disallow_unplug(pif):
+        log.debug("PIF: %s is disallowed to unplug. Change setting." % pif)
+        session.xenapi.PIF.set_disallow_unplug(pif, False)
+    log.debug("Unplugging PIF: %s" % pif)
+    session.xenapi.PIF.unplug(pif)
+
+
+def destroy_pif(session, pif):
+    """Unplug and destroy pif"""
+    unplug_pif(session, pif)
+    session.xenapi.PIF.destroy(pif)
+
+
 def destroy_vm(session, vm_ref, timeout=60):
     """Checks powerstate of a VM, destroys associated VDIs, 
     and destroys VM once shutdown"""
@@ -1220,8 +1241,7 @@ def pool_wide_network_cleanup(session, tag):
             pifs = session.xenapi.network.get_PIFs(network)
             log.debug("Pifs to cleanup: %s from network %s" % (pifs, network))
             for pif in pifs:
-                session.xenapi.PIF.unplug(pif)
-                session.xenapi.PIF.destroy(pif)
+                destroy_pif(session, pif)
             session.xenapi.network.destroy(network)
         elif session.xenapi.network.get_MTU(network) != '1500':
             set_network_mtu(session, network, '1500')
@@ -1960,8 +1980,8 @@ def set_network_mtu(session, network_ref, MTU):
     session.xenapi.network.set_MTU(network_ref, str(MTU))
     pifs = session.xenapi.network.get_PIFs(network_ref)        
     for pif in pifs:
-        session.xenapi.PIF.unplug(pif)
-        session.xenapi.PIF.plug(pif)
+        unplug_pif(session, pif)
+        plug_pif(session, pif)
 
 def intersection(lista, listb):
     """Return the intersection between two lists. Note,
