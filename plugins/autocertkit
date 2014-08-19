@@ -372,15 +372,26 @@ def save_bugtool():
 def run_ack_logrotate(session, args):
     """Run logrotate for ACK logs"""
     ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
+    
+    # This method should not log before logrotate execution to avoid os file handle error
 
     try:
         shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
         call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
-        res = make_local_call(call)['stdout']
+        res = make_local_call(call, False)
     except Exception, e:
-        res = str(e)
-        log.debug("Exception: %s" % res)
-    return res
+        return str(e)
+
+    # Restart logging and leave results of logrotate in the log.
+    configure_logging('autocertkit')
+    if res['returncode'] != 0:
+        msg = "ERR: Failed to run logrotate."
+        log.error("%s: %s" % (msg, res['stderr']))
+    else:
+        msg = "logrotate executed successfully."
+        log.debug(msg)
+
+    return msg
 
 ############### IPERF Setup #########################
 
@@ -397,17 +408,19 @@ def install_iperf(session, vm_ref, username, password):
     log.debug(cmd_str)
     ssh_command(ip_address, username, password, cmd_str)
 
-def make_local_call(call):
+def make_local_call(call, logging=True):
     """Function wrapper for making a simple call to shell"""
-    log.debug("make_local_call: %s" % (" ".join(call)))
+    if logging:
+        log.debug("make_local_call: %s" % (" ".join(call)))
     process = subprocess.Popen(call, stdout=subprocess.PIPE)
     stdout, stderr = process.communicate()
     res = {"returncode": process.returncode, "stdout": str(stdout).strip(), "stderr": str(stderr).strip()}
     if res["returncode"] != 0:
         msg = "ERR: Could not make local call %s" % ' '.join(call)
-        log.error(msg)
-        log.debug("stdout: %s"  % str(stdout))
-        log.debug("stderr: %s" % str(stderr))
+        if logging:
+            log.error(msg)
+            log.debug("stdout: %s"  % str(stdout))
+            log.debug("stderr: %s" % str(stderr))
     return res
 
 def validate_xml_key(key):

@@ -407,6 +407,16 @@ def main(config, test_run_file):
     
     session = get_xapi_session(config)
 
+    # Run log rotate before ACK produces any log.
+    for host in session.xenapi.host.get_all():
+        res = session.xenapi.host.call_plugin(host, 
+                                    'autocertkit',
+                                    'run_ack_logrotate', 
+                                    {})
+    # logger can be broken due to os file handler.
+    utils.log = None
+    utils.log = utils.configure_logging('auto-cert-kit')
+
     pre_flight_checks(session, config)
 
     config['xs_version'] = utils.get_xenserver_version(session)
@@ -420,14 +430,6 @@ def main(config, test_run_file):
         #Generate config file only
         utils.log.info("Test file generated")
         return "OK"
-
-    # Run log rotate before execute tests.
-    for host in session.xenapi.host.get_all():
-        utils.log.debug("Running logrotate on host %s" % host)
-        session.xenapi.host.call_plugin(host, 
-                                    'autocertkit',
-                                    'run_ack_logrotate', 
-                                    {})
 
     #Kick off the testrunner
     test_file, output = test_runner.run_tests_from_file(test_run_file)
