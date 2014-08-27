@@ -49,6 +49,7 @@ import tarfile
 import datetime
 
 from acktools.net import route
+import acktools.log
 
 # The biosdevname library has been moved in Tamapa,
 # so we must ensure that we check that we cope with
@@ -90,18 +91,17 @@ UNAME = "/bin/uname"
 
 ##### Logging setup
 
+LOG_LOC = '/var/log/auto-cert-kit-plugin.log'
+
 log = None
 def configure_logging(name):
     global log
-    log = logging.getLogger(name)
-    log.setLevel(logging.DEBUG)
-    sysh = logging.FileHandler('/var/log/auto-cert-kit-plugin.log')
-    sysh.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%%(asctime)-8s %s: %%(levelname)-8s %%(filename)s:%%(lineno)-10d %%(message)s' % name)
-    sysh.setFormatter(formatter)
-    log.addHandler(sysh)
-configure_logging('autocertkit')
+    if log:
+        acktools.log.release_log(log)
+    log = acktools.log.configure_log(name, LOG_LOC, False)
+    return log
 
+configure_logging('autocertkit')
 
 ##### Exceptions
 
@@ -372,9 +372,9 @@ def save_bugtool():
 def run_ack_logrotate(session, args):
     """Run logrotate for ACK logs"""
     ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
+    global log
     
     # This method should not log before logrotate execution to avoid os file handle error
-
     try:
         shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
         call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
@@ -383,7 +383,7 @@ def run_ack_logrotate(session, args):
         return str(e)
 
     # Restart logging and leave results of logrotate in the log.
-    configure_logging('autocertkit')
+    log = configure_logging('autocertkit')
     if res['returncode'] != 0:
         msg = "ERR: Failed to run logrotate."
         log.error("%s: %s" % (msg, res['stderr']))
