@@ -224,3 +224,35 @@ class VMOpsTestClass(testbase.OperationsTestClass):
         rec['info'] = ("VM relocation tests completed successfully")
         
         return rec
+
+
+class CrashDumpTestClass(testbase.OperationsTestClass):
+    """Test class to verify crash dump is created and collectable properly."""
+
+    def test_crashdump(self, session):
+        """Check crashdump is created properly."""
+        log.debug("Running Crashdump test.")
+        if not get_reboot_flag():
+            tc_info = {}
+            tc_info['device'] = self.config['device_config']['udid']
+            tc_info['test_class'] = self.__class__.__module__ + '.' + self.__class__.__name__
+            tc_info['test_method'] = 'test_crashdump'
+            set_reboot_flag(tc_info)
+            time.sleep(5) # host crash need to be done after flag is created to compare.
+            host_crash(self.session)
+
+        crashdump = retrieve_latest_crashdump(session)
+        if not crashdump:
+            raise Exception("Host does not have crashdump after host crashed.")
+        log.debug("Latest crashdump: %s" % crashdump)
+
+        crashtime = get_reboot_flag_timestamp()
+        cdtimestamp = crashdump['timestamp']
+
+        log.debug("Crash time: %s / Crashdump timestamp: %s" % (str(crashtime), str(cdtimestamp)))
+
+        if crashtime > cdtimestamp:
+            raise Exception("Latest crashdump is created before host crashed by testcase.")
+
+        return {'info': "Host created crashdump properly."}
+

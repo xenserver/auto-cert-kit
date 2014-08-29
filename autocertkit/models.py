@@ -585,6 +585,7 @@ class AutoCertKitRun(object):
                     continue
                 if tc_info and 'test_method' in tc_info and not tc.get_method_by_name(tc_info['test_method']):
                     continue
+
                 # Append a tuple - (test_class, order)
                 # Order index will be used below for sorting.
                 tcs_to_run.append((tc, tc.get_order()))

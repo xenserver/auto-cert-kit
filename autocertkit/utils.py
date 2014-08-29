@@ -39,6 +39,7 @@ import ssh
 from xml.dom import minidom
 import tarfile
 import signal
+from datetime import datetime
 
 import os
 import base64
@@ -597,6 +598,12 @@ def get_reboot_flag():
     else:
         return None
 
+def get_reboot_flag_timestamp():
+    """Finding when reboot was initialised."""
+    if os.path.exists(REBOOT_FLAG_FILE):
+        return datetime(*time.gmtime(os.path.getctime(REBOOT_FLAG_FILE))[:6])
+    return None
+
 def clear_reboot_flag():
     if os.path.exists(REBOOT_FLAG_FILE):
         os.remove(REBOOT_FLAG_FILE)
@@ -619,7 +626,58 @@ def host_reboot(session, running_tc_info=None):
     session.xenapi.host.reboot(master)
     log.debug("Rebooted master")
     sys.exit(REBOOT_ERROR_CODE)
-    
+
+def host_crash(session, do_cleanup = False):
+    """ Force crash master. The host will be rebooted once it crashes."""
+    if do_cleanup:
+        pool_wide_cleanup(session)
+    host = get_pool_master(session)
+    log.debug("Crashing host: %s" % host)
+    session.xenapi.host.call_plugin(host, 'autocertkit', 'force_crash_host', {})
+
+    # Once it is successful, host will be crashed hence code should not reach here.
+    raise Exception("Failed to crash host.")
+
+def retrieve_latest_crashdump(session, host=None, fromxapi=False):
+    """Retrieve latest one from crashdump list"""
+    cds = retrieve_crashdumps(session, host, fromxapi)
+    if not cds:
+        return None
+
+    latest = sorted(cds, key = lambda cd: cd['timestamp'], reverse=True)[0]
+
+    log.debug("Latest crashdump: %s" % latest)
+
+    return latest
+
+def retrieve_crashdumps(session, host=None, fromxapi=False):
+    """Retrive all list of crashdump of master."""
+    if not host:
+        host = get_pool_master(session)
+    cds = xml_to_dicts(session.xenapi.host.call_plugin(host,
+                    'autocertkit',
+                    'retrieve_crashdumps',
+                    {'host': host, 'from_xapi': str(fromxapi)}),
+                    'crashdump')
+    for cd in cds:
+        cd['size'] = int(cd['size'])
+        ts = cd['timestamp']
+        if fromxapi:
+            cd['timestamp'] = datetime(int(ts[:4]), # year
+                            int(ts[4:6]),   # month
+                            int(ts[6:8]),   # day
+                            int(ts[9:11]),  # hour
+                            int(ts[12:14]), # minute
+                            int(ts[15:17])) # second
+        else:
+            cd['timestamp'] = datetime(int(ts[:4]), # year
+                            int(ts[4:6]),   # month
+                            int(ts[6:8]),   # day
+                            int(ts[9:11]),  # hour
+                            int(ts[11:13]), # minute
+                            int(ts[13:15])) # second
+    log.debug("Retained Crashdumps: %s" % str(cds))
+    return cds
 
 def print_test_results(tracker):
     """Method for pretty printing results"""
@@ -1203,8 +1261,6 @@ def pool_wide_host_cleanup(session):
 
     for host in hosts:
         host_cleanup(session, host)
-
-    clear_reboot_flag()
 
 def pool_wide_vm_cleanup(session, tag):
     """Searches for VMs with a cleanup tag, and destroys"""
