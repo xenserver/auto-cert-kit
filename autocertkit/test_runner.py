@@ -184,22 +184,34 @@ def run_tests_from_file(test_file):
     while not ack_model.is_finished():
         log.debug("Test Run Status: P %d, F %d, S %d, W %d" % (ack_model.get_status()))
 
-        next_test = ack_model.get_next_test_class()
+        tc_info = get_reboot_flag()
+        test_name = None
+        if tc_info and 'test_method' in tc_info:
+            test_name = tc_info['test_method']
+
+        next_test_class = ack_model.get_next_test_class(tc_info)
+        next_test_method = next_test_class.get_next_test_method(test_name)
+        if not next_test_method:
+            raise Exception("No more test method to run from test class: %s" %
+                        next_test_class.get_name())
 
         # Merge device specific config into the global config dict object
         # that will then be passed to the test class.
-        config['device_config'] = next_test.get_device_config()
+        config['device_config'] = next_test_class.get_device_config()
 
-        log.debug("About to run test: '%s'" % next_test.get_name())
-        results = run_test(session, next_test.get_name(), config)
+        log.debug("About to run test: '%s.%s'" % (next_test_class.get_name(), next_test_method.get_name()))
+        test_inst = get_test_class(next_test_class.get_name())(session, config)
+        result = test_inst.run(to_bool(get_value(config, 'debug')), next_test_method.get_name())
 
         # Update the python objects with results
-        next_test.update(results)
+        next_test_class.update(result)
      
         # Save the updated test class back to the config file
-        next_test.save(test_file)
+        next_test_class.save(test_file)
 
-            
+        # Reset reboot flag
+        clear_reboot_flag()
+
     log.debug("Logging out of xapi session %s" % session.handle)
     session.xenapi.session.local_logout()
 
@@ -244,16 +256,10 @@ def get_test_class(fqtn):
     raise Exception("Specified FQTN not found! (%s)" % fqtn)
     
 
-def run_test(session, fqtn, config):
-    test_class = get_test_class(fqtn)
-    inst = test_class(session, config)
-    result = inst.run(to_bool(get_value(config, 'debug')))
-    return result
-    
-
 if __name__ == "__main__":
     #Main function entry point
     global log
+
     log = configure_logging('auto-cert-kit')
 
     parser = OptionParser(usage="%prog [-c] [-t]", version="%prog 0.1")
@@ -261,18 +267,13 @@ if __name__ == "__main__":
     parser.add_option("-t", "--test file",
                       dest="testfile",
                       help="Specify the test sequence file")
-
     
     (options, _) = parser.parse_args()
 
     if not options.testfile:
         raise Exception("Error, please pass the correct arguments")
 
-    # In the case of reboot, clear the flag.
-    clear_reboot_flag()
-
     log.debug("test_runner about to run from test_file %s" % options.testfile)
 
     test_file, output = run_tests_from_file(options.testfile)
-    
-    
+

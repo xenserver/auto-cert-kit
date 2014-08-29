@@ -569,23 +569,39 @@ def get_slave_control_domain(session):
     #Only care about the first slave reference
     return _find_control_domain(session, slave_refs[0])
 
-def set_reboot_flag():
+def set_reboot_flag(tc_info=None):
     """Set an OS flag (i.e. touch a file) for when we're about to reboot.
     This is so that, on host reboot, we can work out whether we should
     run, and what the status of the kit is"""
-    open(REBOOT_FLAG_FILE, 'w').close()
+
+    ffile = open(REBOOT_FLAG_FILE, 'w')
+    if tc_info:
+        ffile.write(str(tc_info))
+    ffile.close()
 
 def get_reboot_flag():
+    """Return a dictionary that contains information of when reboot was
+    initiated."""
+
     if os.path.exists(REBOOT_FLAG_FILE):
-        return True
+        ffile = open(REBOOT_FLAG_FILE, 'r')
+        flag_str = ffile.read().strip()
+        ffile.close()
+
+        if len(flag_str) > 0:
+            tc_info = eval(flag_str)
+            if isinstance(tc_info, dict):
+                return tc_info
+
+        return {'info': 'flag contains no previous running info.'}
     else:
-        return False
+        return None
 
 def clear_reboot_flag():
     if os.path.exists(REBOOT_FLAG_FILE):
         os.remove(REBOOT_FLAG_FILE)
             
-def host_reboot(session):
+def host_reboot(session, running_tc_info=None):
     log.debug("Attempting to reboot the host")
     #Cleanup all the running vms
     pool_wide_cleanup(session)
@@ -598,7 +614,7 @@ def host_reboot(session):
         if host != master:
             session.xenapi.host.reboot(host)
             
-    set_reboot_flag()
+    set_reboot_flag(running_tc_info)
 
     session.xenapi.host.reboot(master)
     log.debug("Rebooted master")
@@ -700,7 +716,6 @@ def make_local_call(call):
     process = subprocess.Popen(call, stdout=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode == 0:
-        print stdout
         return str(stdout).strip()
     else:
         log.debug("ERR: %s, %s" % (stdout, stderr))
@@ -1188,6 +1203,8 @@ def pool_wide_host_cleanup(session):
 
     for host in hosts:
         host_cleanup(session, host)
+
+    clear_reboot_flag()
 
 def pool_wide_vm_cleanup(session, tag):
     """Searches for VMs with a cleanup tag, and destroys"""
