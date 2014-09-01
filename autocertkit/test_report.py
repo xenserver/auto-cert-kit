@@ -51,11 +51,21 @@ def count_by_result(class_recs, fn):
 def wrap_text(string, width):
     return textwrap.wrap(string.strip(), width, subsequent_indent=' ' * 5)
 
+def print_system_info(stream):
+    """ Retrieve system information from SMBIOS and write to given stream. """
+    sys_info = search_dmidecode("System Information")
+    stream.write("#########################\n")
+    stream.write("System Information from SMBIOS\n")
+    stream.write('\n'.join(sys_info))
+    stream.write("#########################\n")
+    stream.write("\n")
+
 def post_test_report(xml_file, output_file):
     devices = create_models(xml_file)
     
     all_passed = True
     fh = open(output_file, 'w')
+    print_system_info(fh)
     for device in devices:
         device.print_report(fh)
         if not device.has_passed():

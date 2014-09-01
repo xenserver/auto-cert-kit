@@ -2086,4 +2086,31 @@ def valid_ping_response(ping_response, max_loss=0):
         return False
 
 
+dmidecode_output = None
+@log_exceptions
+def get_dmidecode_output():
+    """ Build dmidecode information data structure from output of dmidecode. """
+    global dmidecode_output
+    if not dmidecode_output:
+        binfo = make_local_call(['dmidecode'])
+        buf = ''
+        dmidecode_output = []
+        for line in binfo.split(os.linesep):
+            if len(line.strip()) == 0:
+                dmidecode_output.append(buf)
+                buf = ''
+            else:
+                buf += line + os.linesep
+    return dmidecode_output
 
+@log_exceptions
+def search_dmidecode(keyword):
+    """ Search ttype or busid from ds """
+    ds = get_dmidecode_output()
+    found = []
+    for info in ds:
+        if keyword in info:
+            found.append(info)
+
+    return found
+    
