@@ -30,7 +30,6 @@
 
 """A module for utility functions shared with multiple test cases"""
 import logging
-import logging.handlers
 import subprocess
 import datetime
 import XenAPI
@@ -47,6 +46,7 @@ import threading
 import re
 
 from acktools.net import route, generate_mac
+import acktools.log
 
 K = 1024
 M = 1024 * K
@@ -60,6 +60,7 @@ XE = '/opt/xensource/bin/xe'
 DROID_TEMPLATE_TAG = "droid_vm_template"
 REBOOT_ERROR_CODE = 3
 REBOOT_FLAG_FILE = "/opt/xensource/packages/files/auto-cert-kit/reboot"
+LOG_LOC = "/var/log/auto-cert-kit.log"
 
 # Capability Tags
 REQ_CAP = "REQ"
@@ -514,25 +515,14 @@ def configure_logging(name):
     """Method for configuring Logging"""
     global log
     if not log:
-        log = logging.getLogger(name)
-        log.setLevel(logging.DEBUG)
-
-        try:
-            fileh = logging.FileHandler('/var/log/auto-cert-kit.log')
-            fileh.setLevel(logging.DEBUG)
-            formatter = logging.Formatter('%%(asctime)-8s %s: %%(levelname)-8s %%(filename)s:%%(lineno)-10d %%(message)s' % name)
-            fileh.setFormatter(formatter)
-            log.addHandler(fileh)
-            log.debug("Added fileh")
-        except IOError, e:
-            print "Error writing to file handler. Ignoring."
-            print str(e)
-            
-        sth = logging.StreamHandler(sys.__stdout__)
-        sth.setLevel(logging.DEBUG)
-        log.debug("Adding sth")
-        log.addHandler(sth)
+        log = acktools.log.configure_log(name, LOG_LOC)
     return log
+
+def release_logging():
+    """Release logging object."""
+    global log
+    acktools.log.release_log(log)
+    log = None
 
 if not log:
     log = configure_logging('auto-cert-kit')

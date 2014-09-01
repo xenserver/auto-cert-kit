@@ -37,7 +37,6 @@
 import utils
 import sys
 import os
-utils.configure_logging('auto-cert-kit')
 
 import testbase
 import inspect
@@ -397,22 +396,22 @@ def pre_flight_checks(session, config):
             raise Exception("Error: ethernet device %s on network %s is defined in the network config but does not have a matching partner. \
                 Please review the nework configuration and minumum requirements of this kit." % (k, v))
     
-@utils.log_exceptions
 def main(config, test_run_file):
     """Main routine - assess which tests should be run, and create
     output file"""
     
     session = get_xapi_session(config)
 
+    # Release current logger before running logrotate.
+    utils.release_logging()
+
     # Run log rotate before ACK produces any log.
-    for host in session.xenapi.host.get_all():
-        res = session.xenapi.host.call_plugin(host, 
+    for host_ref in session.xenapi.host.get_all():
+        res = session.xenapi.host.call_plugin(host_ref, 
                                     'autocertkit',
                                     'run_ack_logrotate', 
                                     {})
-    # logger can be broken due to os file handler.
-    utils.log = None
-    utils.log = utils.configure_logging('auto-cert-kit')
+    utils.configure_logging('auto-cert-kit')
 
     pre_flight_checks(session, config)
 
