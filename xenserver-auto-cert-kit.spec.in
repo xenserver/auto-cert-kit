@@ -60,4 +60,5 @@ rm -rf %{buildroot}
 /opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/__init__.py*
 /opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/net/route.py*
 /opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/utils.py*
+/opt/xensource/packages/files/auto-cert-kit/pypackages/acktools/log.py*
 /opt/xensource/packages/files/auto-cert-kit/pypackages/setup.py*
