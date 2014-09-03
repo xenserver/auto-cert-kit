@@ -45,7 +45,6 @@ def configure_log(name, path, to_stdout=True):
         formatter = logging.Formatter('%%(asctime)-8s %s: %%(levelname)-8s %%(filename)s:%%(lineno)-10d %%(message)s' % name)
         fileh.setFormatter(formatter)
         log.addHandler(fileh)
-        log.debug("Start logging to %s" % path)
     except IOError, e:
         print "Error writing to file handler. Ignoring."
         print str(e)
@@ -55,7 +54,6 @@ def configure_log(name, path, to_stdout=True):
             sth = logging.StreamHandler(sys.__stdout__)
             sth.setLevel(logging.DEBUG)
             log.addHandler(sth)
-            log.debug("Start logging to stdout.")
         except IOError, e:
             print "Error writing to stdout handler. Ignoring."
             print str(e)
