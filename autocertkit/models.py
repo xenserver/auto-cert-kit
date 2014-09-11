@@ -164,7 +164,6 @@ class DeviceTestClassMethod(object):
             
     def update_elem(self, k, v):
         for elem in self.elems:
-            print "%s == %s" % (elem.get_name(), k)
             if elem.get_name() == k:
                 
                 if type(v) is dict:
@@ -230,14 +229,32 @@ class DeviceTestClass(object):
     def get_methods(self):
         return self.test_methods
 
+    def get_methods_to_run(self):
+        return sorted([method for method in self.test_methods if method.is_waiting()],
+                    key=lambda a: a.get_name())
+
     def get_method_by_name(self, name):
         """Note, the method name is unique"""
-        print "Name to match: %s" % name
         for method in self.get_methods():
-            print "Method Name: %s" % method.get_name()
             if name in method.get_name():
                 return method
         return None
+
+    def get_next_test_method(self, test_name=None):
+        """Picks next testing method."""
+        test_methods = self.get_methods_to_run()
+        # If test_name is given, pick it.
+        if test_name:
+            for method in test_methods:
+                if test_name in method.get_name():
+                    return method
+            raise Exception("test_name %s is given, but cannot find it from waiting method list of test class %s"
+                % (test_name, self.get_name()))
+
+        if not test_methods:
+            return None
+
+        return test_methods[0]
 
     def get_device_config(self):
         """Return the device specific config record"""
@@ -549,7 +566,7 @@ class AutoCertKitRun(object):
         _,_,_,w = self.get_status()
         return not w
 
-    def get_next_test_class(self):
+    def get_next_test_class(self, tc_info=None):
         """Return the next test class to run. This allows us
         to have some basic scheduling logic to group together
         tests that, for instance, use the same network backend
@@ -559,14 +576,23 @@ class AutoCertKitRun(object):
 
         # Iterate through devices
         for device in self.devices:
+            if tc_info and 'device' in tc_info and device.udid != tc_info['device']:
+                continue
             # Get the test class still to run
             tcs = device.get_test_classes_to_run()
             for tc in tcs:
+                if tc_info and 'test_class' in tc_info and tc_info['test_class'] not in tc.get_name():
+                    continue
+                if tc_info and 'test_method' in tc_info and not tc.get_method_by_name(tc_info['test_method']):
+                    continue
+
                 # Append a tuple - (test_class, order)
                 # Order index will be used below for sorting.
                 tcs_to_run.append((tc, tc.get_order()))
 
         if not tcs_to_run:
+            if tc_info:
+                raise Exception("REBOOT_FLAG is set but cannot find matching test case.")
             return None
 
         # Sort the list according the the integer priorities

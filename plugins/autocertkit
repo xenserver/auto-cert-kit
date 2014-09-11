@@ -446,7 +446,6 @@ def to_xml(d, t):
     return s
 
 def list_to_xml(l, t):
-    log.debug("List; %s" % l)
     s = '<?xml version="1.0"?><%ss>\n' % t
     for d in l:
         s += '<%s' % t
@@ -1156,6 +1155,67 @@ def get_host_routes(session, args):
     route_recs = [route_obj.get_record() for route_obj in routes]
     return list_to_xml(route_recs, 'routes')
 
+############### Host Crash #######################
+
+@log_exceptions
+def force_crash_host(session, args):
+    """Forcr crash given host."""
+    fh = open('/proc/sysrq-trigger', 'w')
+    fh.write('c')
+    fh.close()
+    time.sleep(5)
+
+@log_exceptions
+def _retrieve_crashdumps_from_xapi(session, host):
+    """Search for crashdumps using xapi."""
+    cds = session.xenapi.host_crashdump.get_all()
+    ret = []
+    for cd in cds:
+        if not host == session.xenapi.host_crashdump.get_host(cd):
+            continue
+        ret.append({'host': host,
+            'timestamp': str(session.xenapi.host_crashdump.get_timestamp(cd)),
+            'size': str(session.xenapi.host_crashdump.get_size(cd)),
+            'uuid': session.xenapi.host_crashdump.get_uuid(cd),
+            'other-config': str(session.xenapi.host_crashdump.get_other_config(cd))
+            })
+
+    return list_to_xml(ret, 'crashdump')
+
+CD_PATTERN = re.compile(r'\d{8}\-\d{6}\-.*')
+@log_exceptions
+def _retrieve_crashdumps(session, host):
+    """Search for crashdumps from /var/crash."""
+    CD_LOC = '/var/crash'
+    if not os.path.isdir(CD_LOC):
+        return list_to_xml([], 'crashdump')
+
+    ret = []
+    for apath in os.listdir(CD_LOC):
+        if not CD_PATTERN.match(apath):
+            continue
+        size = 4096 # directory itself is size of 4096
+        cdpath = CD_LOC + os.sep + apath
+        for logfile in os.listdir(cdpath):
+            if not os.path.isfile(cdpath + os.sep + logfile):
+                continue
+            size += os.path.getsize(cdpath + os.sep + logfile)
+        ret.append({'host': host,
+            'timestamp': str(apath),
+            'size': str(size)
+            })
+
+    return list_to_xml(ret, 'crashdump')
+
+def retrieve_crashdumps(session, args):
+    """Search all crashdumps and return."""
+    if not args or not 'host' in args:
+        raise Exception("host is required to obtain crash dump.")
+
+    if args and 'from_xapi' in args and args['from_xapi'] == 'True':
+        return _retrieve_crashdumps_from_xapi(session, args['host'])
+    return _retrieve_crashdumps(session, args['host'])
+
 
 ############### RPM Install #########################
 
@@ -1718,4 +1778,7 @@ if __name__ == '__main__':
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key,
                            'get_kernel_version': get_kernel_version,
-                           'run_ack_logrotate': run_ack_logrotate})
+                           'run_ack_logrotate': run_ack_logrotate,
+                           'retrieve_crashdumps': retrieve_crashdumps,
+                           'force_crash_host': force_crash_host
+                           })

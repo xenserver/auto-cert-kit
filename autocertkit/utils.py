@@ -39,6 +39,7 @@ import ssh
 from xml.dom import minidom
 import tarfile
 import signal
+from datetime import datetime
 
 import os
 import base64
@@ -569,23 +570,45 @@ def get_slave_control_domain(session):
     #Only care about the first slave reference
     return _find_control_domain(session, slave_refs[0])
 
-def set_reboot_flag():
+def set_reboot_flag(tc_info=None):
     """Set an OS flag (i.e. touch a file) for when we're about to reboot.
     This is so that, on host reboot, we can work out whether we should
     run, and what the status of the kit is"""
-    open(REBOOT_FLAG_FILE, 'w').close()
+
+    ffile = open(REBOOT_FLAG_FILE, 'w')
+    if tc_info:
+        ffile.write(str(tc_info))
+    ffile.close()
 
 def get_reboot_flag():
+    """Return a dictionary that contains information of when reboot was
+    initiated."""
+
     if os.path.exists(REBOOT_FLAG_FILE):
-        return True
+        ffile = open(REBOOT_FLAG_FILE, 'r')
+        flag_str = ffile.read().strip()
+        ffile.close()
+
+        if len(flag_str) > 0:
+            tc_info = eval(flag_str)
+            if isinstance(tc_info, dict):
+                return tc_info
+
+        return {'info': 'flag contains no previous running info.'}
     else:
-        return False
+        return None
+
+def get_reboot_flag_timestamp():
+    """Finding when reboot was initialised."""
+    if os.path.exists(REBOOT_FLAG_FILE):
+        return datetime(*time.gmtime(os.path.getctime(REBOOT_FLAG_FILE))[:6])
+    return None
 
 def clear_reboot_flag():
     if os.path.exists(REBOOT_FLAG_FILE):
         os.remove(REBOOT_FLAG_FILE)
             
-def host_reboot(session):
+def host_reboot(session, running_tc_info=None):
     log.debug("Attempting to reboot the host")
     #Cleanup all the running vms
     pool_wide_cleanup(session)
@@ -598,12 +621,63 @@ def host_reboot(session):
         if host != master:
             session.xenapi.host.reboot(host)
             
-    set_reboot_flag()
+    set_reboot_flag(running_tc_info)
 
     session.xenapi.host.reboot(master)
     log.debug("Rebooted master")
     sys.exit(REBOOT_ERROR_CODE)
-    
+
+def host_crash(session, do_cleanup = False):
+    """ Force crash master. The host will be rebooted once it crashes."""
+    if do_cleanup:
+        pool_wide_cleanup(session)
+    host = get_pool_master(session)
+    log.debug("Crashing host: %s" % host)
+    session.xenapi.host.call_plugin(host, 'autocertkit', 'force_crash_host', {})
+
+    # Once it is successful, host will be crashed hence code should not reach here.
+    raise Exception("Failed to crash host.")
+
+def retrieve_latest_crashdump(session, host=None, fromxapi=False):
+    """Retrieve latest one from crashdump list"""
+    cds = retrieve_crashdumps(session, host, fromxapi)
+    if not cds:
+        return None
+
+    latest = sorted(cds, key = lambda cd: cd['timestamp'], reverse=True)[0]
+
+    log.debug("Latest crashdump: %s" % latest)
+
+    return latest
+
+def retrieve_crashdumps(session, host=None, fromxapi=False):
+    """Retrive all list of crashdump of master."""
+    if not host:
+        host = get_pool_master(session)
+    cds = xml_to_dicts(session.xenapi.host.call_plugin(host,
+                    'autocertkit',
+                    'retrieve_crashdumps',
+                    {'host': host, 'from_xapi': str(fromxapi)}),
+                    'crashdump')
+    for cd in cds:
+        cd['size'] = int(cd['size'])
+        ts = cd['timestamp']
+        if fromxapi:
+            cd['timestamp'] = datetime(int(ts[:4]), # year
+                            int(ts[4:6]),   # month
+                            int(ts[6:8]),   # day
+                            int(ts[9:11]),  # hour
+                            int(ts[12:14]), # minute
+                            int(ts[15:17])) # second
+        else:
+            cd['timestamp'] = datetime(int(ts[:4]), # year
+                            int(ts[4:6]),   # month
+                            int(ts[6:8]),   # day
+                            int(ts[9:11]),  # hour
+                            int(ts[11:13]), # minute
+                            int(ts[13:15])) # second
+    log.debug("Retained Crashdumps: %s" % str(cds))
+    return cds
 
 def print_test_results(tracker):
     """Method for pretty printing results"""
@@ -700,7 +774,6 @@ def make_local_call(call):
     process = subprocess.Popen(call, stdout=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode == 0:
-        print stdout
         return str(stdout).strip()
     else:
         log.debug("ERR: %s, %s" % (stdout, stderr))
