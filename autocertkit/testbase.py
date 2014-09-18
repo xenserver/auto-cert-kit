@@ -105,12 +105,9 @@ class TestClass(object):
             # interrupts this test. When there is no SIG_ALRM, this does nothing.
             signal.alarm(0)
 
-            # Ensure that we cleanup before running tests, in case
-            # the system has been left in a failed state. 
-            pool_wide_cleanup(self.session)
             rec = {}
             try:
-                log.debug("******** %s.%s ********" % (self.__class__.__name__, str(test)))
+                log.debug("******** %s.%s ********" % (self.__class__.__name__, test))
                 res = getattr(self, test)(self.session)
 
                 # If test executed without failure it can be either skipped or passed.
