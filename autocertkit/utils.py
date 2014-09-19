@@ -1729,15 +1729,8 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
         i = i + 1
 
     log.debug("Starting required VMs")
-
-    run_xapi_async_tasks(session, \
-           [lambda: session.xenapi.Async.VM.start_on(vm1_ref,
-                                                     host_master_ref,
-                                                     False, False),
-            lambda: session.xenapi.Async.VM.start_on(vm2_ref,
-                                                     host_slave_ref,
-                                                     False, False)])
-
+    session.xenapi.VM.start_on(vm1_ref, host_master_ref, False, False)
+    session.xenapi.VM.start_on(vm2_ref, host_slave_ref, False, False)
 
     #Temp fix for establishing that a VM has fully booted before
     #continuing with executing commands against it.
