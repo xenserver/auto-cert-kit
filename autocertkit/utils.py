@@ -570,22 +570,22 @@ def get_slave_control_domain(session):
     #Only care about the first slave reference
     return _find_control_domain(session, slave_refs[0])
 
-def set_reboot_flag(tc_info=None):
+def set_reboot_flag(tc_info=None, flag_loc=REBOOT_FLAG_FILE):
     """Set an OS flag (i.e. touch a file) for when we're about to reboot.
     This is so that, on host reboot, we can work out whether we should
     run, and what the status of the kit is"""
 
-    ffile = open(REBOOT_FLAG_FILE, 'w')
+    ffile = open(flag_loc, 'w')
     if tc_info:
         ffile.write(str(tc_info))
     ffile.close()
 
-def get_reboot_flag():
+def get_reboot_flag(flag=REBOOT_FLAG_FILE):
     """Return a dictionary that contains information of when reboot was
     initiated."""
 
-    if os.path.exists(REBOOT_FLAG_FILE):
-        ffile = open(REBOOT_FLAG_FILE, 'r')
+    if os.path.exists(flag):
+        ffile = open(flag, 'r')
         flag_str = ffile.read().strip()
         ffile.close()
 
@@ -598,15 +598,16 @@ def get_reboot_flag():
     else:
         return None
 
-def get_reboot_flag_timestamp():
+def get_reboot_flag_timestamp(flag=REBOOT_FLAG_FILE):
     """Finding when reboot was initialised."""
-    if os.path.exists(REBOOT_FLAG_FILE):
-        return datetime(*time.gmtime(os.path.getctime(REBOOT_FLAG_FILE))[:6])
+    if os.path.exists(flag):
+        time_str = time.ctime(os.path.getctime(flag))
+        return datetime(*(time.strptime(time_str, "%a %b %d %H:%M:%S %Y")[0:6]))
     return None
 
-def clear_reboot_flag():
-    if os.path.exists(REBOOT_FLAG_FILE):
-        os.remove(REBOOT_FLAG_FILE)
+def clear_reboot_flag(flag=REBOOT_FLAG_FILE):
+    if os.path.exists(flag):
+        os.remove(flag)
             
 def host_reboot(session, running_tc_info=None):
     log.debug("Attempting to reboot the host")
