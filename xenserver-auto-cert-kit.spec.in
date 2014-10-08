@@ -21,7 +21,11 @@ cd /opt/xensource/packages/files/auto-cert-kit/pypackages
 python setup.py install
 
 %preun
-chkconfig --del auto-cert-kit
+if [ $1 -eq 0 ] ; then
+    # Only execute on uninstall
+    chkconfig --del auto-cert-kit
+fi
+exit 0
 
 %clean
 rm -rf %{buildroot}
