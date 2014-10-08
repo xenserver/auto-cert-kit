@@ -5,6 +5,8 @@ import sys
 import os, os.path
 import random
 import exceptions
+import tempfile
+import shutil
 
 from autocertkit import utils, ack_cli
 
@@ -13,7 +15,7 @@ utils.configure_logging('ack_tests')
 class NetworkConfRobustTests(unittest.TestCase):
     """ Checking functionality and robust of netconf parser. """
 
-    TMP_DIR = "tmp"
+    TMP_DIR = None
     PREFIX = "sameple_netconf_"
     CLEANUP_LIST = []
 
@@ -30,16 +32,16 @@ class NetworkConfRobustTests(unittest.TestCase):
         return fullpath
 
     def setUp(self):
-        if not os.path.exists(self.TMP_DIR):
-            os.mkdir(self.TMP_DIR)
+        if not self.TMP_DIR or not os.path.exists(self.TMP_DIR):
+            self.TMP_DIR = tempfile.mkdtemp()
 
     def tearDown(self):
         for filename in self.CLEANUP_LIST:
             if os.path.exists(filename):
                 os.remove(filename)
 
-        if os.path.exists(self.TMP_DIR) and not os.listdir(self.TMP_DIR):
-            os.rmdir(self.TMP_DIR)
+        if os.path.exists(self.TMP_DIR):
+            shutil.rmtree(self.TMP_DIR)
 
     def _runTest(self, content, output = None, exception = None):
         filename = self._create_netconf_file(content)

@@ -238,6 +238,8 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
             tc_info['test_class'] = self.__class__.__module__ + '.' + self.__class__.__name__
             tc_info['test_method'] = 'test_crashdump'
             set_reboot_flag(tc_info)
+            crashtime = get_reboot_flag_timestamp()
+            log.debug("The reboot flag's timestamp is set to: '%s'" % str(crashtime))
             time.sleep(5) # host crash need to be done after flag is created to compare.
             host_crash(self.session)
 
