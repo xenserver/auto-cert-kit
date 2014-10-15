@@ -181,6 +181,11 @@ def run_tests_from_file(test_file):
     config = ack_model.get_global_config()
     
     log.debug("ACK Model: %s" % ack_model.is_finished())
+    if not ack_model.is_finished():
+        # Ensure that we cleanup before running tests, in case
+        # the system has been left in a failed state. 
+        pool_wide_cleanup(session)
+
     while not ack_model.is_finished():
         log.debug("Test Run Status: P %d, F %d, S %d, W %d" % (ack_model.get_status()))
 
