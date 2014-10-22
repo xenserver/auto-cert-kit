@@ -1744,7 +1744,7 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
     except TimeoutFunctionException, e:
         # Temporary ignore time out to start VM.
         # If VM failed to start, test will fail while checking IPs.
-        log.debug(e.message)
+        log.debug("Timed out while starting VMs: %s" % e)
         log.debug("Async call timed out but VM may started properly. tests go on.")
 
     #Temp fix for establishing that a VM has fully booted before
