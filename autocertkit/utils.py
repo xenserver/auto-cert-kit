@@ -1969,6 +1969,58 @@ def get_xs_info(session):
             'xapi': info['xapi'],
             'date': info['date']}
 
+def _get_type_and_value(entry):
+    """Parse dmidecode entry and return key/value pair"""
+    r = {}
+    for l in entry.split('\n'):
+        s = l.split(':')
+        if len(s) != 2:
+            continue
+        r[s[0].strip()] = s[1].strip()
+    return r   
+
+def get_system_info():
+    """Returns some information of system and bios."""
+
+    rec = {}
+    biosinfo = search_dmidecode("BIOS Information")
+    if biosinfo:
+        entries = _get_type_and_value(biosinfo[0])
+        if 'Vendor' in entries:
+            rec['BIOS_vendor'] = entries['Vendor']
+        if 'Version' in entries:
+            rec['BIOS_version'] = entries['Version']
+        if 'Release Date' in entries:
+            rec['BIOS_release_date'] = entries['Release Date']
+        if 'BIOS Revision' in entries:
+            rec['BIOS_revision'] = entries['BIOS Revision']
+
+    sysinfo = search_dmidecode("System Information")
+    if sysinfo:
+        entries = _get_type_and_value(sysinfo[0])
+        if 'Manufacturer' in entries:
+            rec['system_manufacturer'] = entries['Manufacturer']
+        if 'Product Name' in entries:
+            rec['system_product_name'] = entries['Product Name']
+        if 'Serial Number' in entries:
+            rec['system_serial_number'] = entries['Serial Number']
+        if 'UUID' in entries:
+            rec['system_uuid'] = entries['UUID']
+        if 'Version' in entries:
+            rec['system_version'] = entries['Version']
+        if 'Family' in entries:
+            rec['system_family'] = entries['Family']
+
+    chassisinfo = search_dmidecode("Chassis Information")
+    if chassisinfo:
+        entries = _get_type_and_value(chassisinfo[0])
+        if 'Type' in entries:
+            rec['chassis_type'] = entries['Type']
+        if 'Manufacturer' in entries:
+            rec['chassis_manufacturer'] = entries['Manufacturer']
+
+    return rec
+
 def get_master_ifaces(session):
     devices = get_master_network_devices(session)
     ifaces = []
