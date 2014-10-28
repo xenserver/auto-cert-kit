@@ -428,6 +428,7 @@ def main(config, test_run_file):
         return "OK"
 
     #Kick off the testrunner
+    utils.log.info("Starting Test Runner from ACK CLI.")
     test_file, output = test_runner.run_tests_from_file(test_run_file)
 
 if __name__ == "__main__":
