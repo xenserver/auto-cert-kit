@@ -1160,9 +1160,20 @@ def get_host_routes(session, args):
 @log_exceptions
 def force_crash_host(session, args):
     """Forcr crash given host."""
+
+    # Open a system request trigger file.
     fh = open('/proc/sysrq-trigger', 'w')
+
+    # Synchronize data before crash. Ensure actions by flushing stream.
+    fh.write('s')
+    fh.flush()
+    time.sleep(5)
+
+    # Request crashing the host. close() will do the flushing.
     fh.write('c')
     fh.close()
+
+    # Give some time to crash.
     time.sleep(5)
 
 @log_exceptions
