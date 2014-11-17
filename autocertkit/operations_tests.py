@@ -233,19 +233,32 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
         """Check crashdump is created properly."""
         log.debug("Running Crashdump test.")
         if not get_reboot_flag():
+            numberofcds = len(retrieve_crashdumps(session))
             tc_info = {}
             tc_info['device'] = self.config['device_config']['udid']
             tc_info['test_class'] = self.__class__.__module__ + '.' + self.__class__.__name__
             tc_info['test_method'] = 'test_crashdump'
+            tc_info['cds'] = numberofcds
             set_reboot_flag(tc_info)
             crashtime = get_reboot_flag_timestamp()
             log.debug("The reboot flag's timestamp is set to: '%s'" % str(crashtime))
             time.sleep(5) # host crash need to be done after flag is created to compare.
             host_crash(self.session)
 
+        # Check number of crashdumps are increased by 1.
+        tc_info = get_reboot_flag()
+        numberofcds = len(retrieve_crashdumps(session))
+        if not 'cds' in tc_info:
+            raise Exception("Reboot flag does not include crashdump info. Does host restarted by forced crashdump?")
+
+        if not numberofcds == tc_info['cds'] + 1:
+            raise Exception("Host does not created crashdump properly: expected %d, found %d" %
+                    (tc_info['cds'] + 1, numberofcds))
+        
+        res = {'info': "An additional crashdump was detected."}
+
+        # Check the last crashdump is created after crashing the host.
         crashdump = retrieve_latest_crashdump(session)
-        if not crashdump:
-            raise Exception("Host does not have crashdump after host crashed.")
         log.debug("Latest crashdump: %s" % crashdump)
 
         crashtime = get_reboot_flag_timestamp()
@@ -254,7 +267,8 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
         log.debug("Crash time: %s / Crashdump timestamp: %s" % (str(crashtime), str(cdtimestamp)))
 
         if crashtime > cdtimestamp:
-            raise Exception("Latest crashdump is created before host crashed by testcase.")
+            log.warning("Latest crashdump is created before host crashed by testcase. hwclock may be out of sync.")
+            res['warning'] = "Latest crashdump is created before host crashed by testcase. hwclock may be out of sync."
 
-        return {'info': "Host created crashdump properly."}
+        return res
 
