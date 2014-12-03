@@ -1319,7 +1319,7 @@ def pool_wide_network_cleanup(session, tag):
                     {'device': session.xenapi.PIF.get_device(pif),
                         'mode': 'static',
                         'ip_addr': '0.0.0.0',
-                        'ip_netmast': '255.255.255.255'},
+                        'ip_netmask': '255.255.255.255'},
                     host = host)
                 session.xenapi.PIF.set_other_config(pif, oc)
 
