@@ -65,13 +65,24 @@ SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.0.1-13.1.el5.kb.1.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.7.6-1.el5.rf.noarch.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.7.6-1.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.$(DOMAIN0_ARCH).rpm
-else
+else ifeq ($(shell rpm -q centos-release --qf '%{version}\n'),6)
 DOM0_RPMS += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.7.5-2.1.el6.noarch.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.7.5-2.1.el6.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.5-3.el6.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/iperf-2.0.5-3.el6.src.rpm
+else
+DOM0_RPMS += $(ACK_DISTFILES)/python-six-1.3.0-4.el7.noarch.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/python-six-1.3.0-4.el7.src.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/python-ecdsa-0.11-3.el7.noarch.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/python-ecdsa-0.11-3.el7.src.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/python-crypto-2.6.1-1.el7.$(DOMAIN0_ARCH).rpm
+SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.6.1-1.el7.src.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.12.4-1.el7.noarch.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.12.4-1.el7.src.rpm
+DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.4-1.el7.rf.$(DOMAIN0_ARCH).rpm
+SRC_RPMS  += $(ACK_DISTFILES)/iperf-2.0.4-1.rf.src.rpm
 endif
 
 VM_RPMS   += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.i386.rpm
@@ -124,7 +135,7 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC) $(RPM_DIRECTORIES)
 	cp -r $(REPO)/overlay/* $(TEST_KIT_RPM_TMP_DIR)/
 	cp -r $(REPO)/plugins/* $(TEST_KIT_RPM_TMP_DIR)/$(XAPI_PLUGIN_DEST)
 	cp -r $(REPO)/init.d/* $(TEST_KIT_RPM_TMP_DIR)/$(STARTUP_SCRIPT_DEST)
-	cp -r $(REPO)/config $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)    
+	cp -r $(REPO)/config $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cp $(REPO)/acktools/*.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/
 	cp $(REPO)/acktools/net/*.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/net/
 	cp -r $(REPO)/mk/acktools-setup.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/setup.py
