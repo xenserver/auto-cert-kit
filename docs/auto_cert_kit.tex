@@ -1,6 +1,6 @@
 %% installation.text
 %% Documentation to be supplied with the ACK drop
-\providecommand{\versionnumber}{0.0.3}
+\providecommand{\versionnumber}{0.0.5}
 \documentclass[a4paper,11pt]{article}
 \usepackage{verbatim}
 \usepackage{hyperref}
@@ -9,7 +9,7 @@
 \setlength{\parskip}{2ex}
 
 \title{Installation Instructions for the XenServer Auotmated Certification Kit\\\normalsize Version \versionnumber}
-\date{June 2012}
+\date{December 2014}
 \begin{document}
 \maketitle
 
@@ -25,7 +25,7 @@ We appreciate your engaging in the development of this kit, and would ask that y
 \section{XenServer deployment}
 In order for the automated certification kit to run successfully, there are currently the following requirements on your XenServer deployment:
 \begin{itemize}
-\item Users must set up a pool consisting of two hosts, both running XenServer 6.0.0.
+\item Users must set up a pool consisting of two hosts, both running XenServer 6.0.0 or later.
 \item Shared storage must be set up for the pool, and designated as the default Storage Repository (which can be done using XenCenter).
 \item Each host requires a minimum of two network interfaces. The corresponding network interfaces on each host, are expected to be plugged into the same layer 2 network.
 \item The network adaptors for which the certification is being performed must reside on the master host.
@@ -34,7 +34,7 @@ In order for the automated certification kit to run successfully, there are curr
 \end{itemize}
 
 \section{ACK Installation}
-Once the above environment has been set up, please download the \verb=xs-auto-cert-kit.iso= supplemental back as provided by Citrix, and copy the ISO onto the \verb=/root= directory of the \verb=Dom0= file-system residing on the master host.
+Once the above environment has been set up, please download the \verb=xs-auto-cert-kit.iso= supplemental pack as provided by Citrix, and copy the ISO onto the \verb=/root= directory of the \verb=Dom0= file-system residing on the master host.
 
 To install the supplemental pack run:
 \begin{verbatim}
@@ -83,10 +83,10 @@ Depending on the set of tests being executed by the kit, a host reboot may be re
 
 The module will return one of the following results:
 \begin{verbatim}
-0:Finished (Passed:[num] Failed:[num])
-1:Process not running. An error has occurred. (Passed:[num], Failed:[num], Waiting:[num])
-2:Running - [num]% complete (Passed:[num], Failed:[num], Waiting:[num])
-3:Server rebooting... (Passed:[num], Failed:[num], Waiting:[num])
+0:Finished (Passed:[num] Failed:[num] Skipped:[num])
+1:Process not running. An error has occurred. (Passed:[num], Failed:[num], Skipped:[num], Waiting:[num])
+2:Running - [num]% complete (Passed:[num], Failed:[num], Skipped:[num], Waiting:[num])
+3:Server rebooting... (Passed:[num], Failed:[num], Skipped:[num]), Waiting:[num])
 4:Manifest file has not been created. Have run the kit? (Has an error occured?)
 5:An error has occured reading. [testfile]
 \end{verbatim}
