@@ -1621,7 +1621,7 @@ def _get_local_device(device_name):
     regex = re.compile(pattern)
     matches = regex.search(data)
 
-    mac_pattern = "HWaddr (?P<mac>([0-9a-fA-F]{2}\:){5}([0-9a-fA-F]{2}))"
+    mac_pattern = "(HWaddr|ether) (?P<mac>([0-9a-fA-F]{2}\:){5}([0-9a-fA-F]{2}))"
     mac_regex = re.compile(mac_pattern)
     mac_match = mac_regex.search(data)
 
