@@ -1079,6 +1079,33 @@ def wait_for_ip(session, vm_ref, device, timeout=300):
     raise Exception("""Timeout has been exceeded waiting for IP
                      address of VM to be returned %s """ % str(timeout))
 
+def _is_link_up(statedict):
+    """Evaluate current operstate, carrier and link from dict."""
+
+    if statedict['link'] == 'yes' and statedict['carrier'] == 'running' and statedict['operstate'] == 'up':
+        return True
+    return False
+
+def wait_for_linkstate(session, device, state, host_ref=None, timeout=60):
+    """Wait for interface to be a given state."""
+
+    args = { 'device': device }
+    start = time.time()
+    while not should_timeout(start, timeout):
+        results = call_ack_plugin(session, 'get_local_device_linkstate', args, host_ref)
+        cur_state = xml_to_dicts(results, 'linkstate')[0]
+        log.debug("Current linkstate of %s on host %s is %s." % (device, host_ref, cur_state))
+        if state.lower() == 'up' and _is_link_up(cur_state):
+            return
+        if state.lower() == 'down' and not _is_link_up(cur_state):
+            return
+            
+        time.sleep(2)
+
+    raise Exception("Timeout has been exceeded waiting for %s on %s changed to %s"
+                     % (device, host_ref, state))
+
+
 def get_vm_ips(session, vm_ref):
     guest_metrics_ref = session.xenapi.VM.get_guest_metrics(vm_ref)
     if guest_metrics_ref == "OpaqueRef:NULL":
@@ -1914,18 +1941,21 @@ def parse_csv_list(string):
         res.append(item.strip())
     return res
 
-def set_nic_device_status(interface, status, creds=None):
+def set_nic_device_status(session, interface, status, creds=None):
     """Function to set an ifconfig ethX interface up or down"""
     log.debug("Bringing %s network interface %s" % (status, interface))
     call = ['ifconfig', interface, status]
     if not creds:
         res = make_local_call(call)
+        # only if it is dom0/host wait for link state actually changed.
+        wait_for_linkstate(session, interface, status)
     else:
         res = ssh_command(creds['host'],
                           creds['user'],
                           creds['pass'],
                           ' '.join(call))
     time.sleep(5)
+
     return res
 
 class TestThread(threading.Thread):
