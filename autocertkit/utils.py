@@ -1179,18 +1179,23 @@ def destroy_pif(session, pif):
 def destroy_vm(session, vm_ref, timeout=60):
     """Checks powerstate of a VM, destroys associated VDIs, 
     and destroys VM once shutdown"""
-    #Check if the VM is either running or booting. The VM will fail to shutdown if it is booting, so wait.
-    if (session.xenapi.VM.get_power_state(vm_ref) == "Running") or (session.xenapi.VM.get_allowed_operations(vm_ref) == []):
-        start = time.time()
+
+    # Check if the VM is destroyable, otherwise try shutdown VM to destroy.
+    start = time.time()
+    ops_list = session.xenapi.VM.get_allowed_operations(vm_ref)
+    while 'destroy' not in ops_list or 'hard_shutdown' in ops_list:
+        log.debug("VM destroy is not allowed for %s" % vm_ref)
+        if should_timeout(start, timeout):
+            raise Exception("VM is not allowed to be destroyed. (VM: %s, power_state: %s)" % (vm_ref, session.xenapi.VM.get_power_state(vm_ref)))
+
+        if 'hard_shutdown' in ops_list:
+            log.debug("VM is running, trying shutdown VM %s" % vm_ref)
+            session.xenapi.VM.hard_shutdown(vm_ref)
+        time.sleep(2)
         ops_list = session.xenapi.VM.get_allowed_operations(vm_ref)
-        while 'hard_shutdown' not in ops_list:
-            time.sleep(1)
-            log.debug("VM shutdown not allowed, waiting for VM %s to boot" % vm_ref)
-            ops_list = session.xenapi.VM.get_allowed_operations(vm_ref)
-            if should_timeout(start, timeout):
-                raise Exception("Bad VM power state: VM %s did not transition to 'running'" % vm_ref)
-        #Once the VM reports hard_shutdown as an allowed_op, shutdown the VM
-        session.xenapi.VM.hard_shutdown(vm_ref)
+
+    log.debug("VM %s is ready to be removed." % vm_ref)
+
     #Check that the VDI is not in-use
     vbd_refs = session.xenapi.VM.get_VBDs(vm_ref)
     for vbd_ref in vbd_refs:
@@ -1200,7 +1205,7 @@ def destroy_vm(session, vm_ref, timeout=60):
             start = time.time()
             ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
             while 'destroy' not in ops_list:
-                time.sleep(1)
+                time.sleep(2)
                 ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
                 if should_timeout(start, timeout):
                     raise Exception("Cannot destroy VDI: VDI is still active")
