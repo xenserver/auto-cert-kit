@@ -547,15 +547,15 @@ class BondingTestClass(testbase.NetworkTestClass):
         results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
         
         #Test degraded bond
-        set_nic_device_status(self.piface, 'down')
+        set_nic_device_status(session, self.piface, 'down')
         results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
         
         #Test degraded bond
-        set_nic_device_status(self.piface, 'up')
-        set_nic_device_status(self.siface, 'down')
+        set_nic_device_status(session, self.piface, 'up')
+        set_nic_device_status(session, self.siface, 'down')
         results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
         
-        set_nic_device_status(self.siface, 'up')
+        set_nic_device_status(session, self.siface, 'up')
        
         rec = {}
         rec['data'] = results

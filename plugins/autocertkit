@@ -83,6 +83,7 @@ IP = "/sbin/ip"
 ARPING = "/sbin/arping"
 DHCLIENT = "/sbin/dhclient"
 IFCONFIG = "/sbin/ifconfig"
+ETHTOOL = "/sbin/ethtool"
 KILL = "/bin/kill"
 SYSCTL = "/sbin/sysctl"
 CAT = "/bin/cat"
@@ -358,6 +359,33 @@ def get_vm_ips(session, vm_ref):
         if k.endswith('ip'):
             res["eth%s" % (k.replace('/ip',''))] = v
     return res
+
+@log_exceptions
+def get_local_device_linkstate(session, arg):
+    """ Return current operstate of network device."""
+
+    res = {}
+    device = validate_exists(arg, 'device', None, True)
+
+    output = make_local_call([IFCONFIG, device])['stdout']
+    if 'UP' in output:
+        res['operstate'] = 'up'
+    else:
+        res['operstate'] = 'down'
+    if 'RUNNING' in output:
+        res['carrier'] = 'running'
+    else:
+        res['carrier'] = ''
+
+    output = make_local_call([ETHTOOL, device])['stdout']
+    if 'Link detected: yes' in output:
+        res['link'] = 'yes'
+    elif 'Link detected: no' in output:
+        res['link'] = 'no'
+    else:
+        res['link'] = 'unknown'
+
+    return to_xml(res, 'linkstate')
     
 def save_bugtool():
     """Saves a bugtool and returns the name"""
@@ -1779,6 +1807,7 @@ if __name__ == '__main__':
                            'get_local_storage_devices': get_local_storage_devices,
                            'get_iface_stats': get_iface_stats,
                            'get_host_routes': get_host_routes,
+                           'get_local_device_linkstate': get_local_device_linkstate,
                            'create_output_package': create_output_package,
                            'start_iperf_server': start_iperf_server,
                            'add_route': add_route,
