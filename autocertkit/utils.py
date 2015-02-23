@@ -1180,20 +1180,37 @@ def destroy_vm(session, vm_ref, timeout=60):
     """Checks powerstate of a VM, destroys associated VDIs, 
     and destroys VM once shutdown"""
 
-    # Check if the VM is destroyable, otherwise try shutdown VM to destroy.
+    log.debug("Destroying VM: %s" % vm_ref)
+
+    # If there is an on going operation, give some time to finish.
     start = time.time()
-    ops_list = session.xenapi.VM.get_allowed_operations(vm_ref)
-    while 'destroy' not in ops_list or 'hard_shutdown' in ops_list:
-        log.debug("VM destroy is not allowed for %s" % vm_ref)
+    cur_oper = session.xenapi.VM.get_current_operations(vm_ref)
+    while len(cur_oper):
+        log.debug("Found %s operations in action." % str(cur_oper))
+        time.sleep(5)
+        if should_timeout(start, 15):
+            break
+        cur_oper = session.xenapi.VM.get_current_operations(vm_ref)
+
+    start = time.time()
+    power_state = session.xenapi.VM.get_power_state(vm_ref)
+    cur_oper = session.xenapi.VM.get_current_operations(vm_ref)
+    while power_state != 'Halted' or len(cur_oper) > 0:
+        log.debug("VM is %s with %s in action." % (power_state, str(cur_oper)))
         if should_timeout(start, timeout):
-            raise Exception("VM is not allowed to be destroyed. (VM: %s, power_state: %s)" % (vm_ref, session.xenapi.VM.get_power_state(vm_ref)))
-
-        if 'hard_shutdown' in ops_list:
-            log.debug("VM is running, trying shutdown VM %s" % vm_ref)
+            raise Exception("Failed to stop VM or VM is not in right state. (VM: %s, power_state: %s)" % (vm_ref, power_state))
+        log.debug("Trying shutting down VM: %s" % vm_ref)
+        # Due to timing issue this may fail as it tries to shutdown halted VM.
+        try:
             session.xenapi.VM.hard_shutdown(vm_ref)
-        time.sleep(2)
-        ops_list = session.xenapi.VM.get_allowed_operations(vm_ref)
+        except Exception, e:
+            log.error(str(e))
+            log.debug("Failed to hard shutdown VM. Trying again in a few seconds.")
+        time.sleep(5)
 
+        power_state = session.xenapi.VM.get_power_state(vm_ref)
+        cur_oper = session.xenapi.VM.get_current_operations(vm_ref)
+        
     log.debug("VM %s is ready to be removed." % vm_ref)
 
     #Check that the VDI is not in-use
