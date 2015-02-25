@@ -632,6 +632,11 @@ def host_crash(session, do_cleanup = False):
     """ Force crash master. The host will be rebooted once it crashes."""
     if do_cleanup:
         pool_wide_cleanup(session)
+
+    # Synchronise XAPI DB to disk  before crash.
+    session.xenapi.pool.sync_database()
+    time.sleep(5)
+
     host = get_pool_master(session)
     log.debug("Crashing host: %s" % host)
     session.xenapi.host.call_plugin(host, 'autocertkit', 'force_crash_host', {})
