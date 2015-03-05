@@ -1585,8 +1585,7 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
             task_refs.append((idx, ref))
 
         if should_timeout(start, timeout):
-            # Change to this exception for work around CA-146164
-            raise TimeoutFunctionException("Async calls took too long to complete!" + 
+            raise Exception("Async calls took too long to complete!" + 
                             "Perhaps, the operation has stalled? %d" % timeout)
         time.sleep(1)
 
@@ -1784,22 +1783,14 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
         i = i + 1
 
     log.debug("Starting required VMs")
-    try:
-        # Temporary setting time out to 3 mins to work around CA-146164.
-        run_xapi_async_tasks(session, \
-            [lambda: session.xenapi.Async.VM.start_on(vm1_ref,
-                                                     host_master_ref,
-                                                     False, False),
-            lambda: session.xenapi.Async.VM.start_on(vm2_ref,
-                                                     host_slave_ref,
-                                                     False, False)],
-            180)
-
-    except TimeoutFunctionException, e:
-        # Temporary ignore time out to start VM.
-        # If VM failed to start, test will fail while checking IPs.
-        log.debug("Timed out while starting VMs: %s" % e)
-        log.debug("Async call timed out but VM may started properly. tests go on.")
+    run_xapi_async_tasks(session, \
+        [lambda: session.xenapi.Async.VM.start_on(vm1_ref,
+                                                 host_master_ref,
+                                                 False, False),
+        lambda: session.xenapi.Async.VM.start_on(vm2_ref,
+                                                 host_slave_ref,
+                                                 False, False)],
+        )
 
     #Temp fix for establishing that a VM has fully booted before
     #continuing with executing commands against it.
