@@ -1784,22 +1784,26 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
         i = i + 1
 
     log.debug("Starting required VMs")
-    try:
-        # Temporary setting time out to 3 mins to work around CA-146164.
-        run_xapi_async_tasks(session, \
-            [lambda: session.xenapi.Async.VM.start_on(vm1_ref,
-                                                     host_master_ref,
-                                                     False, False),
-            lambda: session.xenapi.Async.VM.start_on(vm2_ref,
-                                                     host_slave_ref,
-                                                     False, False)],
-            180)
+    # Temporary stop using Asynchronous call to start VMs
+    # to avoid XAPI issue, CA-160978 and CA-161590
+    session.xenapi.VM.start_on(vm1_ref, host_master_ref, False, False)
+    session.xenapi.VM.start_on(vm2_ref, host_slave_ref, False, False)
+    # try:
+    #     # Temporary setting time out to 3 mins to work around CA-146164.
+    #     run_xapi_async_tasks(session, \
+    #         [lambda: session.xenapi.Async.VM.start_on(vm1_ref,
+    #                                                  host_master_ref,
+    #                                                  False, False),
+    #         lambda: session.xenapi.Async.VM.start_on(vm2_ref,
+    #                                                  host_slave_ref,
+    #                                                  False, False)],
+    #         180)
 
-    except TimeoutFunctionException, e:
-        # Temporary ignore time out to start VM.
-        # If VM failed to start, test will fail while checking IPs.
-        log.debug("Timed out while starting VMs: %s" % e)
-        log.debug("Async call timed out but VM may started properly. tests go on.")
+    # except TimeoutFunctionException, e:
+    #     # Temporary ignore time out to start VM.
+    #     # If VM failed to start, test will fail while checking IPs.
+    #     log.debug("Timed out while starting VMs: %s" % e)
+    #     log.debug("Async call timed out but VM may started properly. tests go on.")
 
     #Temp fix for establishing that a VM has fully booted before
     #continuing with executing commands against it.
