@@ -775,7 +775,7 @@ class Dom0VMIperfTestClass(PIFParamTestClass):
 class Dom0VMBridgeIperfTestClass(Dom0VMIperfTestClass):
     """Subclass that runs the appropriate tests with bridge as the default backend."""
     network_backend = "bridge"
-    order = 5
+    order = 3
 
 
 ########## Dom0 to Dom0 PIF parameter test classes #########
@@ -818,7 +818,7 @@ class Dom0BridgePIFParamTestClass1(PIFParamTestClass):
     
     network_backend = "bridge"
     mode = "dom0-dom0"
-    order = 5
+    order = 3
 
 class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
@@ -993,5 +993,5 @@ class GROOffloadBridgeTestClass(GROOffloadTestClass):
     """ Check whether GRO can be on with bridge network backend.
     GRO is on by default from XS 6.5 """
     network_backend = "bridge"
-    order = 5
+    order = 3
     

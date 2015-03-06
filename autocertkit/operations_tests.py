@@ -229,6 +229,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
 class CrashDumpTestClass(testbase.OperationsTestClass):
     """Test class to verify crash dump is created and collectable properly."""
 
+    order = 5
     def test_crashdump(self, session):
         """Check crashdump is created properly."""
         log.debug("Running Crashdump test.")
