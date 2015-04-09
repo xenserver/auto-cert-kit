@@ -792,6 +792,10 @@ def get_local_storage_devices(session, args):
     
             # Copy dictionary record for device at specified bus location
             device = dict(devices.devs[bus_id])
+
+            device['PCI_id'] = get_pci_id(bus_id)
+            device['PCI_description'] = get_pci_description(bus_id)
+            device['PCI_subsystem'] = get_pci_subsystem(bus_id)
     
             device['sr'] = sr
             driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:5])
