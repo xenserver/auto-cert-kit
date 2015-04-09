@@ -1084,6 +1084,25 @@ def wait_for_ip(session, vm_ref, device, timeout=300):
     raise Exception("""Timeout has been exceeded waiting for IP
                      address of VM to be returned %s """ % str(timeout))
 
+def wait_for_all_ips(session, vm_ref, timeout=300):
+    """wait for all interface to have IPs"""
+
+    ips = {}
+    if session.xenapi.VM.get_is_control_domain(vm_ref):
+        host_ref = session.xenapi.VM.resident_on(vm_ref)
+        for pif in session.xenapi.PIF.get_all():
+            if host_ref == session.xenapi.PIF.get_host(pif):
+                device = 'eth' + str(session.xenapi.PIF.get_device(pif)).strip()
+                ips[device] = _get_control_domain_ip(session, vm_ref, device)
+
+    else:
+        for vif in session.xenapi.VIF.get_all():
+            if vm_ref == session.xenapi.VIF.get_VM(vif):
+                device = 'eth' + str(session.xenapi.VIF.get_device(vif)).strip()
+                ips[device] = wait_for_ip(session, vm_ref, device, timeout)
+
+    return ips
+
 def _is_link_up(statedict):
     """Evaluate current operstate, carrier and link from dict."""
 
@@ -1585,8 +1604,7 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
             task_refs.append((idx, ref))
 
         if should_timeout(start, timeout):
-            # Change to this exception for work around CA-146164
-            raise TimeoutFunctionException("Async calls took too long to complete!" + 
+            raise Exception("Async calls took too long to complete!" + 
                             "Perhaps, the operation has stalled? %d" % timeout)
         time.sleep(1)
 
@@ -1638,7 +1656,7 @@ def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sm
     # Wait for IPs to be returned
     log.debug("Wait for IPs...")
     for vm_ref in vm_ref_list:
-        wait_for_ip(session, vm_ref, 'eth0')
+        wait_for_all_ips(session, vm_ref)
     log.debug("IP's retrieved...")
 
     # Check the VMs are in the 'Running' state.
@@ -1713,7 +1731,7 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
 
     #Temp fix for establishing that a VM has fully booted before
     #continuing with executing commands against it.
-    wait_for_ip(session, vm_ref, 'eth0')
+    wait_for_all_ips(session, vm_ref)
 
     return vm_ref
 
@@ -1784,30 +1802,21 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
         i = i + 1
 
     log.debug("Starting required VMs")
-    try:
-        # Temporary setting time out to 3 mins to work around CA-146164.
-        run_xapi_async_tasks(session, \
-            [lambda: session.xenapi.Async.VM.start_on(vm1_ref,
-                                                     host_master_ref,
-                                                     False, False),
-            lambda: session.xenapi.Async.VM.start_on(vm2_ref,
-                                                     host_slave_ref,
-                                                     False, False)],
-            180)
-
-    except TimeoutFunctionException, e:
-        # Temporary ignore time out to start VM.
-        # If VM failed to start, test will fail while checking IPs.
-        log.debug("Timed out while starting VMs: %s" % e)
-        log.debug("Async call timed out but VM may started properly. tests go on.")
+    run_xapi_async_tasks(session, \
+        [lambda: session.xenapi.Async.VM.start_on(vm1_ref,
+                                                 host_master_ref,
+                                                 False, False),
+        lambda: session.xenapi.Async.VM.start_on(vm2_ref,
+                                                 host_slave_ref,
+                                                 False, False)],
+        )
 
     #Temp fix for establishing that a VM has fully booted before
     #continuing with executing commands against it.
     log.debug("Wait for IPs...")
-    wait_for_ip(session, vm1_ref, 'eth0')
-    wait_for_ip(session, vm2_ref, 'eth0')
+    wait_for_all_ips(session, vm1_ref)
+    wait_for_all_ips(session, vm2_ref)
     log.debug("IP's retrieved...")
-
 
     # Make plugin calls
     for vm_ref in [vm1_ref, vm2_ref]:
