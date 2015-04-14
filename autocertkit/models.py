@@ -380,7 +380,7 @@ class Device(object):
 
     def get_subsystem(self):
         """Return the information of PCI subsysem if it exists."""
-        if self.tag == "NA" and "PCI_subsystem" in self.config:
+        if (self.tag == "NA" or self.tag == "LS") and "PCI_subsystem" in self.config:
             return self.config["PCI_subsystem"]
         return ""
         
@@ -394,6 +394,8 @@ class Device(object):
                 return self.config['modelname']
             if self.tag == "LS":
                 LS_info = "Storage device using the %s driver" % self.config['driver']
+                if 'PCI_description' in self.config:
+                    LS_info += "\n\t%s" % self.config['PCI_description']
                 return LS_info
             if self.tag == "OP":
                 build_id = "build %s" % self.config['build']
