@@ -152,7 +152,9 @@ class IperfTest:
     def run(self):
         """This classes run test function"""
         self.deploy_iperf()
+        self.configure_server_ip()
         self.configure_client_ip()
+
         self.run_iperf_server()
         log.debug("IPerf deployed and server started")
 
@@ -261,13 +263,17 @@ class IperfTest:
         # Make plugin call to get statistics
         return get_iface_statistics(self.session, vm_ref, device_name)
 
+    def configure_server_ip(self):
+        log.debug("configure_server_ip")
+        return self.configure_vm_ip(self.server)
+
     def configure_client_ip(self):
+        log.debug("configure_client_ip")
         return self.configure_vm_ip(self.client)
 
     def configure_vm_ip(self, vm_ref):
         """Make sure that the client has an IP, which may not be the case
         if we are dealing with Dom0 to Dom0 tests."""
-        log.debug("configure_client_ip")
         if self.session.xenapi.VM.get_is_control_domain(vm_ref):
             log.debug("Client VM is Dom0... setup IP on bridge")
             args = {'device': self.get_device_name(vm_ref)}
