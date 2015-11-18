@@ -391,7 +391,7 @@ def is_64_bit(arch):
 
 def value_in_range(value, min_v, max_v):
     """Establish whether a value lies between two numbers"""
-    return value >= min_v and value <= max_v
+    return min_v <= value <= max_v
 
 def wrapped_value_in_range(value, min_v, max_v, wrap=4*G):
     """The value is assumed to be wrapped at some point. The function
@@ -467,8 +467,8 @@ class IperfTestStatsValidator(object):
         post_bytes = getattr(self.post, attr)
 
         low_lim = pre_bytes + sent_bytes
-        warn_lim = low_lim + (sent_bytes / 100) * self.warn_threshold
-        high_lim = low_lim + (sent_bytes / 100) * self.error_threshold
+        warn_lim = low_lim + sent_bytes * self.warn_threshold / 100
+        high_lim = low_lim + sent_bytes * self.error_threshold / 100
 
         log.debug("pre_bytes = %d" % pre_bytes)
         log.debug("post_bytes = %d" % post_bytes)
@@ -1387,12 +1387,8 @@ def pool_wide_network_cleanup(session, tag):
             oc = session.xenapi.PIF.get_other_config(pif)
             if oc.pop(tag, None):
                 log.debug("Pif to cleanup: %s from host %s" % (pif, host))
-                call_ack_plugin(session,
-                    'configure_local_device',
-                    {'device': session.xenapi.PIF.get_device(pif),
-                        'mode': 'static',
-                        'ip_addr': '0.0.0.0',
-                        'ip_netmask': '255.255.255.255'},
+                call_ack_plugin(session, 'flush_local_device',
+                    {'device': session.xenapi.PIF.get_device(pif)},
                     host = host)
                 session.xenapi.PIF.set_other_config(pif, oc)
 

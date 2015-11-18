@@ -195,7 +195,7 @@ class TestClass(object):
         netid_rec = {}
         for iface, rec in netconf.iteritems():
             if iface.startswith('eth'):
-                log.debug("Rec: %s" % rec)
+                log.debug("iface: %s Rec: %s" % (iface, rec))
                 nid = rec['network_id']
 
                 # Required for initialisation

@@ -89,6 +89,7 @@ SYSCTL = "/sbin/sysctl"
 CAT = "/bin/cat"
 PS = "/bin/ps"
 UNAME = "/bin/uname"
+PGREP = "/usr/bin/pgrep"
 
 ##### Logging setup
 
@@ -447,7 +448,7 @@ def make_local_call(call, logging=True):
         msg = "ERR: Could not make local call %s" % ' '.join(call)
         if logging:
             log.error(msg)
-            log.debug("stdout: %s"  % str(stdout))
+            log.debug("stdout: %s" % str(stdout))
             log.debug("stderr: %s" % str(stderr))
     return res
 
@@ -1519,7 +1520,7 @@ def droid_template_import(session, args):
     return make_local_call(call)["stdout"]
 
 def process_running(process_name):
-    process_list = make_local_call(['ps','aux'])["stdout"].split('\n')
+    process_list = make_local_call([PS,'aux'])["stdout"].split('\n')
     for process in process_list:
         if process_name in process:
             log.debug("Process Found: %s" % process)
@@ -1527,7 +1528,7 @@ def process_running(process_name):
     return False
 
 def kill_processes(process_name):
-    process_list = make_local_call(['pgrep', process_name])["stdout"].split('\n')
+    process_list = make_local_call([PGREP, process_name])["stdout"].split('\n')
     log.debug("Process List: %s" % process_list)
 
     pattern = "\d+"
@@ -1568,7 +1569,7 @@ def run_dhclient(device):
            "/var/lib/dhclient/dhclient-%s.leases" % device,
            "-pf", "/var/run/dhclient-%s.pid" % device, device]
 
-    cmd_str = " ".join(cmd)
+    cmd_str = " ".join(cmd[1:])
 
     call = [PS, 'aux']
     processes = make_local_call(call)["stdout"].split('\n')
@@ -1579,21 +1580,22 @@ def run_dhclient(device):
             arr = process.split()
             pid = arr[1]
             make_local_call([KILL, '-9', pid])
+            time.sleep(3) # Give some time to ensure process kill
 
     res = make_local_call(cmd)["stdout"]
-
 
     return res
 
    
-def _configure_local_device_ip(session, device, ip_addr, ip_netmask):
-    log.debug("Configure local device IP: (%s) (%s) (%s)" % (device,
+def _configure_local_device_ip(session, device, ip_addr, ip_netmask, mode):
+    log.debug("Configure local device IP: (%s) (%s) (%s) (%s)" % (device,
                                                              ip_addr,
-                                                             ip_netmask))
+                                                             ip_netmask,
+                                                             mode))
     # Mark the PIF as needing cleaning up
     mark_local_pif_for_cleanup(session, device) 
     
-    if not ip_addr or not ip_netmask:
+    if mode.lower() == "dhcp":
         # DHCP Case
         run_dhclient(device)
 
@@ -1643,48 +1645,55 @@ def _get_local_device(device_name):
     """Use ifconfig to get the IP address of a specified interface
     If one doesn't exist, return None"""
 
+    log.debug("retracting device information of %s" % device_name)
     call = [IFCONFIG, device_name]
     data = make_local_call(call)["stdout"]
 
+    log.debug("Retrieved: %s" % data)
+
     ip_pattern = "(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})"
-    pattern = "inet addr:(?P<ip>%s)(\ )+Bcast:(?P<broadcast>%s)(\ )+Mask:(?P<mask>%s)" % \
-                                                    (ip_pattern, ip_pattern, ip_pattern)
-                
-    regex = re.compile(pattern)
-    matches = regex.search(data)
+    inet_match = re.search("(inet addr:|inet )(?P<ip>%s)" % ip_pattern, data)
+    mask_match = re.search("(Mask:|netmask )(?P<mask>%s)" % ip_pattern, data)
+    #bcast_match = re.search("(Bcast:|broadcast )(?P<broadcast>%s)" % ip_pattern, data)
 
     mac_pattern = "(HWaddr|ether) (?P<mac>([0-9a-fA-F]{2}\:){5}([0-9a-fA-F]{2}))"
-    mac_regex = re.compile(mac_pattern)
-    mac_match = mac_regex.search(data)
+    mac_match = re.search(mac_pattern, data)
 
-    rec = {'device': device_name,
-           'ip': None,
-           'mask': None,
-           'mac': None,
+    rec = {"device": device_name,
+           "ip": None,
+           "mask": None,
+           "mac": None,
            }
 
-    if matches:
-        rec['ip'] = matches.group('ip')
-        rec['mask'] = matches.group('mask')
+    if inet_match:
+        rec["ip"] = inet_match.group("ip")
     else:
-        log.debug("Did not find ip/mask for '%s'" % device_name)
-    
+        log.debug("Did not find ip for '%s'" % device_name)
+
+    if mask_match:
+        rec["mask"] = mask_match.group("mask")
+    else:
+        log.debug("Did not find netmask for '%s'" % device_name)
+
     if mac_match:
-        rec['mac'] = mac_match.group('mac')
+        rec["mac"] = mac_match.group("mac")
     else:
         log.error("Did not find MAC for '%s'" % device_name)
 
     iface = Iface(rec)
     log.debug("Got Iface: %s" % iface.to_rec())
+
     return iface
 
 
-def configure_local_device_ip(session, device_name, ip_addr, ip_netmask):
+def configure_local_device_ip(session, device_name, ip_addr, ip_netmask, mode):
     """For the local Dom0, configure a bridge for the particular 
     device name in order to run a service bound to that interface"""
-    log.debug("configure_local_device_ip (%s) (%s) (%s)" % (device_name,
+
+    log.debug("configure_local_device_ip (%s) (%s) (%s) (%s)" % (device_name,
                                                       ip_addr,
-                                                      ip_netmask))
+                                                      ip_netmask,
+                                                      mode))
 
     device = device_name.lower()
    
@@ -1698,9 +1707,21 @@ def configure_local_device_ip(session, device_name, ip_addr, ip_netmask):
         dev = _configure_local_device_ip(session, 
                                         device, 
                                         ip_addr, 
-                                        ip_netmask)
+                                        ip_netmask,
+                                        mode)
 
     return dev
+
+@log_exceptions
+def flush_local_device(session, args):
+    """flush IP of local device"""
+    device = validate_exists(args, 'device')
+    log.debug("Flushing IP of device: %s" % (device))
+
+    device = device.replace('eth', 'xenbr')
+    make_local_call(['ip', 'addr', 'flush', 'dev', device])
+
+    return "OK"
 
 @log_exceptions
 def configure_local_device(session, args):  
@@ -1719,7 +1740,7 @@ def configure_local_device(session, args):
         if mode.lower() != "dhcp":
             raise Exception("Error: invalid 'mode' '%s'" % mode)
 
-    dev = configure_local_device_ip(session, device, ip_addr, ip_netmask)
+    dev = configure_local_device_ip(session, device, ip_addr, ip_netmask, mode)
     return "OK"
     
 @log_exceptions
@@ -1742,7 +1763,7 @@ def start_iperf_server(session, args):
         if mode.lower() != "dhcp":
             raise Exception("Error: invalid 'mode' '%s'" % mode)
     
-    dev = configure_local_device_ip(session, device_name, ip_addr, ip_netmask)
+    dev = configure_local_device_ip(session, device_name, ip_addr, ip_netmask, mode)
 
     kill_processes('iperf')
      
@@ -1750,7 +1771,7 @@ def start_iperf_server(session, args):
     if not process_running(IPERF):
         log.debug("Iperf is not running - start process")
         # Disable iptables
-        call = ['/etc/init.d/iptables', 'stop']
+        call = ['service', 'iptables', 'stop']
         make_local_call(call)
 
         #Start iperf daemon - need to ensure we don't block
@@ -1817,6 +1838,7 @@ if __name__ == '__main__':
                            'add_route': add_route,
                            'remove_route': remove_route,
                            'reset_arp': reset_arp,
+                           'flush_local_device': flush_local_device,
                            'configure_local_device': configure_local_device,
                            'get_local_device_ip': get_local_device_ip,
                            'get_local_device_info': get_local_device_info,
