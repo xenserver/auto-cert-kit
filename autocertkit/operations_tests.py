@@ -233,42 +233,43 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
         """Check crashdump is created properly."""
         log.debug("Running Crashdump test.")
         if not get_reboot_flag():
-            numberofcds = len(retrieve_crashdumps(session))
             tc_info = {}
             tc_info['device'] = self.config['device_config']['udid']
             tc_info['test_class'] = self.__class__.__module__ + '.' + self.__class__.__name__
             tc_info['test_method'] = 'test_crashdump'
-            tc_info['cds'] = numberofcds
+            tc_info['existing_crashdumps'] = [cd['timestamp'].strftime("%Y-%m-%d %H:%M:%S") for cd in retrieve_crashdumps(session)]
+            tc_info['crash_begin_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             set_reboot_flag(tc_info)
-            crashtime = get_reboot_flag_timestamp()
-            log.debug("The reboot flag's timestamp is set to: '%s'" % str(crashtime))
+
+            log.debug("The reboot flag's timestamp is set to: '%s'" % str(get_reboot_flag_timestamp()))
             time.sleep(5) # host crash need to be done after flag is created to compare.
             host_crash(self.session)
 
-        # Check number of crashdumps are increased by 1.
+        # Check tc_info is persistent.
         tc_info = get_reboot_flag()
-        numberofcds = len(retrieve_crashdumps(session))
-        if not 'cds' in tc_info:
-            raise Exception("Reboot flag does not include crashdump info. Does host restarted by forced crashdump?")
+        log.debug("tc_info from reboot flag: %s" % str(tc_info))
+        if 'existing_crashdumps' not in tc_info or 'crash_begin_time' not in tc_info:
+            raise Exception("Reboot flag is not persistent and does not include crashdump info. Does host restarted by forced crashdump?")
 
-        if not numberofcds == tc_info['cds'] + 1:
-            raise Exception("Host does not created crashdump properly: expected %d, found %d" %
-                    (tc_info['cds'] + 1, numberofcds))
-        
+        crash_beg_time = datetime.strptime(tc_info['crash_begin_time'],"%Y-%m-%d %H:%M:%S")
+        crash_end_time = datetime.now()
+        existing_cd_timestamps = [datetime.strptime(ts,"%Y-%m-%d %H:%M:%S") for ts in tc_info['existing_crashdumps']]
+        crashdumps_all = retrieve_crashdumps(session)
+        log.debug("crashdumps's timestamp before crash: %s , crashdumps after crash %s" % (str(tc_info['existing_crashdumps']), str(crashdumps_all)))
+        crashdumps_matching = [cd for cd in crashdumps_all if cd['timestamp'] not in existing_cd_timestamps]
+
+        # Check we have a new crashdump.
+        if not len(crashdumps_matching)==1:
+            raise Exception("Host didn't create crashdump properly. number of new crashdumps: %d" % len(crashdumps_matching))
         res = {'info': "An additional crashdump was detected."}
 
-        # Check the last crashdump is created after crashing the host.
-        crashdump = retrieve_latest_crashdump(session)
-        log.debug("Latest crashdump: %s" % crashdump)
+        log.debug("matched crashdump timestamp: %s, crash duration: %s to %s" % (str(crashdumps_matching[0]['timestamp']), str(crash_beg_time), str(crash_end_time)))
+        crashdumps_matching = [cd for cd in crashdumps_matching if crash_beg_time < cd['timestamp'] and cd['timestamp'] < crash_end_time]
 
-        crashtime = get_reboot_flag_timestamp()
-        cdtimestamp = crashdump['timestamp']
-
-        log.debug("Crash time: %s / Crashdump timestamp: %s" % (str(crashtime), str(cdtimestamp)))
-
-        if crashtime > cdtimestamp:
-            log.warning("Latest crashdump is created before host crashed by testcase. hwclock may be out of sync.")
-            res['warning'] = "Latest crashdump is created before host crashed by testcase. hwclock may be out of sync."
+        # [WARNING ONLY] Check new crashdump was created during host crash.
+        if not len(crashdumps_matching)==1:
+            log.warning("New crashdump doesn't match the time of host crash. hwclock may be out of sync.")
+            res['warning'] = "New crashdump doesn't match the time of host crash. hwclock may be out of sync."
 
         return res
 
