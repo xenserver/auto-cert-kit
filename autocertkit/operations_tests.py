@@ -233,42 +233,33 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
         """Check crashdump is created properly."""
         log.debug("Running Crashdump test.")
         if not get_reboot_flag():
-            numberofcds = len(retrieve_crashdumps(session))
             tc_info = {}
             tc_info['device'] = self.config['device_config']['udid']
             tc_info['test_class'] = self.__class__.__module__ + '.' + self.__class__.__name__
             tc_info['test_method'] = 'test_crashdump'
-            tc_info['cds'] = numberofcds
+            tc_info['crash_begin_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             set_reboot_flag(tc_info)
-            crashtime = get_reboot_flag_timestamp()
-            log.debug("The reboot flag's timestamp is set to: '%s'" % str(crashtime))
+            log.debug("The reboot flag's timestamp is set to: '%s'" % str(get_reboot_flag_timestamp()))
             time.sleep(5) # host crash need to be done after flag is created to compare.
             host_crash(self.session)
-
-        # Check number of crashdumps are increased by 1.
-        tc_info = get_reboot_flag()
-        numberofcds = len(retrieve_crashdumps(session))
-        if not 'cds' in tc_info:
-            raise Exception("Reboot flag does not include crashdump info. Does host restarted by forced crashdump?")
-
-        if not numberofcds == tc_info['cds'] + 1:
-            raise Exception("Host does not created crashdump properly: expected %d, found %d" %
-                    (tc_info['cds'] + 1, numberofcds))
         
+        # Check tc_info is persistent.
+        tc_info = get_reboot_flag()
+        log.debug("tc_info from reboot flag: %s" % str(tc_info))
+        if 'crash_begin_time' not in tc_info:
+            raise Exception("Reboot flag is not persistent and does not include crash info. Does host restarted by forced crashdump?")
+        crash_beg_time = datetime(*(time.strptime(tc_info['crash_begin_time'],"%Y-%m-%d %H:%M:%S")[0:6]))
+        crash_end_time = datetime.now()
+        log.debug("host crash duration: %s to %s" % (str(crash_beg_time), str(crash_end_time)))
+
+        # Check new crashdump was created during host crash.
+        crashdumps_all = retrieve_crashdumps(session)
+        log.debug("available crashdumps: %s" % (str(crashdumps_all)))
+        crashdumps_matching = [cd for cd in crashdumps_all if crash_beg_time < cd['timestamp'] and cd['timestamp'] < crash_end_time]
+        log.debug("matched crashdump(s): %s" % (str(crashdumps_matching)))
+        if not len(crashdumps_matching)==1:
+            raise Exception("Host didn't create crashdump properly. number of new crashdumps: %d" % len(crashdumps_matching))
+
         res = {'info': "An additional crashdump was detected."}
-
-        # Check the last crashdump is created after crashing the host.
-        crashdump = retrieve_latest_crashdump(session)
-        log.debug("Latest crashdump: %s" % crashdump)
-
-        crashtime = get_reboot_flag_timestamp()
-        cdtimestamp = crashdump['timestamp']
-
-        log.debug("Crash time: %s / Crashdump timestamp: %s" % (str(crashtime), str(cdtimestamp)))
-
-        if crashtime > cdtimestamp:
-            log.warning("Latest crashdump is created before host crashed by testcase. hwclock may be out of sync.")
-            res['warning'] = "Latest crashdump is created before host crashed by testcase. hwclock may be out of sync."
-
         return res
 
