@@ -47,7 +47,6 @@ TMP_SRC_DIR := $(MY_OBJ_DIR)/SOURCES
 
 DEMO_LINUX_XVA := $(PROJECT_OUTPUTDIR)/vpx-dlvm/vpx-dlvm.xva
 
-#ACK_DISTFILES ?= /usr/groups/linux/distfiles/auto-cert-kit/
 ACK_DISTFILES = $(MY_DISTFILES)
 
 # packages installed on domain0
@@ -65,6 +64,7 @@ SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.0.1-13.1.el5.kb.1.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.7.6-1.el5.rf.noarch.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.7.6-1.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.$(DOMAIN0_ARCH).rpm
+
 else ifeq ($(shell rpm -q centos-release --qf '%{version}\n'),6)
 DOM0_RPMS += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-crypto-2.0.1-22.el6.src.rpm
@@ -72,6 +72,7 @@ DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.7.5-2.1.el6.noarch.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.7.5-2.1.el6.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.5-3.el6.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/iperf-2.0.5-3.el6.src.rpm
+
 else
 DOM0_RPMS += $(ACK_DISTFILES)/python-six-1.3.0-4.el7.noarch.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-six-1.3.0-4.el7.src.rpm
@@ -83,6 +84,7 @@ DOM0_RPMS += $(ACK_DISTFILES)/python-paramiko-1.12.4-1.el7.noarch.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/python-paramiko-1.12.4-1.el7.src.rpm
 DOM0_RPMS += $(ACK_DISTFILES)/iperf-2.0.4-1.el7.rf.$(DOMAIN0_ARCH).rpm
 SRC_RPMS  += $(ACK_DISTFILES)/iperf-2.0.4-1.rf.src.rpm
+
 endif
 
 VM_RPMS   += $(ACK_DISTFILES)/iperf-2.0.4-1.el5.rf.i386.rpm
@@ -95,6 +97,17 @@ VM_RPMS   += $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.el5.rf.i386.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.rf.src.rpm
 VM_RPMS   += $(ACK_DISTFILES)/make-3.81-3.el5.i386.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/make-3.81-3.el5.src.rpm
+
+VM_RPMS   += $(ACK_DISTFILES)/iperf-2.0.4-1.el7.rf.x86_64.rpm
+VM_RPMS   += $(ACK_DISTFILES)/bonnie++-1.96-1.el7.rf.x86_64.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/bonnie++-1.96-1.rf.src.rpm
+VM_RPMS   += $(ACK_DISTFILES)/iozone-3.424-2.el7.rf.x86_64.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/iozone-3.424-2.rf.src.rpm
+VM_RPMS   += $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.rf.src.rpm
+VM_RPMS   += $(ACK_DISTFILES)/make-3.82-21.el7.x86_64.rpm
+SRC_RPMS  += $(ACK_DISTFILES)/make-3.82-21.el7.src.rpm
+
 
 OUTPUT := $(SUPP_PACK_ISO)
 
