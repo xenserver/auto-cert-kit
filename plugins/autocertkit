@@ -282,9 +282,9 @@ def install_ssh_key(session, vm_ref, username, password):
     call = ["/bin/sed","-i","/%s/d" % vm_ip, SSH_HOST_KEYS]
     make_local_call(call)
 
-    cmd1 = ["mkdir", "-p", "/root/.ssh"]
-    cmd2 = ["echo", "\"%s\"" % public_key.strip(), ">>", "/root/.ssh/authorized_keys"]
-    cmd_str = "%s; %s" % (" ".join(cmd1), " ".join(cmd2))
+    cmd1 = "mkdir -p /root/.ssh"
+    cmd2 = "echo \"%s\"  >> /root/.ssh/authorized_keys" % public_key.strip()
+    cmd_str = "%s; %s" % (cmd1, cmd2)
 
     log.debug("Install SSH key command string: %s" % cmd_str)
     ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")
