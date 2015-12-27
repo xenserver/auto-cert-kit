@@ -210,11 +210,11 @@ IPERF = "/usr/bin/iperf"
 LMBENCH = "/usr/bin/lmbench"
 SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
 SSH_HOST_KEYS = '/root/.ssh/known_hosts'
-IPERF_RPM = "iperf-2.0.4-1.el5.rf.i386.rpm"
-LMBENCH_RPM = "lmbench-3.0-0.a7.1.el5.rf.i386.rpm"
-IOZONE_RPM = "iozone-3.394-1.el5.rf.i386.rpm"
-BONNIE_RPM = "bonnie++-1.94-1.el5.rf.i386.rpm"
-MAKE_RPM = "make-3.81-3.el5.i386.rpm"
+IPERF_RPM = {"5": "iperf-2.0.4-1.el5.rf.i386.rpm", "7": "iperf-2.0.4-1.el7.rf.x86_64.rpm"}
+LMBENCH_RPM = {"5": "lmbench-3.0-0.a7.1.el5.rf.i386.rpm", "7": "lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm"}
+IOZONE_RPM = {"5": "iozone-3.394-1.el5.rf.i386.rpm", "7": "iozone-3.424-2.el7.rf.x86_64.rpm"}
+BONNIE_RPM = {"5": "bonnie++-1.94-1.el5.rf.i386.rpm", "7": "bonnie++-1.96-1.el7.rf.x86_64.rpm"}
+MAKE_RPM = {"5": "make-3.81-3.el5.i386.rpm", "7": "make-3.82-21.el7.x86_64.rpm"}
 SSH = "/usr/bin/ssh"
 CAT = "/bin/cat"
 ROUTE = "/sbin/route"
@@ -282,9 +282,9 @@ def install_ssh_key(session, vm_ref, username, password):
     call = ["/bin/sed","-i","/%s/d" % vm_ip, SSH_HOST_KEYS]
     make_local_call(call)
 
-    cmd1 = ["mkdir", "-p", "/root/.ssh"]
-    cmd2 = ["echo", "\"%s\"" % public_key.strip(), ">>", "/root/.ssh/authorized_keys"]
-    cmd_str = "%s; %s" % (" ".join(cmd1), " ".join(cmd2))
+    cmd1 = "mkdir -p /root/.ssh"
+    cmd2 = "echo \"%s\"  >> /root/.ssh/authorized_keys" % public_key.strip()
+    cmd_str = "%s; %s" % (cmd1, cmd2)
 
     log.debug("Install SSH key command string: %s" % cmd_str)
     ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")
@@ -424,19 +424,6 @@ def run_ack_logrotate(session, args):
 
 ############### IPERF Setup #########################
 
-def install_iperf(session, vm_ref, username, password):
-    """Install iperf rpm on a droid vm"""
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
-    call = ['/usr/bin/scp', 
-            "-o", "StrictHostKeyChecking=no",
-            "/opt/xensource/packages/files/auto-cert-kit/%s" % IPERF_RPM, 
-            'root@%s:' % ip_address]
-    log.debug(call)
-    make_local_call(call)
-    cmd_str = "rpm -i /root/%s" % IPERF_RPM
-    log.debug(cmd_str)
-    ssh_command(ip_address, username, password, cmd_str)
-
 def make_local_call(call, logging=True):
     """Function wrapper for making a simple call to shell"""
     if logging:
@@ -504,7 +491,7 @@ def deploy_iperf(session, args):
         while i < limit:
             try:
                 install_ssh_key(session, vm_ref, username, password)
-                install_iperf(session, vm_ref, username, password)
+                install_rpm(session, IPERF_RPM, vm_ref, username, password)
                 break
             except:
                 log.debug("Exception raised attempting to deploy iperf. Attempt %d" % i)
@@ -1264,13 +1251,33 @@ def retrieve_crashdumps(session, args):
 ############### RPM Install #########################
 
 @log_exceptions
-def install_rpm(session, rpm_name, vm_ref, username, password):
-    """Install a predefined RPM"""
+def __getCentOSRelease(session, vm_ref, username, password):
+    """Check CentOS Version of given vm"""
+    log.debug("Searching CentOS Release string for %s" % vm_ref)
     ip_address = wait_for_ip(session, vm_ref, 'eth0')
-    call = ['/usr/bin/scp', "-o", "StrictHostKeyChecking=no", "/opt/xensource/packages/files/auto-cert-kit/%s" % rpm_name, 'root@%s:' % ip_address]
+    cmd_str = "rpm -q centos-release"
+    output = ssh_command(ip_address, username, password, cmd_str)
+    log.debug("Found Centos Release: %s" % output)
+    return output
+
+@log_exceptions
+def install_rpm(session, rpm, vm_ref, username, password):
+    """Install a predefined RPM"""
+
+    release = __getCentOSRelease(session, vm_ref, username, password)
+    if release.startswith("centos-release-"):
+        ver = release[15]
+    else:
+        ver = "?"
+    if ver not in rpm:
+        raise Exception("Unknown CentOS release. Failed to install RPM.")
+
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    call = ['/usr/bin/scp', "-o", "StrictHostKeyChecking=no", "/opt/xensource/packages/files/auto-cert-kit/%s" % rpm[ver], 'root@%s:' % ip_address]
     log.debug(call)
     make_local_call(call)
-    cmd_str = "rpm -i /root/%s --nosignature" % rpm_name
+
+    cmd_str = "rpm -i /root/%s --nosignature" % rpm[ver]
     log.debug(cmd_str)
     ssh_command(ip_address, username, password, cmd_str)
 

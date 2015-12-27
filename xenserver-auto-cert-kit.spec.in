@@ -52,6 +52,11 @@ rm -rf %{buildroot}
 /opt/xensource/packages/files/auto-cert-kit/iozone-3.394-1.el5.rf.i386.rpm
 /opt/xensource/packages/files/auto-cert-kit/lmbench-3.0-0.a7.1.el5.rf.i386.rpm
 /opt/xensource/packages/files/auto-cert-kit/make-3.81-3.el5.i386.rpm
+/opt/xensource/packages/files/auto-cert-kit/iperf-2.0.4-1.el7.rf.x86_64.rpm
+/opt/xensource/packages/files/auto-cert-kit/bonnie++-1.96-1.el7.rf.x86_64.rpm
+/opt/xensource/packages/files/auto-cert-kit/iozone-3.424-2.el7.rf.x86_64.rpm
+/opt/xensource/packages/files/auto-cert-kit/lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm
+/opt/xensource/packages/files/auto-cert-kit/make-3.82-21.el7.x86_64.rpm
 /opt/xensource/packages/files/auto-cert-kit/networkconf.example
 /opt/xensource/packages/files/auto-cert-kit/config/lmbench.conf
 /opt/xensource/packages/files/auto-cert-kit/config/logrotate.conf

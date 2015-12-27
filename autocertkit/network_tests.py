@@ -78,7 +78,7 @@ class IperfTest:
 
         self.timeout = 60
 
-        #Validate the references and setup run method
+        # Validate the references and setup run method
         #self.validate_refs()
 
     def validate_refs(self):

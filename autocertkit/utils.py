@@ -1167,6 +1167,18 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
                             % result)
 
 
+def remove_login_delay(session, vm_ref, username, password):
+    """Remove login delay by removing reverse DNS look up and GSS API from
+    SSHD of Demo VM."""
+    vm_ip = wait_for_ip(session, vm_ref, 'eth0')
+    cmd1 = "/bin/sed -i 's/#UseDNS yes/UseDNS no/g' /etc/ssh/sshd_config"
+    cmd2 = "/bin/sed -i 's/GSSAPIAuthentication yes/GSSAPIAuthentication no/g' /etc/ssh/sshd_config"
+    cmd3 = "/sbin/service sshd restart"
+    cmd_str = "%s; %s; %s" % (cmd1, cmd2, cmd3)
+    ssh_command(vm_ip, username, password, cmd_str, "Removing SSH connection delay")
+    time.sleep(5)
+
+
 def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
     """execute an SSH command using the parimiko library, in order
     to specify a password. Return the result to the caller."""
@@ -1660,6 +1672,9 @@ def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sm
 
     # Check the VMs are in the 'Running' state.
     wait_for_vms(session, vm_ref_list, XAPI_RUNNING_STATE)
+
+    for vm_ref in vm_ref_list:
+        remove_login_delay(session, vm_ref, "root", DEFAULT_PASSWORD)
     
     return vm_ref_list
 
@@ -1685,7 +1700,6 @@ def wait_for_vms(session, vm_refs, power_state, timeout=60):
         # We should raise an exception.
         raise Exception("VMs (%s) were not moved to the '%s' state in the provided timeout ('%d')" % (vms, power_state, timeout))
         
-
 
 def deploy_slave_droid_vm(session, network_refs, sms=None):
     """Deploy a single VM on the slave host. This might be useful for
@@ -1731,6 +1745,8 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
     #Temp fix for establishing that a VM has fully booted before
     #continuing with executing commands against it.
     wait_for_all_ips(session, vm_ref)
+
+    remove_login_delay(session, vm_ref, "root", DEFAULT_PASSWORD)
 
     return vm_ref
 
@@ -1828,6 +1844,8 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
 
     # Make plugin calls
     for vm_ref in [vm1_ref, vm2_ref]:
+        remove_login_delay(session, vm_ref, "root", DEFAULT_PASSWORD)
+
         # Install SSH Keys for Plugin operations
         call_ack_plugin(session, 'inject_ssh_key', 
                                 {'vm_ref': vm_ref,
