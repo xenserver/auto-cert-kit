@@ -148,7 +148,8 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
         try:
             setattr(acktools, 'make_local_call', mock.Mock())
             route_table = route.get_route_table()
-            acktools.make_local_call.assert_called()
+            if not acktools.make_local_call.called:
+                raise Exception("Error: route local was not called.")
         finally:
             acktools.make_local_call = real_make_local_call
 
