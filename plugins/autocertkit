@@ -998,7 +998,7 @@ def add_route(session, args):
                                                     'add_route',
                                                     args)
 
-        bridge = device.replace('eth', 'xenbr')
+        bridge = _get_local_device_bridge(session, device)
         # Handle the case that we are dealing with Dom0
         # 1. Setup the correct routing entry in Dom0's routing table
   
@@ -1082,7 +1082,7 @@ def reset_arp(session, args):
         
             # Execute a gratuitus ARP for the device in question
             # translate device name into bridge
-            bridge = device.replace('eth','xenbr')
+            bridge = _get_local_device_bridge(session, device)
         
             log.debug("About to send gARP out on %s" % bridge)
 
@@ -1614,28 +1614,44 @@ def _configure_local_device_ip(session, device, ip_addr, ip_netmask, mode):
 
     return dev
 
+def _get_local_device_bridge(session, device):
+    """
+    Find bridge name of network from given device name.
+    """
+
+    log.debug("Searching for bridge name of device %s" % device)
+    host = session.xenapi.session.get_this_host(session.handle)
+    for pif in session.xenapi.host.get_PIFs(host):
+        if device == session.xenapi.PIF.get_device(pif):
+            network = session.xenapi.PIF.get_network(pif)
+            log.debug("Found matching bridge on PIF %s of network %s." % (pif, network))
+            return session.xenapi.network.get_bridge(network)
+
+    for network in session.xenapi.network.get_all():
+        if device == session.xenapi.network.get_bridge(network):
+            log.debug("%s is a bridge." % device)
+            return device
+
+    raise Exception("Error: Cannot determine bridge name of given device name %s." % device)
+
+    return devname
+
 @log_exceptions
 def get_local_device_info(session, args):
     device = validate_exists(args, 'device')
+    devname = _get_local_device_bridge(session, device)
 
-    # We only deal with MAC addresses on the bridge level
-    # so swap out instances of eth for xenbr
-    device = device.replace('eth', 'xenbr')
-
-    log.debug("get_local_device_info for %s" % device)
-    dev = _get_local_device(device)
+    log.debug("get_local_device_info for %s" % devname)
+    dev = _get_local_device(devname)
     return to_xml(dev.to_rec(), 'devices')
 
 @log_exceptions
 def get_local_device_ip(session, args):
     device = validate_exists(args, 'device')
+    devname = _get_local_device_bridge(session, device)
 
-    # We only deal with IP addresses on the bridge level
-    # so swap out instances of eth for xenbr
-    device = device.replace('eth','xenbr')
-
-    log.debug("get_local_device_ip for: %s" % device)
-    dev = _get_local_device(device)
+    log.debug("get_local_device_ip for: %s" % devname)
+    dev = _get_local_device(devname)
     log.debug("_get_local_device %s = %s" % (dev.device, dev.ip))
     if not dev.ip:
         raise Exception("Error: could not obtain an IP for %s" % device)
@@ -1695,12 +1711,7 @@ def configure_local_device_ip(session, device_name, ip_addr, ip_netmask, mode):
                                                       ip_netmask,
                                                       mode))
 
-    device = device_name.lower()
-   
-    if 'xenbr' not in device and 'eth' in device:
-        # We only want to care about allocating IPs to bridges
-        device = device.replace('eth', 'xenbr')
-
+    device = _get_local_device_bridge(session, device_name.lower())
     dev = _get_local_device(device)
 
     if not dev.ip or not dev.mask:
@@ -1718,8 +1729,8 @@ def flush_local_device(session, args):
     device = validate_exists(args, 'device')
     log.debug("Flushing IP of device: %s" % (device))
 
-    device = device.replace('eth', 'xenbr')
-    make_local_call(['ip', 'addr', 'flush', 'dev', device])
+    bridge = _get_local_device_bridge(session, device)
+    make_local_call(['ip', 'addr', 'flush', 'dev', bridge])
 
     return "OK"
 
