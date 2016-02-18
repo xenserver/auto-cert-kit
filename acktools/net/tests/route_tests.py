@@ -7,6 +7,7 @@ from acktools import utils
 from acktools.net import route
 import acktools
 
+
 class RouteObjectTests(unittest.TestCase):
 
     route_rec = {
@@ -43,6 +44,7 @@ class RouteObjectTests(unittest.TestCase):
 
         for key in self.route_rec.keys():
             validate_key(key)
+
 
 class RouteTableTests(unittest.TestCase):
 
@@ -104,17 +106,18 @@ class RouteTableTests(unittest.TestCase):
         missing = self.route_table.get_missing(self.route_table)
         self.assertEqual(missing, [])
 
-class RouteMethodTests(unittest.TestCase):
 
-    route_table = \
+ROUTE_TABLE = \
 """Kernel IP routing table
 Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 0.0.0.0         10.80.2.1       0.0.0.0         UG    0      0        0 eth0
 10.80.2.0       0.0.0.0         255.255.254.0   U     1      0        0 eth0
 169.254.0.0     0.0.0.0         255.255.0.0     U     1000   0        0 eth0"""
 
+class RouteMethodTests(unittest.TestCase):
+
+    @mock.patch('acktools.net.route.get_route_table', mock.Mock(return_value=ROUTE_TABLE))
     def test_get_all_routes(self):
-        route.get_route_table = mock.Mock(return_value=self.route_table)
         routes = route.get_all_routes()
 
         self.assertEqual(len(routes), 3)
@@ -135,22 +138,11 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
                 raise Exception("Error: route not in original list! " \
                                 "'%s'" % route)
 
+    @mock.patch('acktools.net.route.get_route_table', mock.Mock(return_value='Blah'))
     def test_invalid_routing_table(self):
-        real_get_route_table = route.get_route_table
-        try:
-            setattr(route, 'get_route_table', mock.Mock(return_value="Blah"))
-            self.assertRaises(Exception, route.get_all_routes)
-        finally:
-            route.get_route_table = real_get_route_table
+        self.assertRaises(Exception, route.get_all_routes)
 
-    def test_get_route_table(self):
-        real_make_local_call = acktools.make_local_call
-        try:
-            setattr(acktools, 'make_local_call', mock.Mock())
-            route_table = route.get_route_table()
-            acktools.make_local_call.assert_called()
-        finally:
-            acktools.make_local_call = real_make_local_call
 
 if __name__ == "__main__":
     unittest.main()
+
