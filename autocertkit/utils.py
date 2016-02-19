@@ -2205,21 +2205,28 @@ def get_cpu_id(cpu_des):
         
 
 def wait_for_hosts(session, timeout=300):
+    """Wait until both hosts are up and live."""
+
     log.debug("Wait for hosts to come back online...")
     hosts = session.xenapi.host.get_all()
+    num_hosts = len(hosts)
+    log.debug("Total in %d hosts are being checked." % num_hosts)
 
     start = time.time()
-    
     while hosts:
-        host = hosts.pop(0)
+        host = hosts[0]
         rec = session.xenapi.host.get_record(host)
-        if not rec['enabled']:
-            hosts.append(host)
-            time.sleep(1)
-        
-        if should_timeout(start, timeout):
-            raise Exception("Hosts failed to come back online %s for timeout %d" % 
-                            (hosts, timeout))
+        if rec['enabled'] and \
+                session.xenapi.host_metrics.get_live(rec['metrics']):
+            log.debug("Host %s(%s) is up and live." % (
+                    session.xenapi.host.get_hostname(host),
+                    session.xenapi.host.get_uuid(host)))
+            hosts.remove(host)
+        else:
+            if should_timeout(start, timeout):
+                raise Exception("Hosts failed to come back online %s for timeout %d" % 
+                        (hosts, timeout))
+            time.sleep(2)
 
     log.debug("Hosts are up.")
 
