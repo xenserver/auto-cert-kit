@@ -835,6 +835,7 @@ def create_nic_bond(session, network, nics, mac='', mode='balance-slb'):
         raise Exception("Expected two PIFs, received %s" % len(nics))
     log.debug("About to create bond between PIFs %s in mode %s" % (nics, mode))
     net_ref = session.xenapi.Bond.create(network, nics, mac, mode)
+    log.debug("Bond %s is created." % net_ref)
     oc = session.xenapi.Bond.get_other_config(net_ref)
     oc[FOR_CLEANUP] = "true"
     session.xenapi.Bond.set_other_config(net_ref, oc)
@@ -2311,4 +2312,4 @@ def search_dmidecode(keyword):
             found.append(info)
 
     return found
-    
+
