@@ -45,10 +45,11 @@ STARTUP_SCRIPT_DEST := /etc/init.d
 
 TMP_SRC_DIR := $(MY_OBJ_DIR)/SOURCES
 
-DEMO_LINUX_XVA := $(PROJECT_OUTPUTDIR)/vpx-dlvm/vpx-dlvm.xva
-
 #ACK_DISTFILES ?= /usr/groups/linux/distfiles/auto-cert-kit/
 ACK_DISTFILES = $(MY_DISTFILES)
+
+#DEMO_LINUX_XVA := $(PROJECT_OUTPUTDIR)/vpx-dlvm/vpx-dlvm.xva
+DEMO_LINUX_XVA := $(ACK_DISTFILES)/vpx-dlvm.xva
 
 # packages installed on domain0
 DOM0_RPMS :=
