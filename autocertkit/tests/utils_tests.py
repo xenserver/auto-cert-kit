@@ -5,6 +5,7 @@ import os
 import unittest_base
 import sys
 import shutil
+import xenapi_mock
 
 from autocertkit import utils
 from datetime import datetime
@@ -186,5 +187,39 @@ class RebootFlagTimestamps(unittest.TestCase):
         fmt_str = "%Y-%m-%d %H:%M:%S"
         self.assertEqual(fts.strftime(fmt_str), ts.strftime(fmt_str))
 
+
+class  HostLibMethodsTests(unittest.TestCase):
+    """
+    Host related functions unit tests.
+    """
+
+    def setUp(self):
+        self.session = xenapi_mock.Session.instance()
+        self.__enable_all_hosts()
+
+    def __enable_all_hosts(self):
+        for host in self.session.hosts:
+            host.enabled = True
+            host.metrics.live = True
+
+    def test_wait_for_hosts(self):
+        """
+        Unit test for wait_for_hosts function.
+        """
+        utils.wait_for_hosts(self.session)
+
+        self.session.hosts[0].enabled = False
+        self.assertRaises(Exception, \
+                lambda: utils.wait_for_hosts(self.session, timeout=1))
+
+        self.session.hosts[0].enabled = True 
+        self.session.hosts[1].metrics.live = False
+        self.assertRaises(Exception, \
+                lambda: utils.wait_for_hosts(self.session, timeout=1))
+
+        self.__enable_all_hosts()
+
+
 if __name__ == '__main__':
     unittest.main()
+
