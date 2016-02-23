@@ -3,31 +3,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 #
@@ -157,7 +157,7 @@ class Iface(object):
         for key in self.required_keys:
             rec[key] = getattr(self, key)
         return rec
-        
+
 
 ##### Argument validation
 
@@ -317,7 +317,7 @@ def inject_ssh_key(session, args):
 @log_exceptions
 def wait_for_ip(session, vm_ref, device, timeout=60):
     """Wait for an IP address to be returned (until a given timeout)"""
-    
+
     xs_data = session.xenapi.VM.get_xenstore_data(vm_ref)
     log.debug("xenstore data: %s" % xs_data)
     key = "vm-data/control/%s/ip" % device
@@ -387,7 +387,7 @@ def get_local_device_linkstate(session, arg):
         res['link'] = 'unknown'
 
     return to_xml(res, 'linkstate')
-    
+
 def save_bugtool():
     """Saves a bugtool and returns the name"""
     log.debug("Collecting a bugtool report")
@@ -402,7 +402,7 @@ def run_ack_logrotate(session, args):
     """Run logrotate for ACK logs"""
     ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
     global log
-    
+
     # This method should not log before logrotate execution to avoid os file handle error
     try:
         shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
@@ -427,9 +427,9 @@ def run_ack_logrotate(session, args):
 def install_iperf(session, vm_ref, username, password):
     """Install iperf rpm on a droid vm"""
     ip_address = wait_for_ip(session, vm_ref, 'eth0')
-    call = ['/usr/bin/scp', 
+    call = ['/usr/bin/scp',
             "-o", "StrictHostKeyChecking=no",
-            "/opt/xensource/packages/files/auto-cert-kit/%s" % IPERF_RPM, 
+            "/opt/xensource/packages/files/auto-cert-kit/%s" % IPERF_RPM,
             'root@%s:' % ip_address]
     log.debug(call)
     make_local_call(call)
@@ -484,7 +484,7 @@ def list_to_xml(l, t):
             s += ' %s="%s"' % (str(k).replace(' ','_'), xmlrpclib.escape(str(v)))
         s += '></%s>\n' % t
     s += '</%ss>' % t
-    return s    
+    return s
 
 @log_exceptions
 def deploy_iperf(session, args):
@@ -512,7 +512,7 @@ def deploy_iperf(session, args):
                 i = i + 1 #Increment counter
                 if i == limit:
                     raise PluginError("Plugin Error: Cannot deploy Iperf")
-                
+
     log.debug("iPerf installation completed")
     return "OK"
 
@@ -526,7 +526,7 @@ def get_pci_id(bus_id):
         log.debug("Exception: %s" % str(e))
 
 def get_pci_description(bus_id):
-    """Return the PCI description for a specified bus location"""    
+    """Return the PCI description for a specified bus location"""
     log.debug("Getting decription for PCI device at bus id: %s" % bus_id)
     devices = PCIDevices()
 
@@ -552,7 +552,7 @@ def get_pci_description(bus_id):
 def get_pci_subsystem(bus_id):
     """Return the PCI subsystem information for a specified bus location:"""
     log.debug("Getting subsystem for PCI device at bus id: %s" % bus_id)
-    
+
     call = ['/sbin/lspci', '-nn', '-v', '-s', bus_id]
     try:
         res = make_local_call(call)
@@ -598,10 +598,10 @@ def _pre_tampa_biosdevname():
 
     type_key = 'Kernel name'
     pattern = re.compile(r'\d*:?[a-f0-9]+:[a-f0-9]+\.[a-f0-9]')
-    
-    return [device for device in biosdevobj.devices 
+
+    return [device for device in biosdevobj.devices
                    if (device[type_key].startswith('eth') and pattern.match(device['Bus Info']))]
-    
+
 
 def compat_biosdevname():
     """Return biosdevname, irrespective of system."""
@@ -611,7 +611,7 @@ def compat_biosdevname():
         return _pre_tampa_biosdevname()
 
     devs = xcp.net.biosdevname.all_devices_all_names()
-    
+
     devices = []
     pattern = re.compile(r'\d*:?[a-f0-9]+:[a-f0-9]+\.[a-f0-9]')
 
@@ -629,7 +629,7 @@ def get_network_devices(session, args):
 
     devices = []
     devs = compat_biosdevname()
-    
+
     # Filter for only network devices.
     for device in devs:
         log.debug("Device: %s" % device)
@@ -641,7 +641,7 @@ def get_network_devices(session, args):
         devices.append(device)
 
     return list_to_xml(devices, 'device')
-    
+
 def _get_local_storage_disk(session):
     disk_path = get_from_xensource_inventory('PRIMARY_DISK')
     log.debug("Local Storage Disk Path: %s" % disk_path)
@@ -714,7 +714,7 @@ def _get_bus_paths(disks):
             modified_bus_path[bus_path] = sr
 
     return modified_bus_path
-            
+
 
 def find_dir(dirpath, dirname, max_depth=2):
     """Find a file in a given directory, recursing a limited number of times"""
@@ -734,12 +734,12 @@ def find_dir(dirpath, dirname, max_depth=2):
 
     for depth in range(max_depth):
         log.debug("Directory Depth: %d" % depth)
-        
+
         # Take a copy of the list, so as to
         # force exiting the iteration to count depth.
         for path in list(paths):
             log.debug("Path: %s" % path)
-            
+
             # Ensure that the path actually exists
             if os.path.exists(path):
                 val, res = _find(path, dirname)
@@ -759,18 +759,17 @@ def find_dir(dirpath, dirname, max_depth=2):
                     for item in res:
                         paths.append("/".join([path,item]))
 
-    return results   
+    return results
 
 
 @log_exceptions
 def get_local_storage_devices(session, args):
     """Return a list of local storage devices and their corresponding properties"""
 
-    # Ensure that any exceptions raised as a result of find a non-expected device 
+    # Ensure that any exceptions raised as a result of find a non-expected device
     # passes back a failure message without halting execution.
 
     try:
-        
         disks = _get_local_storage_disks(session)
         log.debug("Local disks found: %s" % disks)
         bus_paths = _get_bus_paths(disks)
@@ -784,42 +783,42 @@ def get_local_storage_devices(session, args):
 
         storage_devices = []
         for bus_path, sr in bus_paths.iteritems():
-            
+
             bus_id = bus_path.split(os.sep)[4]
-    
+
             if bus_id.startswith('0000:'):
                 #We only care about the shortened id
                 bus_id = bus_id[5:]
-    
+
             # Copy dictionary record for device at specified bus location
             device = dict(devices.devs[bus_id])
 
             device['PCI_id'] = get_pci_id(bus_id)
             device['PCI_description'] = get_pci_description(bus_id)
             device['PCI_subsystem'] = get_pci_subsystem(bus_id)
-    
+
             device['sr'] = sr
             driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:5])
-    
+
             log.debug("Searching for driver sym link in '%s'" % driver_root_dir)
-                   
+
             driver_links = find_dir(driver_root_dir, 'driver')
-    
+
             if driver_links:
                 log.debug("Found the following driver sym-links: %s" % driver_links)
-    
+
                 # Take the first link - there should only be one, but this needs
                 # investigation on more bits of hardware, so let's not fail if there
                 # does exist more than one link.
                 driver_sym = driver_links[0]
                 log.debug("Reading driver from symlink: %s" % driver_sym)
-            
+
                 # Just check the path is still there.
                 if os.path.exists(driver_sym):
                     device['driver'] = os.path.basename(os.readlink(driver_sym))
             if not device in storage_devices:
                 storage_devices.append(device)
-    
+
         return list_to_xml(storage_devices, 'device')
 
     except Exception, e:
@@ -864,7 +863,7 @@ def get_hw_offloads_from_core(session, args):
             rec[offload] = 'off'
 
     return to_xml(rec, 'hw_offloads')
-        
+
 @log_exceptions
 def get_hw_offloads(session, args):
     """Return a dictionary object specifying offload protocols,
@@ -948,12 +947,12 @@ def iperf_test(session, args):
     copy(buffer_length, '-l')
     copy(thread_count, '-P')
     copy(dst_host, '-c')
-    
+
     #Print MTU size
     call.append('-m')
 
     return make_local_call(call)["stdout"]
-    
+
 def parse_proc_net_dev(data):
     """Taking the contents of /proc/net/dev parse to provide a record"""
     lines = data.split('\n')
@@ -974,16 +973,15 @@ def parse_proc_net_dev(data):
 
     return ifaces
 
-
 @log_exceptions
 def add_route(session, args):
     """Add a network table route to a particular VM"""
-    vm_ref = validate_exists(args, 'vm_ref') 
+    vm_ref = validate_exists(args, 'vm_ref')
     device = validate_exists(args, 'device')
     dest_ip = validate_exists(args, 'dest_ip')
     gw = validate_exists(args, 'gw', required=False)
     mask = validate_exists(args, 'mask', required=False)
-   
+
     log.debug("add_route %s %s %s" % (vm_ref, device, dest_ip))
 
     if session.xenapi.VM.get_is_control_domain(vm_ref):
@@ -1001,14 +999,14 @@ def add_route(session, args):
         bridge = _get_local_device_bridge(session, device)
         # Handle the case that we are dealing with Dom0
         # 1. Setup the correct routing entry in Dom0's routing table
-  
-        # Handle the default route case 
+
+        # Handle the default route case
         if dest_ip == '0.0.0.0' and mask == '0.0.0.0' and gw:
-            
+
             log.debug("Removing default gateway, before adding it back in")
             call = [IP, "route", "del", "default"]
             make_local_call(call)
-             
+
             call = [IP,
                     "route",
                     "add",
@@ -1019,20 +1017,20 @@ def add_route(session, args):
                     bridge]
 
         else:
-            call = [IP, 
-                    "route", 
-                    "add", 
+            call = [IP,
+                    "route",
+                    "add",
                     "%s/32" % dest_ip,
-                    "dev", 
+                    "dev",
                     bridge]
 
     else:
         # Handle the case we are adding a route to a VM
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
-        call = [SSH, 
-                vm_m_ip, IP, 
-                "route", 
-                "add", 
+        call = [SSH,
+                vm_m_ip, IP,
+                "route",
+                "add",
                 "%s/32" % dest_ip,
                 "dev",
                 device]
@@ -1056,14 +1054,14 @@ def remove_route(session, args):
 
 @log_exceptions
 def reset_arp(session, args):
-    """Ensure that the switch knows which interfaces to 
+    """Ensure that the switch knows which interfaces to
     communicate with the VM over. If sharing the same subnet
     it is possible for eth0 to reply for eth1. We want to prevent
     that and ensure the switch knows which interface on the VM
     to send traffic too."""
 
     vm_ref = validate_exists(args, 'vm_ref')
-    
+
     log.debug("Reset ARP for VM %s" % vm_ref)
 
     arp_ipv4_ignore_config = "net.ipv4.conf.all.arp_ignore=1"
@@ -1079,11 +1077,11 @@ def reset_arp(session, args):
         pifs = session.xenapi.host.get_PIFs(host_ref)
         for pif in pifs:
             device = session.xenapi.PIF.get_device(pif)
-        
+
             # Execute a gratuitus ARP for the device in question
             # translate device name into bridge
             bridge = _get_local_device_bridge(session, device)
-        
+
             log.debug("About to send gARP out on %s" % bridge)
 
             bridge_dev = _get_local_device(bridge)
@@ -1093,11 +1091,11 @@ def reset_arp(session, args):
             else:
                 call = [ARPING, "-c", '10', '-A', '-I', bridge, bridge_dev.ip]
                 make_local_call(call)
-        
+
     else:
         # Handle the Droid VM case
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
-        
+
         # Global ARP Ignore
         cmd = "%s net.ipv4.conf.all.arp_ignore=1" % SYSCTL
         call = [SSH, vm_m_ip, cmd]
@@ -1107,7 +1105,7 @@ def reset_arp(session, args):
         for vif in vifs:
             device_id = session.xenapi.VIF.get_device(vif)
             device = "eth%s" % device_id
-       
+
             # Execute a gratuitus ARP for the device in question
             device_ip = wait_for_ip(session, vm_ref, device)
             call = [SSH, vm_m_ip, ARPING, "-c", '10', '-A', '-I', device, device_ip]
@@ -1122,7 +1120,7 @@ def get_iface_stats(session, args):
     log.debug("Iface passed in %s" % iface_name)
     data = None
     arch = None
-    
+
     if session.xenapi.VM.get_is_control_domain(vm_ref):
         host_ref = session.xenapi.VM.get_resident_on(vm_ref)
         this_host_uuid = get_from_xensource_inventory('INSTALLATION_UUID')
@@ -1137,20 +1135,20 @@ def get_iface_stats(session, args):
 
         else:
             # Proxy the command to the correct host
-            return session.xenapi.host.call_plugin(host_ref, 
-                                                  'autocertkit', 
-                                                  'get_iface_stats', 
+            return session.xenapi.host.call_plugin(host_ref,
+                                                  'autocertkit',
+                                                  'get_iface_stats',
                                                   args)
     else:
         # Dealing with a non-control domain. SSH and obtain result
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
         log.debug("IP address for VM '%s' is '%s'" % (vm_ref,
                                                       vm_m_ip))
-    
+
         # Note, we rely on an SSH key being setup for this
         # droid VM.
 
-        call = [SSH, vm_m_ip, CAT, '/proc/net/dev']     
+        call = [SSH, vm_m_ip, CAT, '/proc/net/dev']
         log.debug("About to make SSH call: %s" % call)
 
         data = make_local_call(call)["stdout"]
@@ -1179,7 +1177,7 @@ def get_iface_stats(session, args):
 
     log.debug("Device Stats: %s %s" % (vm_ref, device_stats))
 
-    return to_xml(device_stats, 'iface_stats') 
+    return to_xml(device_stats, 'iface_stats')
 
 @log_exceptions
 def get_host_routes(session, args):
@@ -1287,9 +1285,9 @@ def copy_lmbench_config(session, vm_ref, username, password):
     # file, so that we can copy it to the correct place.
     cmd_str = "/usr/lib/lmbench/scripts/config"
     config_file_name = ssh_command(ip_address, username, password, cmd_str)
-        
+
     log.debug("Deterined that VM %s needs lmbench config file named: %s" % (vm_ref, config_file_name))
-    
+
     call = ['/usr/bin/scp',
             "-o", "StrictHostKeyChecking=no",
             LMBENCH_CONF_LOC,
@@ -1322,7 +1320,7 @@ def deploy_lmbench(session, args):
                 i = i + 1 #Increment counter
                 if i == limit:
                     raise Exception("Cannot deploy LMbench")
-                
+
     log.debug("LMbench installation completed")
     return "OK"
 
@@ -1353,8 +1351,8 @@ def retrieve_lmbench_logs(session, args):
     os.mkdir(vm_lmbench_results_dir)
 
     # SCP the logs to the master host
-    call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", 
-            "root@%s:/usr/lib/lmbench/results/i686-pc-linux-gnu/*" % ip_address, 
+    call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no",
+            "root@%s:/usr/lib/lmbench/results/i686-pc-linux-gnu/*" % ip_address,
             vm_lmbench_results_dir]
 
     log.debug(call)
@@ -1365,7 +1363,7 @@ def lmbench_test(session):
     call = [LMBENCH]
     log.debug(call)
     return make_local_call(call)["stdout"]
-    
+
 
 ############### Iozone Setup #########################
 
@@ -1392,7 +1390,7 @@ def deploy_iozone(session, args):
                 i = i + 1 #Increment counter
                 if i == limit:
                     raise Exception("Cannot deploy Iozone")
-                
+
     log.debug("Iozone installation completed")
     return "OK"
 
@@ -1415,7 +1413,7 @@ def retrieve_iozone_logs(session, args):
     call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/iozone.log"]
     log.debug(call)
     return make_local_call(call)["stdout"]
-  
+
 
 ############### Bonnie++ Setup #########################
 
@@ -1444,7 +1442,7 @@ def deploy_bonnie(session, args):
                 i = i + 1 #Increment counter
                 if i == limit:
                     raise Exception("Cannot deploy Bonnie++")
-                
+
     log.debug("Bonnie++ installation completed")
     return "OK"
 
@@ -1467,7 +1465,7 @@ def retrieve_bonnie_logs(session, args):
     call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no", "root@%s:/root/localhost.log" % ip_address, "/opt/xensource/packages/files/auto-cert-kit/bonnie.log"]
     log.debug(call)
     return make_local_call(call)["stdout"]
-  
+
 
 ############### Main #########################
 
@@ -1544,7 +1542,7 @@ def mark_local_pif_for_cleanup(session, device):
     if 'xenbr' in device:
         device = device.replace('xenbr', 'eth')
 
-    this_host_uuid = get_from_xensource_inventory('INSTALLATION_UUID') 
+    this_host_uuid = get_from_xensource_inventory('INSTALLATION_UUID')
 
     host_ref = session.xenapi.host.get_by_uuid(this_host_uuid)
     pifs = session.xenapi.host.get_PIFs(host_ref)
@@ -1565,7 +1563,7 @@ def run_dhclient(device):
     exists, then also take care of killing that process and starting
     dhclient up on the specified device again."""
 
-    cmd = [DHCLIENT, "-q", "-lf", 
+    cmd = [DHCLIENT, "-q", "-lf",
            "/var/lib/dhclient/dhclient-%s.leases" % device,
            "-pf", "/var/run/dhclient-%s.pid" % device, device]
 
@@ -1586,15 +1584,15 @@ def run_dhclient(device):
 
     return res
 
-   
+
 def _configure_local_device_ip(session, device, ip_addr, ip_netmask, mode):
     log.debug("Configure local device IP: (%s) (%s) (%s) (%s)" % (device,
                                                              ip_addr,
                                                              ip_netmask,
                                                              mode))
     # Mark the PIF as needing cleaning up
-    mark_local_pif_for_cleanup(session, device) 
-    
+    mark_local_pif_for_cleanup(session, device)
+
     if mode.lower() == "dhcp":
         # DHCP Case
         run_dhclient(device)
@@ -1703,7 +1701,7 @@ def _get_local_device(device_name):
 
 
 def configure_local_device_ip(session, device_name, ip_addr, ip_netmask, mode):
-    """For the local Dom0, configure a bridge for the particular 
+    """For the local Dom0, configure a bridge for the particular
     device name in order to run a service bound to that interface"""
 
     log.debug("configure_local_device_ip (%s) (%s) (%s) (%s)" % (device_name,
@@ -1715,9 +1713,9 @@ def configure_local_device_ip(session, device_name, ip_addr, ip_netmask, mode):
     dev = _get_local_device(device)
 
     if not dev.ip or not dev.mask:
-        dev = _configure_local_device_ip(session, 
-                                        device, 
-                                        ip_addr, 
+        dev = _configure_local_device_ip(session,
+                                        device,
+                                        ip_addr,
                                         ip_netmask,
                                         mode)
 
@@ -1735,7 +1733,7 @@ def flush_local_device(session, args):
     return "OK"
 
 @log_exceptions
-def configure_local_device(session, args):  
+def configure_local_device(session, args):
     """Configure a local ethernet interface"""
     device = validate_exists(args, 'device')
     mode = validate_exists(args, 'mode')
@@ -1753,7 +1751,7 @@ def configure_local_device(session, args):
 
     dev = configure_local_device_ip(session, device, ip_addr, ip_netmask, mode)
     return "OK"
-    
+
 @log_exceptions
 def start_iperf_server(session, args):
     """Start up iPerf in sever mode. This command will block - due to how iperf returns
@@ -1766,18 +1764,18 @@ def start_iperf_server(session, args):
 
     ip_addr = None
     ip_netmask = None
-    
+
     if mode == "static":
         ip_addr = validate_exists(args, 'ip_addr')
         ip_netmask = validate_exists(args, 'ip_netmask')
     else:
         if mode.lower() != "dhcp":
             raise Exception("Error: invalid 'mode' '%s'" % mode)
-    
+
     dev = configure_local_device_ip(session, device_name, ip_addr, ip_netmask, mode)
 
     kill_processes('iperf')
-     
+
     # Check for iperfs existence
     if not process_running(IPERF):
         log.debug("Iperf is not running - start process")
@@ -1788,8 +1786,8 @@ def start_iperf_server(session, args):
         #Start iperf daemon - need to ensure we don't block
         call = [IPERF, '-s', '-D', '-B', dev.ip]
         log.debug("About to start iperf server daemon (%s)" % call)
-        subprocess.Popen(call, stdout=subprocess.PIPE, 
-                         stderr=subprocess.PIPE, 
+        subprocess.Popen(call, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE,
                          close_fds=True, bufsize=4096)
 
         log.debug("Call executed")

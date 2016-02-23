@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """Python module for generating the list of tests specific to each device"""
@@ -47,7 +47,7 @@ class TestGenerator(object):
     other such information. This class can then be used by modules like test_runner
     to compose a list of tests that should be exectued per device.
 
-    The class is also able to output the config into a desired format. Currently, 
+    The class is also able to output the config into a desired format. Currently,
     we make use of the append_xml_config method that outputs the test to be run,
     and the config that each test requires.
     """
@@ -171,7 +171,7 @@ class TestGenerator(object):
                     method_node.appendChild(reason_node)
                 else:
                     result_node.appendChild(doc.createTextNode('NULL'))
-                
+
                 method_node.appendChild(result_node)
                 method_node.appendChild(info_node)
                 testname_node = doc.createElement('test_name')
@@ -182,7 +182,7 @@ class TestGenerator(object):
                 class_node.appendChild(method_node)
 
             cts_node.appendChild(class_node)
-            
+
         xml_node.appendChild(device_node)
 
 class NetworkAdapterTestGenerator(TestGenerator):
@@ -201,7 +201,7 @@ class NetworkAdapterTestGenerator(TestGenerator):
                 class_ips = test_class(self.session, self.config).num_ips_required
                 if class_ips > min_ips_required:
                     min_ips_required = class_ips
-                             
+
             if min_ips_required > num_ips_provided:
                 raise Exception("For these tests, at least %d static IPs must be provided. You provided only %d" % (min_ips_required, num_ips_provided))
 
@@ -217,21 +217,21 @@ class NetworkAdapterTestGenerator(TestGenerator):
             return True
 
         if 'OVS' in self.config['exclude']:
-            test_classes = [(testname, testclass) for testname, testclass 
+            test_classes = [(testname, testclass) for testname, testclass
                     in test_classes if not testclass.network_backend or
                     testclass.network_backend == 'bridge']
         if 'BRIDGE' in self.config['exclude']:
-            test_classes = [(testname, testclass) for testname, testclass 
+            test_classes = [(testname, testclass) for testname, testclass
                     in test_classes if not testclass.network_backend or
                     testclass.network_backend == 'vswitch']
 
         if 'singlenic' in self.config.keys() and self.config['singlenic'] == "true":
             dont_run = ["BondingTestClass", "MTUPingTestClass"]
-            return [(testname, testclass) for testname, testclass 
+            return [(testname, testclass) for testname, testclass
                     in test_classes if append_filter(testname, dont_run)]
         else:
             return test_classes
-                   
+
 
 
 class ProcessorTestGenerator(TestGenerator):
@@ -253,7 +253,7 @@ class ProcessorTestGenerator(TestGenerator):
 class StorageTestGenerator(TestGenerator):
     """TestGenertor class specific to Storage tests"""
     TAG = 'LS'
-    
+
     def __init__(self, session, config, device):
         super(StorageTestGenerator, self).__init__(session, config)
         self.device = device
@@ -267,11 +267,11 @@ class StorageTestGenerator(TestGenerator):
         """Retrieve info regarding the local SCSI devices"""
         rec = super(StorageTestGenerator, self).get_device_config()
         return utils.combine_recs(rec, self.device)
-    
+
 class OperationsTestGenerator(TestGenerator):
     """TestGenertor class specific to Operations tests"""
     TAG = 'OP'
-    
+
     def filter_test_classes(self, test_classes):
         if 'OPS' in self.config['exclude']:
             return []

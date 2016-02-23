@@ -33,13 +33,13 @@ class ExpressionMatchingTests(unittest_base.DevTestCase):
         self._exp_true('> 5.6', '5.6 FP1')
         self._exp_true('> 5.6 FP1', '5.6 SP2')
         self._exp_true('> 5.6 SP2', '6.0.0')
-    
+
     def testGreaterThanFalse(self):
         self._exp_false('> 6.0.0', '5.6 SP2')
         self._exp_false('> 6.0.0', '5.6 FP1')
         self._exp_false('> 6.0.0', '5.6')
         self._exp_false('> 5.6 SP2', '5.6 FP1')
-        
+
 
 class StaticIPUtilsTests(unittest_base.DevTestCase):
     """Verify that the class methods for manipulating
@@ -77,8 +77,7 @@ class StaticIPUtilsTests(unittest_base.DevTestCase):
                              '192.128.0.40',
                              '255.255.255.0',
                              expect=False)
-                          
-    
+
     def testIncrementIPs(self):
         self._test_increment_ip('192.168.0.1','192.168.0.2')
         self._test_increment_ip('192.168.0.1','192.168.0.10', expect=False)
@@ -97,7 +96,7 @@ class StaticIPUtilsTests(unittest_base.DevTestCase):
         free_list = sim.ip_pool
 
         if len(free_list) != len(full_list):
-            raise Exception("Error: we expect there to be %d IPs, enumerate produced %d." % 
+            raise Exception("Error: we expect there to be %d IPs, enumerate produced %d." %
                             (len(full_list), len(free_list)))
 
         for i in range(len(full_list)):
@@ -116,15 +115,15 @@ class StaticIPUtilsTests(unittest_base.DevTestCase):
         borrowed_ip = sim.get_ip()
         assert(sim.available_ips() == 5)
         assert(len(sim.in_use) == 1)
-        
+
         sim.return_ip(borrowed_ip)
 
         assert(sim.available_ips() == 6)
         assert(len(sim.in_use) == 0)
 
-        
+
 class ValueInRangeFunctions(unittest.TestCase):
-    
+
     def test_simple(self):
         #Assert True
         self.assertTrue(utils.value_in_range(5*G, 4*G, 8*G))
@@ -163,7 +162,6 @@ class ValidatePingResponses(unittest.TestCase):
         response = "20 packets transmitted, 19 received, 5% packet loss, time 19008ms"
         self.assertTrue(utils.valid_ping_response(response, max_loss=5))
 
-        
 
 class RebootFlagTimestamps(unittest.TestCase):
 
@@ -209,7 +207,7 @@ class HostLibMethodsTests(unittest.TestCase):
         self.assertRaises(Exception, \
                 lambda: utils.wait_for_hosts(self.session, timeout=1))
 
-        self.session.hosts[0].enabled = True 
+        self.session.hosts[0].enabled = True
         self.session.hosts[1].metrics.live = False
         self.assertRaises(Exception, \
                 lambda: utils.wait_for_hosts(self.session, timeout=1))

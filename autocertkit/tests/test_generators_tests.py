@@ -23,7 +23,7 @@ class DocumentationTests(unittest_base.DevTestCase):
 
     def testPrintTestList(self):
         expect_system_exit(test_generators.print_all_test_classes)
-    
+
     def testPrintClassInformation(self):
         for test_class_name, test_class in test_generators.enumerate_all_test_classes():
             expect_system_exit(lambda: test_generators.print_documentation(test_class_name))

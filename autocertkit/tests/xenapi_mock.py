@@ -17,12 +17,12 @@ class XenAPIObject(object):
     @classmethod
     def genOpaque(cls, clsname=''):
         """A Opaque generator"""
-    
+
         suffix = '_%d' % random.randint(0, 9999999)
         while suffix in cls.USED_SUFFIXES:
             suffix = '_%d' % random.randint(0, 9999999)
         cls.USED_SUFFIXES.append(suffix)
-    
+
         return 'Opaque: %sOpaque%s' % (clsname, suffix)
 
     def __init__(self):
@@ -124,7 +124,7 @@ class XenapiMock(mock.Mock):
 
     As all lib are referred from session.xenapi, this needs to be mocked.
     This only replicate all required xenapi component as properties.
-    """ 
+    """
 
     @property
     def pool(self):
@@ -156,7 +156,7 @@ class PoolMock(mock.Mock):
                 return p
 
         raise Exception('Cannot find pool opaque: %s' % opaque)
-                
+
     def get_master(self, opaque):
         return self.__getPool(opaque).hosts[0].opaque
 

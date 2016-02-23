@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """A module for utility functions shared with multiple test cases"""
@@ -143,7 +143,7 @@ class IPv4Addr(object):
     def validate_ip(self):
         arr = self.addr.split('.')
         if len(arr) != 4:
-            raise Exception("Error: IP address is not correct: '%s'" % 
+            raise Exception("Error: IP address is not correct: '%s'" %
                             self.addr)
 
         for i in range(0,4):
@@ -160,7 +160,7 @@ class IPv4Addr(object):
 
         # For a netmask, we expect a contigious line of ones.
         zero_pos = mask_str.find('0')
-        
+
         if zero_pos == -1:
             return True
         else:
@@ -173,7 +173,7 @@ class IPv4Addr(object):
             raise Exception("'to_bin' method is only for 8bit integers")
 
         bin_str = int_to_bin(integer)[2:]
-        
+
         tmp_str = ""
         for i in range(8 - len(bin_str)):
             tmp_str = tmp_str + "0"
@@ -212,8 +212,8 @@ class IPv4Addr(object):
 
             if not self.byte_mask_match(a, b, m):
                 return False
-        return True        
-        
+        return True
+
 def get_network_routes(session, host_ref):
     """Return a list of NetRoute objects for this system"""
     results = call_ack_plugin(session, 'get_host_routes', {}, host=host_ref)
@@ -227,7 +227,7 @@ def get_network_routes(session, host_ref):
         routes.append(route_obj)
 
     return routes
-            
+
 class StaticIPManager(object):
     """Class for managing static IP address provided by
     the caller. Allows us to do simple 'leasing' operations"""
@@ -235,7 +235,7 @@ class StaticIPManager(object):
     def __init__(self, conf):
         # Populate the internal list of IPs
         free = []
-        for ip_addr in self.generate_ip_list(conf['ip_start'], 
+        for ip_addr in self.generate_ip_list(conf['ip_start'],
                                         conf['ip_end']):
             free.append(IPv4Addr(ip_addr,
                                  conf['netmask'],
@@ -247,7 +247,7 @@ class StaticIPManager(object):
         self.total_ips = len(free)
 
     def generate_ip_list(self, ip_start, ip_end):
-        """Take an IP address start, and end, and compose a list of all 
+        """Take an IP address start, and end, and compose a list of all
         the IP addresses inbetween. E.g. '192.168.0.1' - '192.168.0.4' would
         return ['192.168.0.1', '192.168.0.2', '192.168.0.3', '192.168.0.4']."""
 
@@ -271,7 +271,7 @@ class StaticIPManager(object):
                 raise Exception("IP start ('%s') must be smaller than IP end ('%s') (%s <  %s)" %
                                 (ip_start,
                                 ip_end, arr2[i], arr1[i]))
-        
+
         res = []
 
         res.append(ip_start)
@@ -287,9 +287,9 @@ class StaticIPManager(object):
 
         # After exit, we must also add the last value
         res.append(ip_end)
-            
+
         return res
-        
+
     def increment_ip_string(self, string):
         chars = string.split('.')
         arr = []
@@ -328,7 +328,7 @@ class StaticIPManager(object):
         if len(self.in_use) >= self.total_ips:
             raise Exception("Error: no more IP addresses to allocate! (%d in use)" %
                             len(self.in_use))
-            
+
         index = (self.last_used + 1) % self.total_ips
         while True:
             if not index in self.in_use:
@@ -336,7 +336,7 @@ class StaticIPManager(object):
                 self.in_use.append(index)
                 return self.ip_pool[index]
             index = (index + 1) % self.total_ips
-                
+
     def return_ip(self, ip):
         """For a given IP object, attempt to remove from the 'in_use' list, and put
         it back into circulation for others to use"""
@@ -370,8 +370,8 @@ class IfaceStats(object):
     def __init__(self,iface, rec):
         setattr(self, 'iface', iface)
         self.validate_args(rec)
-       
-        # Load all key/values into the class as attributes 
+
+        # Load all key/values into the class as attributes
         for k,v in rec.iteritems():
             try:
                 setattr(self, k, int(v))
@@ -383,7 +383,7 @@ class IfaceStats(object):
         for key in self.required_keys:
             if key not in rec_keys:
                 raise Exception("Error: could not find key '%s'" % key + \
-                                " in iface statistics record '%s'" % rec) 
+                                " in iface statistics record '%s'" % rec)
 
 def is_64_bit(arch):
     """Check if platform type is 64 bit"""
@@ -443,7 +443,7 @@ class IperfTestStatsValidator(object):
 
     warn_threshold = 5
     error_threshold = 10
-    
+
     def __init__(self, pre_stats, post_stats):
         setattr(self, 'pre', pre_stats)
         setattr(self, 'post', post_stats)
@@ -489,7 +489,7 @@ class IperfTestStatsValidator(object):
 
 class Iface(object):
     """Class representing an ethernet interface"""
-    
+
     required_keys = ["ip","mask","mac"]
 
     def __init__(self, rec):
@@ -533,7 +533,7 @@ def get_logger(name):
     return logging.getLogger(name)
 
 def get_local_xapi_session():
-    """Login to Xapi locally. This will only work if this script is being run 
+    """Login to Xapi locally. This will only work if this script is being run
     on Dom0. For this, no credentials are required."""
     session = XenAPI.xapi_local()
     session.login_with_password("", "")
@@ -608,20 +608,20 @@ def get_reboot_flag_timestamp(flag=REBOOT_FLAG_FILE):
 def clear_reboot_flag(flag=REBOOT_FLAG_FILE):
     if os.path.exists(flag):
         os.remove(flag)
-            
+
 def host_reboot(session, running_tc_info=None):
     log.debug("Attempting to reboot the host")
     #Cleanup all the running vms
     pool_wide_cleanup(session)
 
     master = get_pool_master(session)
-    
+
     hosts = session.xenapi.host.get_all()
     for host in hosts:
         session.xenapi.host.disable(host)
         if host != master:
             session.xenapi.host.reboot(host)
-            
+
     set_reboot_flag(running_tc_info)
 
     session.xenapi.host.reboot(master)
@@ -701,7 +701,7 @@ def print_test_results(tracker):
                 if test.has_key('exception'):
                     print "Exceptions:", test['exception'], "\n"
                 else:
-                    print 
+                    print
 
 def get_pool_slaves(session):
     """Returns a list of references for each host in a pool
@@ -729,7 +729,7 @@ def get_xenserver_version(session):
 
 def get_kernel_version(session):
     """Return kernel version using uname"""
-    host = get_pool_master(session)    
+    host = get_pool_master(session)
     log.debug("Checking version of kernel.")
     return session.xenapi.host.call_plugin(host,
                                           'autocertkit',
@@ -742,7 +742,7 @@ def eval_expr(expr, val):
     log.debug("Eval Expr: %s %s" % (expr, val))
     arr = expr.split()
     if len(arr) > 3:
-        raise Exception("Could not evaluate expression. " + 
+        raise Exception("Could not evaluate expression. " +
                         "Format is incorrect: %s" % expr)
 
     condition = arr[0]
@@ -761,7 +761,7 @@ def eval_expr(expr, val):
     if condition == "<=":
         return val <= test_val
 
-    raise Exception("Specified condition is not yet supported for comparison: %s" % 
+    raise Exception("Specified condition is not yet supported for comparison: %s" %
                     condition)
 
 def append_result_node(dom, parent_node, result):
@@ -817,7 +817,7 @@ def output_test_results(tracker):
     myfile.close()
     bugtool = save_bugtool()
     compress_output_files([xml_file_name, bugtool])
-                       
+
 def create_network(session, name_label, description, other_config):
     """Method for creating a XAPI network"""
     net_ref = session.xenapi.network.create({'name_label':name_label,
@@ -829,7 +829,7 @@ def create_network(session, name_label, description, other_config):
     return net_ref
 
 def create_nic_bond(session, network, nics, mac='', mode='balance-slb'):
-    """Creates a bond of type mode between two PIFs and returns 
+    """Creates a bond of type mode between two PIFs and returns
     the network reference"""
     if len(nics) != 2:
         raise Exception("Expected two PIFs, received %s" % len(nics))
@@ -842,7 +842,7 @@ def create_nic_bond(session, network, nics, mac='', mode='balance-slb'):
     return net_ref
 
 def get_pifs_by_device(session, device, hosts=[]):
-    """Using device name (e.g. eth0) return a reference to the PIF that 
+    """Using device name (e.g. eth0) return a reference to the PIF that
     is plugged into the master"""
     if hosts == []:
         hosts = session.xenapi.host.get_all()
@@ -857,8 +857,8 @@ def get_pifs_by_device(session, device, hosts=[]):
 
     if len(results) > 0:
         return results
-    raise TestCaseError("""No Ethernet device named %s 
-                        can be found on host(s) %s""" % 
+    raise TestCaseError("""No Ethernet device named %s
+                        can be found on host(s) %s""" %
                         (device, hosts))
 
 def get_network_by_device(session, device):
@@ -872,10 +872,10 @@ def get_network_by_device(session, device):
     return network_refs.pop()
 
 def get_physical_devices_by_network(session, network):
-    """Taking a network, enumerate the list of physical devices attached 
+    """Taking a network, enumerate the list of physical devices attached
     to each component PIF. This may require some unwrapping (e.g. bonds)
     to determine all the consituent physical PIFs."""
-   
+
     def get_physical_pifs(session, pifs):
         res = []
         for pif in pifs:
@@ -909,7 +909,7 @@ def get_physical_devices_by_network(session, network):
     if len(devices) > 1:
         log.debug("More than one device for network %s: %s" % (network,
                                                                devices))
-    return devices 
+    return devices
 
 
 def filter_pif_devices(session, devices):
@@ -917,13 +917,13 @@ def filter_pif_devices(session, devices):
     defined by a user."""
     res = []
     management_device = get_pool_management_device(session)
-    
+
     for device in devices:
         if device != management_device:
             res.append(device)
 
     if not res:
-        raise TestCaseError("""Couldn't find a non-manamgement 
+        raise TestCaseError("""Couldn't find a non-manamgement
                                 interfaces from those supplied""")
     return res
 
@@ -950,8 +950,8 @@ def create_vlan(session, pif_ref, network_ref, vlan_id):
     return session.xenapi.VLAN.create(pif_ref, str(vlan_id), network_ref)
 
 def get_droid_templates(session, brand=DROID_TEMPLATE_TAG):
-    """Return the reference to the template for the 
-    demo linux VM. This is obtained by searching for 
+    """Return the reference to the template for the
+    demo linux VM. This is obtained by searching for
     a template with the other_config key 'droid_template_vm'."""
     vms = session.xenapi.VM.get_all()
     droid_vms = []
@@ -984,7 +984,7 @@ def create_vif(session, device, network, vm, mac=''):
 def setup_vm_on_network(session, vm_ref, network_ref, iface='eth0', wipe=True):
     """Remove VIFs plugged into a VM, and create a new
     VIF and plug it in for a particular network"""
-    
+
     if wipe:
         #1. Remove all existings VIFs
         vif_refs = session.xenapi.VM.get_VIFs(vm_ref)
@@ -1004,13 +1004,13 @@ def setup_vm_on_network(session, vm_ref, network_ref, iface='eth0', wipe=True):
     #2. Create a new VIF attached to the specified network reference
     vif_ref = create_vif(session, iface.replace('eth',''),
                         network_ref, vm_ref, mac=generate_mac())
-    
+
     if session.xenapi.VM.get_power_state(vm_ref) == "Running":
         log.debug("Plug VIF %s" % vif_ref)
         session.xenapi.VIF.plug(vif_ref)
 
     return vif_ref
-   
+
 
 def make_vm_noninteractive(session, vm_ref):
     """Set PV args to ensure the Demo VM boots up automatically,
@@ -1038,11 +1038,11 @@ def _get_control_domain_ip(session, vm_ref, device='xenbr0'):
 
     host_ref = session.xenapi.VM.get_resident_on(vm_ref)
 
-    return session.xenapi.host.call_plugin(host_ref, 
+    return session.xenapi.host.call_plugin(host_ref,
                                           'autocertkit',
-                                          'get_local_device_ip', 
+                                          'get_local_device_ip',
                                            {'device': device}
-                                           ) 
+                                           )
 
 def wait_for_ip(session, vm_ref, device, timeout=300):
     """Wait for an IP address to be returned (until a given timeout)"""
@@ -1124,24 +1124,22 @@ def wait_for_linkstate(session, device, state, host_ref=None, timeout=60):
             return
         if state.lower() == 'down' and not _is_link_up(cur_state):
             return
-            
+
         time.sleep(2)
 
     raise Exception("Timeout has been exceeded waiting for %s on %s changed to %s"
                      % (device, host_ref, state))
 
-
 def get_vm_ips(session, vm_ref):
     guest_metrics_ref = session.xenapi.VM.get_guest_metrics(vm_ref)
     if guest_metrics_ref == "OpaqueRef:NULL":
-        return {} 
+        return {}
     networks = session.xenapi.VM_guest_metrics.get_networks(guest_metrics_ref)
     res = {}
     for k, v in networks.iteritems():
         if k.endswith('ip'):
             res["eth%s" % (k.replace('/ip', ''))] = v
     return res
-    
 
 def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
          count=20, username="root", password=DEFAULT_PASSWORD):
@@ -1163,7 +1161,7 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
         log.debug("SSH Line: %s" % line)
         if 'transmitted' in line:
             return line
-    raise TestCaseError("""Error: Unexpected response 
+    raise TestCaseError("""Error: Unexpected response
                        from ping, to transmission statistics: %s""" \
                             % result)
 
@@ -1204,7 +1202,7 @@ def add_network_interface(vm_ip, interface_name, interface_ip,
         cmd = "ifconfig %s %s netmask %s up" % \
             (interface_name, interface_ip, interface_netmask)
 
-    ssh_command(vm_ip, username, password, cmd, cmd, attempts=10)    
+    ssh_command(vm_ip, username, password, cmd, cmd, attempts=10)
 
 
 def plug_pif(session, pif):
@@ -1229,7 +1227,7 @@ def destroy_pif(session, pif):
 
 
 def destroy_vm(session, vm_ref, timeout=60):
-    """Checks powerstate of a VM, destroys associated VDIs, 
+    """Checks powerstate of a VM, destroys associated VDIs,
     and destroys VM once shutdown"""
 
     log.debug("Destroying VM: %s" % vm_ref)
@@ -1262,7 +1260,7 @@ def destroy_vm(session, vm_ref, timeout=60):
 
         power_state = session.xenapi.VM.get_power_state(vm_ref)
         cur_oper = session.xenapi.VM.get_current_operations(vm_ref)
-        
+
     log.debug("VM %s is ready to be removed." % vm_ref)
 
     #Check that the VDI is not in-use
@@ -1304,7 +1302,7 @@ def host_cleanup(session, host):
     cur_route_table = route.RouteTable(routes)
 
     oc = session.xenapi.host.get_other_config(host)
-    
+
     # Load in default routes
     default_route_key = 'default_routes'
     default_route_list = []
@@ -1313,8 +1311,8 @@ def host_cleanup(session, host):
         for rec in default_routes:
             route_obj = route.Route(**rec)
             default_route_list.append(route_obj)
-    
-    default_route_table = route.RouteTable(default_route_list) 
+
+    default_route_table = route.RouteTable(default_route_list)
     missing_routes = default_route_table.get_missing(cur_route_table)
 
     dom0_ref = _find_control_domain(session, host)
@@ -1330,7 +1328,7 @@ def host_cleanup(session, host):
         call_ack_plugin(session, 'add_route', args, host)
 
     log.debug("host cleanup is complete.")
-    
+
 def pool_wide_host_cleanup(session):
     hosts = session.xenapi.host.get_all()
 
@@ -1358,7 +1356,7 @@ def pool_wide_vm_cleanup(session, tag):
                                         'dest_ip': v,
                                     })
                     keys_to_clean.append(k)
-            
+
             if keys_to_clean:
                 for key in keys_to_clean:
                     del oc[key]
@@ -1407,7 +1405,7 @@ def get_pool_management_device(session):
             else:
                 device = device_name
     return device
-        
+
 def get_module_names(name_filter):
     """Returns a list of modules which can be seen in the callers scope,
     filtering their names by the given filter."""
@@ -1439,7 +1437,7 @@ def droid_template_import(session, host_ref, sr_uuid):
     """Import the droid template into the specified SR"""
     #Note, the filename should be fully specified.
     args = {'sr_uuid': sr_uuid}
-    return call_ack_plugin(session, 'droid_template_import', args, host=host_ref)  
+    return call_ack_plugin(session, 'droid_template_import', args, host=host_ref)
 
 def get_default_sr(session):
     """Returns the SR reference marked as default in the pool"""
@@ -1454,7 +1452,7 @@ def get_default_sr(session):
             raise Exception("Pool is not configured to have shared storage!")
         else:
             raise exn
-        
+
 def get_local_sr(session, host):
     """Returns the ref object the local SR on the master host"""
     all_pbds = session.xenapi.PBD.get_all_records()
@@ -1465,7 +1463,7 @@ def get_local_sr(session, host):
                 if 'Local storage' in sr_rec['name_label']:
                     if pbd_rec['SR'] in sr_ref:
                         return sr_ref
-    raise Exception("No local SR attached to the master host")    
+    raise Exception("No local SR attached to the master host")
 
 def assert_sr_connected(session, sr_ref, host_ref):
     """Assert that a given SR is connected to a host"""
@@ -1475,7 +1473,7 @@ def assert_sr_connected(session, sr_ref, host_ref):
             log.debug("SR %s connected to host %s" % (session.xenapi.SR.get_uuid(sr_ref), session.xenapi.host.get_name_label(host_ref)))
             return True
     return False
-    
+
 
 def find_storage_for_host(session, host_ref, exclude_types=['iso','udev']):
     """Given a host reference, return available storage"""
@@ -1491,7 +1489,7 @@ def find_storage_for_host(session, host_ref, exclude_types=['iso','udev']):
     log.debug("Host: %s" % session.xenapi.host.get_name_label(host_ref))
     for sr in rel_srs:
         log.debug("SR: %s" % session.xenapi.SR.get_name_label(sr))
-    return rel_srs                             
+    return rel_srs
 
 
 def import_droid_vm(session, host_ref, creds=None, loc=DROID_VM_LOC):
@@ -1521,9 +1519,9 @@ def find_droid_templates(session):
     vms = session.xenapi.VM.get_all_records()
     for ref, rec in vms.iteritems():
         if DROID_TEMPLATE_TAG in rec['other_config'] \
-                             and rec['is_a_template']: 
-            refs.append(ref)                             
-    
+                             and rec['is_a_template']:
+            refs.append(ref)
+
     log.debug("find_droid_templates: found refs: '%s'" % refs)
 
     return refs
@@ -1554,7 +1552,7 @@ def prepare_droid_vm(session, host_ref, creds=None):
 
     templates = [template for template in find_droid_templates(session) \
           if assert_can_boot_here(session, template, host_ref)]
-    
+
     if templates:
         # Any of the templates will do
         return templates.pop()
@@ -1603,7 +1601,7 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
         if should_timeout(start, timeout):
             # Change to TimeoutFunctionException to work-around CA-146164.
             # To avoid applying hotfixes, keeping this work-around.
-            # raise Exception("Async calls took too long to complete!" + 
+            # raise Exception("Async calls took too long to complete!" +
             raise TimeoutFunctionException("Async calls took too long to complete!" +
                             "Perhaps, the operation has stalled? %d" % timeout)
         time.sleep(1)
@@ -1613,13 +1611,13 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
     return [res for (_, res) in results]
 
 def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sms=None, sr_ref=None):
-    """Deploy vm_count VMs on the host_ref host. Required 
+    """Deploy vm_count VMs on the host_ref host. Required
     to define the network, optionally the SR"""
 
     log.debug("Creating required VM(s)")
-        
+
     droid_template_ref = prepare_droid_vm(session, host_ref)
-    
+
     task_list = []
     vm_ref_list = []
     for i in range(vm_count):
@@ -1630,7 +1628,7 @@ def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sm
         brand_vm(session, vm_ref, FOR_CLEANUP)
         session.xenapi.VM.set_is_a_template(vm_ref, False)
         make_vm_noninteractive(session, vm_ref)
-        
+
         x = 0
         for network_ref in network_refs:
             log.debug("Setup vm (%s) eth%d on network (%s)" % (vm_ref, x, network_ref))
@@ -1652,7 +1650,7 @@ def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sm
     # Starting VMs async
     log.debug("Starting up all VMs")
     run_xapi_async_tasks(session, task_list)
-    
+
     # Wait for IPs to be returned
     log.debug("Wait for IPs...")
     for vm_ref in vm_ref_list:
@@ -1661,7 +1659,7 @@ def deploy_count_droid_vms_on_host(session, host_ref, network_refs, vm_count, sm
 
     # Check the VMs are in the 'Running' state.
     wait_for_vms(session, vm_ref_list, XAPI_RUNNING_STATE)
-    
+
     return vm_ref_list
 
 def wait_for_vms(session, vm_refs, power_state, timeout=60):
@@ -1682,31 +1680,31 @@ def wait_for_vms(session, vm_refs, power_state, timeout=60):
         for vm in vms:
             log.debug("VM not in '%s' state. Instead in '%s' state." %
                       (power_state, session.xenapi.VM.get_power_state(vm)))
-        
+
         # We should raise an exception.
         raise Exception("VMs (%s) were not moved to the '%s' state in the provided timeout ('%d')" % (vms, power_state, timeout))
-        
+
 
 
 def deploy_slave_droid_vm(session, network_refs, sms=None):
     """Deploy a single VM on the slave host. This might be useful for
     tests between Dom0 and a VM. The Dom0 of the master is used for running
     commands, whilst the VM on the slave is used as a target"""
-    
+
     host_slave_refs = get_pool_slaves(session)
 
     if len(host_slave_refs) == 0:
-        raise Exception("ERROR: There appears to only be one host in this pool." + 
+        raise Exception("ERROR: There appears to only be one host in this pool." +
                         " Please add another host and retry.")
 
-    #Pick the first slave reference    
+    #Pick the first slave reference
     host_slave_ref = host_slave_refs[0]
-            
+
     log.debug("Creating required VM")
-        
+
     droid_template_ref = prepare_droid_vm(session, host_slave_ref)
     vm_ref = session.xenapi.VM.clone(droid_template_ref, 'Droid 1')
-    
+
     brand_vm(session, vm_ref, FOR_CLEANUP)
     session.xenapi.VM.set_is_a_template(vm_ref, False)
     make_vm_noninteractive(session, vm_ref)
@@ -1716,7 +1714,7 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
         log.debug("Setting interface up for eth%d (network_ref = %s)" % (i, network_ref))
         setup_vm_on_network(session, vm_ref, network_ref, 'eth%d' % i, wipe=(i==0))
 
-    
+
         if sms and network_ref in sms.keys() and sms[network_ref]:
             static_manager = sms[network_ref]
             ip = static_manager.get_ip()
@@ -1739,18 +1737,18 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
 def deploy_two_droid_vms(session, network_refs, sms=None):
     """A utility method for setting up two VMs, one on the primary host,
     and one on a slave host"""
-    
+
     host_master_ref = get_pool_master(session)
     host_slave_refs = get_pool_slaves(session)
 
     if len(host_slave_refs) == 0:
-        raise Exception("ERROR: There appears to only be one host in this pool." + 
+        raise Exception("ERROR: There appears to only be one host in this pool." +
                         " Please add another host and retry.")
-    
+
     host_slave_ref = host_slave_refs[0]
-            
+
     log.debug("Creating required VMs")
-        
+
     # Get template references
     dmt_ref = prepare_droid_vm(session, host_master_ref)
     dst_ref = prepare_droid_vm(session, host_slave_ref)
@@ -1767,16 +1765,16 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
 
     vm1_ref = results[0] #Droid 1
     vm2_ref = results[1] #Droid 2
-            
+
     brand_vm(session, vm1_ref, FOR_CLEANUP)
     brand_vm(session, vm2_ref, FOR_CLEANUP)
 
     session.xenapi.VM.set_is_a_template(vm1_ref, False)
     session.xenapi.VM.set_is_a_template(vm2_ref, False)
-            
+
     make_vm_noninteractive(session, vm1_ref)
     make_vm_noninteractive(session, vm2_ref)
-            
+
     log.debug("Setup vms on network")
     i = 0
     for network_ref in network_refs:
@@ -1793,11 +1791,11 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
             log.debug("1) IP: %s Netmask: %s Gateway: %s" % (ip1.addr, ip1.netmask, ip1.gateway))
             log.debug("2) IP: %s Netmask: %s Gateway: %s" % (ip2.addr, ip2.netmask, ip2.gateway))
 
-            droid_set_static(session, vm1_ref, 'ipv4', 'eth%d' % i, 
+            droid_set_static(session, vm1_ref, 'ipv4', 'eth%d' % i,
                              ip1.addr, ip1.netmask, ip1.gateway)
-            droid_set_static(session, vm2_ref, 'ipv4', 'eth%d' % i, 
+            droid_set_static(session, vm2_ref, 'ipv4', 'eth%d' % i,
                              ip2.addr, ip2.netmask, ip2.gateway)
-        
+
         # Increment the counter
         i = i + 1
 
@@ -1813,7 +1811,7 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
                                                      host_slave_ref,
                                                      False, False)],
             180)
-    
+
     except TimeoutFunctionException, e:
         # Temporary ignore time out to start VM.
         # If VM failed to start, test will fail while checking IPs.
@@ -1830,13 +1828,13 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
     # Make plugin calls
     for vm_ref in [vm1_ref, vm2_ref]:
         # Install SSH Keys for Plugin operations
-        call_ack_plugin(session, 'inject_ssh_key', 
+        call_ack_plugin(session, 'inject_ssh_key',
                                 {'vm_ref': vm_ref,
                                  'username': 'root',
                                  'password': DEFAULT_PASSWORD})
-                                                    
-        # Ensure that we make sure the switch accesses IP addresses by 
-        # their own interfaces (avoid interface forwarding).        
+
+        # Ensure that we make sure the switch accesses IP addresses by
+        # their own interfaces (avoid interface forwarding).
         call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref})
 
     return vm1_ref, vm2_ref
@@ -1862,9 +1860,9 @@ def get_non_management_pifs(session):
         raise Exception("No management PIFs were found!")
 
     return results
-    
+
 class TimeoutFunction:
-    """Wrapper class for providing a timemout for 
+    """Wrapper class for providing a timemout for
     the execution of a function"""
 
     def __init__(self, function, timeout, exception=''):
@@ -1908,7 +1906,7 @@ def call_ack_plugin(session, method, args={}, host=None):
         host = get_pool_master(session)
     log.debug("About to call plugin '%s' on host '%s' with args '%s'" % \
                 (method, host, args))
-                
+
     return session.xenapi.host.call_plugin(host,
                                            'autocertkit',
                                            method,
@@ -1954,7 +1952,7 @@ def get_vm_device_mac(session, vm_ref, device):
         raise Exception("Error: could not find device '%s' for VM '%s'" %
                         (device, vm_ref))
 
-def get_iface_statistics(session, vm_ref, iface): 
+def get_iface_statistics(session, vm_ref, iface):
     xml_res = call_ack_plugin(session, 'get_iface_stats',
                                         {'iface':iface,
                                         'vm_ref': vm_ref})
@@ -1964,7 +1962,7 @@ def get_iface_statistics(session, vm_ref, iface):
 def set_hw_offload(session, device, offload, state):
     """Call the a XAPI plugin on the pool master to set
     the state of an offload path on/off"""
-    host = get_pool_master(session)    
+    host = get_pool_master(session)
     log.debug("Device: %s - Set %s %s" % (device, offload, state))
     res = session.xenapi.host.call_plugin(host,
                                           'autocertkit',
@@ -2052,7 +2050,7 @@ def _get_type_and_value(entry):
         if len(s) != 2:
             continue
         r[s[0].strip()] = s[1].strip()
-    return r   
+    return r
 
 def get_system_info():
     """Returns some information of system and bios."""
@@ -2131,7 +2129,7 @@ def get_value(rec, key, default=""):
         return rec[key]
     else:
         return default
-    
+
 def print_documentation(object_name):
     print "--------- %s ---------" % bold(object_name)
     classes = enumerate_test_classes()
@@ -2177,14 +2175,14 @@ def read_valid_lines(filename):
 def set_network_mtu(session, network_ref, MTU):
     """Utility function for setting a network's MTU. MTU should be a string"""
     session.xenapi.network.set_MTU(network_ref, str(MTU))
-    pifs = session.xenapi.network.get_PIFs(network_ref)        
+    pifs = session.xenapi.network.get_PIFs(network_ref)
     for pif in pifs:
         unplug_pif(session, pif)
         plug_pif(session, pif)
 
 def intersection(lista, listb):
     """Return the intersection between two lists. Note,
-    for duplicate values, each duplicate will be returned as 
+    for duplicate values, each duplicate will be returned as
     we merely check if item in lista, is in listb."""
     return [item for item in lista if item in listb]
 
@@ -2194,7 +2192,7 @@ def get_cpu_id(cpu_des):
 
     if not cpu_des:
         return "Unkown CPU ID"
-    
+
     if 'intel' in cpu_des.lower():
         # Discard processor frequency
         tmp = cpu_des.split('@')[0]
@@ -2202,7 +2200,7 @@ def get_cpu_id(cpu_des):
         return ' '.join(arr).replace('(R)', '')
     elif 'amd' in cpu_des.lower():
         return cpu_des.replace('(tm)', '')
-        
+
 
 def wait_for_hosts(session, timeout=300):
     """Wait until both hosts are up and live."""
@@ -2224,7 +2222,7 @@ def wait_for_hosts(session, timeout=300):
             hosts.remove(host)
         else:
             if should_timeout(start, timeout):
-                raise Exception("Hosts failed to come back online %s for timeout %d" % 
+                raise Exception("Hosts failed to come back online %s for timeout %d" %
                         (hosts, timeout))
             time.sleep(2)
 
@@ -2242,7 +2240,7 @@ def combine_recs(rec1, rec2):
     rec = dict(rec1)
     for k, v in rec2.iteritems():
         if k in rec.keys():
-            raise Exception("Cannot combine these recs, and keys overalp (%s)" % k)        
+            raise Exception("Cannot combine these recs, and keys overalp (%s)" % k)
         rec[k] = v
 
     return rec
@@ -2252,26 +2250,26 @@ def check_vm_ping_response(session, vm_ref, interface='eth0', count=3, timeout=3
     # Get VM IP and start timeout
     vm_ip = wait_for_ip(session, vm_ref, interface)
     start = time.time()
-    
+
     # Loop while waiting for an ICMP response
     while not should_timeout(start, timeout):
-    
+
         call = ["ping", vm_ip, "-c %s" % count]
-        
+
         # Make the local shell call
         log.debug("Checking for ping response from VM %s on interface %s at %s" % (vm_ref, interface, vm_ip))
         process = subprocess.Popen(call, stdout=subprocess.PIPE)
         stdout, stderr = process.communicate()
         response = str(stdout).strip()
-        
+
         # Check for no packet loss. Note the space before '0%', this is required.
         if " 0% packet loss" in response:
             log.debug("Ping response received from %s" % vm_ip)
             return response
-    
+
         log.debug("No ping response")
         time.sleep(3)
-    
+
     raise Exception("VM %s interface %s could not be reached in the given timeout" % (vm_ref, interface))
 
 def valid_ping_response(ping_response, max_loss=0):
@@ -2288,7 +2286,7 @@ def valid_ping_response(ping_response, max_loss=0):
         return loss <= max_loss
     else:
         # We did not match the ping output, therefore we cannot
-        # validate the response.    
+        # validate the response.
         return False
 
 
