@@ -43,7 +43,7 @@ class ReportPrintsTests(unittest_base.DevTestCase):
         device_node.appendChild(cts_node)
 
         return device_node
-        
+
     def testLSReport(self):
         device_node = self.createDeviceNode(test_generators.StorageTestGenerator)
         report = StreamMock()

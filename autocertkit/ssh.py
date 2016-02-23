@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 import socket, string, sys, os, os.path, traceback, time
@@ -42,7 +42,7 @@ __all__ = ["SSHSession",
            "getPublicKey"]
 
 def getPublicKey():
-    filename = ".ssh/id_dsa.pub" 
+    filename = ".ssh/id_dsa.pub"
     f = file(filename, "r")
     data = f.read()
     f.close()
@@ -103,11 +103,11 @@ class SSHSession:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         sock.connect((ip, SSHPORT))
-            
+
         # Create SSH transport.
         self.trans = paramiko.Transport(sock)
         self.trans.set_log_channel("")
-            
+
         # Negotiate SSH session synchronously.
         goes = 3
         while goes > 0:
@@ -121,15 +121,15 @@ class SSHSession:
                     time.sleep(10)
                 else:
                     raise e
-            
+
         # Load DSS key.
         k = None
         try:
-            dsskey = ".ssh/id_dsa" 
+            dsskey = ".ssh/id_dsa"
             k = paramiko.DSSKey.from_private_key_file(dsskey)
         except:
             pass
-        
+
         # Authenticate session. No host key checking is performed.
         if password:
             if password == "<NOPASSWORD>":
@@ -308,7 +308,7 @@ class SFTPSession(SSHSession):
                 dummy = self.client.listdir("%s/%s" % (source, i))
                 isdir = True
             except:
-                isdir = False                
+                isdir = False
             if isdir:
                 self.copyTreeFromRecurse("%s/%s" % (source, i),
                                          "%s/%s" % (dest, i),
@@ -371,9 +371,9 @@ class SFTPSession(SSHSession):
                                   sizethresh=sizethresh)
                 except:
                     pass
-    
+
     def __del__(self):
-        SSHSession.__del__(self)                
+        SSHSession.__del__(self)
 
 class SSHCommand(SSHSession):
     """An SSH session guarded for target lockups."""
@@ -393,7 +393,7 @@ class SSHCommand(SSHSession):
             log.debug("ssh %s@%s %s" % (username, ip, command))
         SSHSession.__init__(self,
                             ip,
-                            log,                         
+                            log,
                             username=username,
                             timeout=timeout,
                             password=password,
@@ -408,8 +408,8 @@ class SSHCommand(SSHSession):
             self.client.settimeout(timeout)
             self.client.set_combine_stderr(True)
             self.client.exec_command(command)
-            self.client.shutdown(1)            
-            self.fh = self.client.makefile()            
+            self.client.shutdown(1)
+            self.fh = self.client.makefile()
         except Exception, e:
             self.reply = "SSH connection failed",
             self.toreply = 1
@@ -418,14 +418,14 @@ class SSHCommand(SSHSession):
     def read(self, retval="code", fh=None):
         """Process the output and result of the command.
 
-        @param retval: Whether to return the result code (default) or 
+        @param retval: Whether to return the result code (default) or
             stdout as a string.
-    
+
             string  :   Return a stdout as a string.
-            code    :   Return the result code. (Default). 
-                  
+            code    :   Return the result code. (Default).
+
             If "string" is used then a failure results in an exception.
- 
+
         """
 
         if self.toreply:
@@ -452,10 +452,10 @@ class SSHCommand(SSHSession):
             if not self.nolog and not fh:
                 self.log.debug(output)
         self.exit_status = self.client.recv_exit_status()
-        
+
         # Local clean up.
         self.close()
-        
+
         if retval == "code":
             return self.exit_status
         if self.exit_status == -1:
@@ -464,10 +464,10 @@ class SSHCommand(SSHSession):
             return "SSH command exited with error (%s)" % (self.command)
 
         return reply
-    
+
     def __del__(self):
-        SSHSession.__del__(self)   
- 
+        SSHSession.__del__(self)
+
 def SSH(ip,
         command,
         username="root",

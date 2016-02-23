@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """A module for network specific tests"""
@@ -51,13 +51,13 @@ class IperfTest:
                       'buffer_length': '256K',
                       'thread_count': '1'}
 
-    def __init__(self, session, 
-                       client_vm_ref, 
-                       server_vm_ref, 
+    def __init__(self, session,
+                       client_vm_ref,
+                       server_vm_ref,
                        network_ref,
                        static_manager,
-                       username='root', 
-                       password=DEFAULT_PASSWORD, 
+                       username='root',
+                       password=DEFAULT_PASSWORD,
                        config=None):
 
         self.session = session
@@ -127,7 +127,7 @@ class IperfTest:
         self.plugin_call('reset_arp',
                     {'vm_ref': self.server,
                     })
-        
+
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',
                    {'vm_ref': self.client,
@@ -164,13 +164,13 @@ class IperfTest:
         # Capture interface statistics pre test run
         self.record_stats()
 
-        iperf_test_inst = TimeoutFunction(self.run_iperf_client, 
+        iperf_test_inst = TimeoutFunction(self.run_iperf_client,
                                           self.timeout,
                                           'iPerf test timed out %d' % self.timeout)
 
         # Run the iperf tests
         iperf_data = iperf_test_inst()
-    
+
         # Capture interface statistcs post test run
         bytes_transferred = int(iperf_data['transfer'])
         self.validate_stats(bytes_transferred)
@@ -211,11 +211,11 @@ class IperfTest:
                              {'vm_ref': vm_ref,
                               'username': self.username,
                               'password': self.password})
-                             
+
         deploy(self.client)
         deploy(self.server)
 
-    def get_device_name(self, vm_ref): 
+    def get_device_name(self, vm_ref):
         vm_host = self.session.xenapi.VM.get_resident_on(vm_ref)
 
         if self.session.xenapi.VM.get_is_control_domain(vm_ref):
@@ -226,11 +226,11 @@ class IperfTest:
                 host_ref = self.session.xenapi.PIF.get_host(pif)
                 if vm_host == host_ref:
                     device_names.append(self.session.xenapi.PIF.get_device(pif))
-                  
+
             if len(device_names) > 1:
                 raise Exception("Error: expected only a single device " + \
                                 "name to be found in PIF list ('%s') " + \
-                                "Instead, '%s' were returned." % 
+                                "Instead, '%s' were returned." %
                                                 (pifs, device_names))
             device_name = device_names.pop()
             # For control domains, only deal with bridges
@@ -244,8 +244,8 @@ class IperfTest:
                       if self.session.xenapi.VIF.get_device(vif) != '0']
 
             network_vifs = self.session.xenapi.network.get_VIFs(self.network)
-    
-            int_vifs = intersection(filtered_vifs, network_vifs) 
+
+            int_vifs = intersection(filtered_vifs, network_vifs)
 
             if len(int_vifs) > 1:
                 raise Exception("Error: more than one VIF connected " + \
@@ -255,8 +255,8 @@ class IperfTest:
                           self.session.xenapi.VIF.get_device(int_vifs.pop())
 
         log.debug("Device under test for VM %s is '%s'" % (vm_ref, device_name))
-        return device_name 
-    
+        return device_name
+
     def get_iface_stats(self, vm_ref):
         device_name = self.get_device_name(vm_ref)
 
@@ -285,7 +285,7 @@ class IperfTest:
                 args['ip_netmask'] = ip.netmask
             else:
                 args['mode'] = 'dhcp'
-            
+
             host_ref = self.session.xenapi.VM.get_resident_on(vm_ref)
             call_ack_plugin(self.session,
                             'configure_local_device',
@@ -313,14 +313,14 @@ class IperfTest:
                 args['mode'] = 'dhcp'
 
             call_ack_plugin(self.session,
-                           'start_iperf_server', 
+                           'start_iperf_server',
                             args,
                             host=host_ref)
         else:
             m_ip_address = self.get_server_ip('eth0')
             test_ip = self.get_server_ip()
             cmd_str = "iperf -s -D -B %s < /dev/null >&/dev/null" % test_ip
-            ssh_command(m_ip_address, self.username, self.password, cmd_str)    
+            ssh_command(m_ip_address, self.username, self.password, cmd_str)
 
     def parse_iperf_line(self, data):
         """Take a CSV line from iperf, parse, returning a dictionary"""
@@ -360,12 +360,12 @@ class IperfTest:
         def copy(param, arg_str):
             if param in self.config.keys() and self.config[param]:
                 params.append(arg_str % self.config[param])
-        
+
         copy('window_size', '-w %s')
         copy('buffer_length', '-l %s')
         copy('format', '-f %s')
         copy('thread_count', '-P %s')
-        
+
         cmd_str = "iperf -y csv %s -m -c %s" % (" ".join(params), self.get_server_ip())
         return cmd_str
 
@@ -375,7 +375,7 @@ class IperfTest:
         if self.session.xenapi.VM.get_is_control_domain(self.client):
             #Run client via XAPI plugin
             log.debug("Executing iperf test from Dom0 (%s (%s) --> %s (%s))" % \
-                (self.session.xenapi.VM.get_name_label(self.client), 
+                (self.session.xenapi.VM.get_name_label(self.client),
                 self.client,
                 self.session.xenapi.VM.get_name_label(self.server),
                 self.server))
@@ -385,13 +385,13 @@ class IperfTest:
             def copy(param):
                 if param in self.config.keys() and self.config[param]:
                     args[param] = self.config[param]
-            
+
             copy('window_size')
             copy('format')
             copy('buffer_length')
             copy('thread_count')
             args['dst'] = self.get_server_ip()
-            args['vm_ref'] = self.client        
+            args['vm_ref'] = self.client
 
             result = self.plugin_call('iperf_test', args)
         else:
@@ -400,12 +400,12 @@ class IperfTest:
             result = ssh_command(self.get_client_ip(), self.username, self.password, cmd_str)
         return self.parse_iperf_line(result)
 
-    
+
 
 class VLANTestClass(testbase.NetworkTestClass):
     """A test class for ensuring that hardware
     can cope with VLAN traffic correctly"""
-    
+
     required_config = ['device_config', 'vlan_id']
     tags = ['DEMO']
     default_vlan = 800
@@ -421,7 +421,7 @@ class VLANTestClass(testbase.NetworkTestClass):
 
         #Take just the first available device to test
         device = devices[0]
-        
+
         vlans = self.get_vlans(device)
         vlans.sort()
         vlan_id = vlans.pop()
@@ -432,9 +432,9 @@ class VLANTestClass(testbase.NetworkTestClass):
 
         for pif_ref in get_pifs_by_device(session, device):
             log.debug("Creating VLAN for PIF %s" % pif_ref)
-            log.debug("Network ref = %s vlan_id = %s" % 
+            log.debug("Network ref = %s vlan_id = %s" %
                       (vlan_network_ref, vlan_id))
-            create_vlan(session, pif_ref, 
+            create_vlan(session, pif_ref,
                         vlan_network_ref, vlan_id)
 
         log.debug("VLAN for PIF created")
@@ -447,7 +447,7 @@ class VLANTestClass(testbase.NetworkTestClass):
         sms = {}
         sms[management_network_ref] = self.get_static_manager(management_network_ref)
         sms[vlan_network_ref] = self.get_static_manager(vlan_network_ref, vlan=vlan_id)
-        
+
         #Deploy two VMs
         vm1_ref, vm2_ref = deploy_two_droid_vms(session, network_refs, sms)
 
@@ -466,13 +466,13 @@ class VLANTestClass(testbase.NetworkTestClass):
             dhcp = False
 
         log.debug("About to configure network interfaces over SSH")
-       
+
         vm2_eth1_ip = wait_for_ip(session, vm2_ref, 'eth1')
 
         #Make certain the VMs are available
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session, vm_ref)
-                
+
         #Run Ping Command
         ping_result = ping(vm1_ip, vm2_eth1_ip, 'eth1')
         log.debug("Result: %s" % ping_result)
@@ -481,7 +481,7 @@ class VLANTestClass(testbase.NetworkTestClass):
         rec['info'] = ping_result
 
         if "0% packet loss" not in ping_result:
-            raise TestCaseError("Error: Ping transmittion failed. %s" 
+            raise TestCaseError("Error: Ping transmittion failed. %s"
                                 % ping_result)
 
         return rec
@@ -490,11 +490,11 @@ class BondingTestClass(testbase.NetworkTestClass):
     """A test class for ensuring that hardware
         can cope with network bonding correctly"""
 
-    required_config = ['device_config']  
+    required_config = ['device_config']
     num_ips_required = 2
-            
+
     def _setup_network(self, session, mode):
-        """Util function for creating a pool-wide network, 
+        """Util function for creating a pool-wide network,
             NIC bond of specified mode on each host"""
         log.debug("Setting up %s NIC bond" % mode)
         net_ref = create_network(session, 'bond0', '', {})
@@ -502,16 +502,16 @@ class BondingTestClass(testbase.NetworkTestClass):
 
         # Use the first physical interface returned
         self.piface = self.get_primary_bond_iface()[0]
-        # Use the first bondable interface for the specified physical interface above 
+        # Use the first bondable interface for the specified physical interface above
         self.siface = self.get_bondable_ifaces(self.piface)[0]
-        
+
         # Organize the correct PIF ref sets
         pifs_ref_set_by_host = []
         for host in session.xenapi.host.get_all():
             pif1 = get_pifs_by_device(session, self.piface, [host])
             pif2 = get_pifs_by_device(session, self.siface, [host])
             pifs_ref_set_by_host.append(pif1 + pif2)
-            
+
         # Create nic bond
         for pifs_ref_set in pifs_ref_set_by_host:
             log.debug("Bonding PIF set %s to network %s" % (pifs_ref_set, net_ref))
@@ -521,7 +521,7 @@ class BondingTestClass(testbase.NetworkTestClass):
 
         management_network_ref = get_management_network(session)
         return [management_network_ref, net_ref]
-                    
+
     def _setup_vms(self, session, net_refs):
         """Util function for returning VMs to run bonding test on"""
         log.debug("Setting up droid vms...")
@@ -533,10 +533,10 @@ class BondingTestClass(testbase.NetworkTestClass):
             sms[net_ref] = self.get_static_manager(net_ref)
 
         return deploy_two_droid_vms(session, net_refs, sms)
-        
+
     def _run_test(self, session, mode):
         """Test control method for configuring the NIC bond,
-            configuring the test VMs, and testing for an active 
+            configuring the test VMs, and testing for an active
             network connection while the NIC bond is degraded.
             Returns failure if any packet loss."""
         net_refs = self._setup_network(session, mode)
@@ -546,41 +546,41 @@ class BondingTestClass(testbase.NetworkTestClass):
 
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session,vm_ref)
-    
+
         log.debug("Starting test...")
         results = []
         #Test healthy bond
         results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
-        
+
         #Test degraded bond
         set_nic_device_status(session, self.piface, 'down')
         results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
-        
+
         #Test degraded bond
         set_nic_device_status(session, self.piface, 'up')
         set_nic_device_status(session, self.siface, 'down')
         results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
-        
+
         set_nic_device_status(session, self.siface, 'up')
-       
+
         rec = {}
         rec['data'] = results
         rec['config'] = mode
-       
+
         for result in results:
             if not valid_ping_response(result, 20):
-                raise TestCaseError("Error: Ping transmittion failed for bond type: %s. %s" 
+                raise TestCaseError("Error: Ping transmittion failed for bond type: %s. %s"
                                     % (mode, result))
             else:
                 log.debug("Ping Result: %s" % result)
-                
+
         return rec
-    
+
     def test_nic_bond_balance_slb(self, session):
         """NIC bonding test case for balance-slb type bond"""
         log.debug("Starting to run test_nic_bond_balance_slb...")
         return self._run_test(session, 'balance-slb')
-    
+
     def test_nic_bond_active_backup(self, session):
         """NIC bonding test class for active-backup type bond"""
         log.debug("Starting to run test_nic_bond_active_backup...")
@@ -599,7 +599,7 @@ class IperfTestClass(testbase.NetworkTestClass):
                   'thread_count': '4'}
 
     required_config = ['device_config']
-    network_for_test = None 
+    network_for_test = None
     num_ips_required = 2
 
     mode = "vm-vm"
@@ -621,7 +621,7 @@ class IperfTestClass(testbase.NetworkTestClass):
         can be subclassed to run different configurations"""
         log.debug("Setting up VM - VM cross host test")
 
-        # Setup default static manager with the available interfaces    
+        # Setup default static manager with the available interfaces
         sms = {}
         for network_ref in network_refs:
             sms[network_ref] = self.get_static_manager(network_ref)
@@ -635,7 +635,7 @@ class IperfTestClass(testbase.NetworkTestClass):
         sms = {}
         for network_ref in network_refs:
             sms[network_ref] = self.get_static_manager(network_ref)
-    
+
         log.debug("Create droid")
         vm2_ref = deploy_slave_droid_vm(session, network_refs, sms)
         log.debug("droid created")
@@ -651,7 +651,7 @@ class IperfTestClass(testbase.NetworkTestClass):
     def _run_test(self, session, direction):
 
         log.debug("Testing with mode %s" % direction)
-        
+
         #Use the first available network to run tests on
         network_refs = self._setup_network(session)
 
@@ -675,13 +675,13 @@ class IperfTestClass(testbase.NetworkTestClass):
 
         log.debug("Client IPerf VM ref: %s" % client)
         log.debug("Server IPerf VM ref: %s" % server)
-            
+
         log.debug("About to run iperf test...")
 
         #Run an iperf test - if failure, an exception should be raised.
-        iperf_data = IperfTest(session, client, server, 
+        iperf_data = IperfTest(session, client, server,
                                 self.network_for_test,
-                                self.get_static_manager(self.network_for_test), 
+                                self.get_static_manager(self.network_for_test),
                                 config=self.IPERF_ARGS).run()
 
         return {'info': 'Test ran successfully',
@@ -741,7 +741,7 @@ class PIFParamTestClass(IperfTestClass):
                 if '[fixed]' in hw_offloads[k]:
                     raise FixedOffloadException("Required offload %s is fixed to %s." % (k, hw_offloads[k]))
                 raise Exception("%s offload was not in the correct state (is %s)" % (k, hw_offloads[k]))
-                                
+
     def _setup_pif_params(self, session, network_ref):
         pifs = session.xenapi.network.get_PIFs(network_ref)
         log.debug("PIFs retrieved %s" % pifs)
@@ -758,7 +758,7 @@ class PIFParamTestClass(IperfTestClass):
         management_network_ref = get_management_network(session)
 
         for network_ref in network_refs:
-    
+
             # Don't configure PIF params for the management NIC
             if network_ref != management_network_ref:
                 #Setup Pif Params
@@ -772,7 +772,7 @@ class PIFParamTestClass(IperfTestClass):
 class Dom0VMIperfTestClass(PIFParamTestClass):
     """A subclass of the PIFParamTest class, this
     class runs the tests between Dom0 and a VM,
-    rather than just between VMs"""    
+    rather than just between VMs"""
 
     mode = "dom0-vm"
     IPERF_ARGS = {'format': 'm',
@@ -821,14 +821,14 @@ class Dom0PIFParamTestClass3(Dom0PIFParamTestClass1):
 
 class Dom0BridgePIFParamTestClass1(PIFParamTestClass):
     """A class for Dom0 - VM PIF param testing"""
-    
+
     network_backend = "bridge"
     mode = "dom0-dom0"
     order = 5
 
 class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
- 
+
     caps = []
     required = False
     OFFLOAD_CONFIG = {'sg': 'on',
@@ -841,7 +841,7 @@ class Dom0BridgePIFParamTestClass2(Dom0BridgePIFParamTestClass1):
 
 class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
     """A class for Dom0 - VM PIF param testing"""
-    
+
     caps = []
     required = False
     OFFLOAD_CONFIG = {'sg': 'on',
@@ -853,24 +853,24 @@ class Dom0BridgePIFParamTestClass3(Dom0BridgePIFParamTestClass1):
                       'txvlan': 'on'}
 
 ########## Jumbo Frames (Large MTU) Test Classes ###########
-    
+
 class MTUPingTestClass(testbase.NetworkTestClass):
-    """A test class for ensuring that hardware can cope with 
-    transmitting large MTU.  Note, this test case is only 
+    """A test class for ensuring that hardware can cope with
+    transmitting large MTU.  Note, this test case is only
     compatible with the open vswitch backend"""
-    
+
     MTU = '9000'
-    
+
     PING_ARGS = {'packet_size': 8000,
                  'packet_count': 20}
-    
+
     username = 'root'
     password = DEFAULT_PASSWORD
 
     num_ips_required = 2
-    
+
     def _setup_network(self, session):
-        """Utility method for setting the network MTU and 
+        """Utility method for setting the network MTU and
         returning the network reference to be used by VMs"""
         net_ref = self.get_networks()[0]
 
@@ -890,17 +890,17 @@ class MTUPingTestClass(testbase.NetworkTestClass):
             sms[net_ref] = self.get_static_manager(net_ref)
 
         return deploy_two_droid_vms(session, net_refs, sms)
-    
+
     def _run_test(self, session):
         """Runs a ping test using a set MTU and the -M switch,
         for MTU discovery, to verify successful packet delivery to VM2"""
-        
+
         #setup required network
         net_refs = self._setup_network(session)
-        
+
         #setup VMs for test
         vm1_ref, vm2_ref = self._setup_vms(session, net_refs)
-        
+
         #retrieve VM IPs
         vm1_ip = wait_for_ip(session, vm1_ref, 'eth0')
         log.debug("VM %s has IP %s (iface: eth0)" % (vm1_ref, vm1_ip))
@@ -923,8 +923,8 @@ class MTUPingTestClass(testbase.NetworkTestClass):
                 'dest_ip': vm2_ip_eth1,
                 'dest_mac': get_vm_device_mac(session, vm2_ref, 'eth1'),
                 'device': 'eth1',
-               }   
-        
+               }
+
         call_ack_plugin(session, 'add_route', args)
 
         args = {
@@ -932,8 +932,8 @@ class MTUPingTestClass(testbase.NetworkTestClass):
                 'dest_ip': vm1_ip_eth1,
                 'dest_mac': get_vm_device_mac(session, vm1_ref, 'eth1'),
                 'device': 'eth1',
-               }   
-        
+               }
+
         call_ack_plugin(session, 'add_route', args)
 
 
@@ -946,7 +946,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         cmd_str = 'ifconfig eth1 mtu %s up' % self.MTU
         for vm_ip in ips:
             ssh_command(vm_ip, self.username, self.password, cmd_str)
-        
+
         log.debug("Starting large MTU ping test...")
 
         log.debug("Attempt normal ping first...")
@@ -957,20 +957,20 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         #set ping args and run cmd
         ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1', self.PING_ARGS['packet_size'], self.PING_ARGS['packet_count'])
         log.debug("Result: %s" % ping_result)
-            
-            
+
+
         rec = {}
         rec['data'] = ping_result
         rec['config'] = self.PING_ARGS
-            
+
         #Check for failure
         if "0% packet loss" not in ping_result:
-            raise TestCaseError("Error: Large MTU ping transmission failed. %s" 
+            raise TestCaseError("Error: Large MTU ping transmission failed. %s"
                                 % ping_result)
-    
+
         return rec
-    
-        
+
+
     def test_ping(self, session):
         log.debug("run test...")
         return self._run_test(session)
@@ -1000,4 +1000,4 @@ class GROOffloadBridgeTestClass(GROOffloadTestClass):
     GRO is on by default from XS 6.5 """
     network_backend = "bridge"
     order = 5
-    
+

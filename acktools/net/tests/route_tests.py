@@ -16,12 +16,12 @@ class RouteObjectTests(unittest.TestCase):
                  'mask': '0.0.0.0',
                  'iface': 'eth1',
                 }
-        
+
     def setUp(self):
         self.route_obj = route.Route(**self.route_rec)
 
     def test_get_dest(self):
-        self.assertEqual(self.route_obj.get_dest(), 
+        self.assertEqual(self.route_obj.get_dest(),
                          self.route_rec['dest'])
 
     def test_get_gw(self):
@@ -48,8 +48,8 @@ class RouteObjectTests(unittest.TestCase):
 
 class RouteTableTests(unittest.TestCase):
 
-    route_recs = [ 
-                   {'dest': '0.0.0.0', 'gw': '10.80.2.1', 
+    route_recs = [
+                   {'dest': '0.0.0.0', 'gw': '10.80.2.1',
                     'mask': '0.0.0.0', 'iface': 'eth1'},
                    {'dest': '192.168.0.0', 'gw':'192.168.0.1',
                     'mask': '255.255.255.0', 'iface':'eth3'}
@@ -126,7 +126,7 @@ class RouteMethodTests(unittest.TestCase):
             self.assertEqual(route_obj.get_gw(), gw)
             self.assertEqual(route_obj.get_mask(), mask)
             self.assertEqual(route_obj.get_iface(), iface)
-        
+
         for route_obj in routes:
             if route_obj.get_dest() == '0.0.0.0':
                 assert_about_obj(route_obj, '10.80.2.1', '0.0.0.0', 'eth0')

@@ -3,31 +3,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 
@@ -162,7 +162,7 @@ def parse_netconf_file(filename):
 
         if arr.count('=') != 1:
             raise Exception("Error: format of netconf file should be 'key = value'")
-        
+
         key, value = [items.strip() for items in arr.split('=')]
 
         if key.startswith('eth'):
@@ -185,10 +185,10 @@ def parse_netconf_file(filename):
                 # Convert values to integers
                 vlan_ids = [int(x) for x in vlan_str.split(',')]
                 # Ensure that the specified VLAN is valid
-                for vlan_id in vlan_ids:        
+                for vlan_id in vlan_ids:
                     if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
                         raise utils.InvalidArgument('VLAN ID for %s' % arr[0], vlan_id, '%d < x < %d' %
-                                                    (MIN_VLAN, MAX_VLAN))  
+                                                    (MIN_VLAN, MAX_VLAN))
             except ValueError:
                 raise utils.InvalidArgument('VLAN IDs', vlan_str, '%d < x < %d: x = INT' %
                                             (MIN_VLAN, MAX_VLAN))
@@ -209,7 +209,7 @@ def parse_netconf_file(filename):
 
         else:
             raise Exception("Error: unable to parse line: '%s'" % arr)
-                        
+
 
     return rec
 
@@ -227,15 +227,15 @@ def parse_static_config(string):
     """Parse a string specifying static networking config for droid VMs to use.
     The format should be ip_start,ip_end,netmask,gateway."""
     arr = string.split(',')
-    
+
     if len(arr) != 4:
         raise Exception("The static config string supplied was invalid. It should be of the form: ip_start,ip_end,netmask,gateway. Actually '%s'" % string)
 
     config = {}
-    
+
     def copy(label, pos):
         config[label] = arr[pos].strip()
-    
+
     copy('ip_start', 0)
     copy('ip_end',1)
     copy('netmask',2)
@@ -250,16 +250,16 @@ def network_interfaces_to_test(session, config):
 
     # Extract from netconf the network interfaces that the user
     # has specified.
-    ifaces_to_test = [iface.strip() for iface in config['netconf'].keys() 
+    ifaces_to_test = [iface.strip() for iface in config['netconf'].keys()
                       if iface.startswith('eth')]
 
     devices = utils.get_master_network_devices(session)
 
     # Filter the list of devices available on the master by the interfaces
     # specified by the caller in their netconf file.
-    devices_to_test = [dev for dev in devices 
+    devices_to_test = [dev for dev in devices
                       if dev['Kernel_name'] in ifaces_to_test]
-    
+
     device_groups_list = []
     for key, items in itertools.groupby(devices_to_test, operator.itemgetter('PCI_id')):
         device_groups_list.append(list(items))
@@ -267,7 +267,7 @@ def network_interfaces_to_test(session, config):
     ifaces = []
     for grp in device_groups_list:
         dev = grp[0] #we can use any of the devices in the group
-        ifaces.append(dev['Kernel_name']) 
+        ifaces.append(dev['Kernel_name'])
     return ifaces
 
 def storage_interfaces_to_test(session):
@@ -314,7 +314,7 @@ def generate_test_config(session, config, test_run_file):
     root_node.appendChild(global_config_node)
 
     # Create the XML node under which, each device we are testing
-    # is located. 
+    # is located.
 
     devices_node = doc.createElement('devices')
     root_node.appendChild(devices_node)
@@ -352,11 +352,11 @@ def generate_test_config(session, config, test_run_file):
 @utils.log_exceptions
 def pre_flight_checks(session, config):
     """Check for some of the common problems"""
-    
+
     #Check for a run in progress
     if check_for_process():
         raise Exception("Error: An ACK process already exists on this host. Kill all running ACK processes and start the test again.")
-    
+
     #Check for at least two hosts
     hosts = session.xenapi.host.get_all()
     if len(hosts) < 2:
@@ -371,7 +371,7 @@ def pre_flight_checks(session, config):
     for host in hosts:
        avail_storage = utils.find_storage_for_host(session, host)
        if not avail_storage:
-           raise Exception("Error: host '%s' has no available storage.") 
+           raise Exception("Error: host '%s' has no available storage.")
 
     #Check that we have at least two network adaptors, on the same network
     recs = config['netconf']
@@ -379,7 +379,7 @@ def pre_flight_checks(session, config):
     for k, v in recs.iteritems():
         if k.startswith('eth'):
             ifaces[k] = v['network_id']
-    
+
     utils.log.debug("Network interfaces specified in config file: %s" % ifaces.keys())
 
     if 'singlenic' in config.keys() and config['singlenic'] == "true":
@@ -395,11 +395,11 @@ def pre_flight_checks(session, config):
         if ifaces.values().count(v) < 2:
             raise Exception("Error: ethernet device %s on network %s is defined in the network config but does not have a matching partner. \
                 Please review the nework configuration and minumum requirements of this kit." % (k, v))
-    
+
 def main(config, test_run_file):
     """Main routine - assess which tests should be run, and create
     output file"""
-    
+
     session = get_xapi_session(config)
 
     # Release current logger before running logrotate.
@@ -407,9 +407,9 @@ def main(config, test_run_file):
 
     # Run log rotate before ACK produces any log.
     for host_ref in session.xenapi.host.get_all():
-        res = session.xenapi.host.call_plugin(host_ref, 
+        res = session.xenapi.host.call_plugin(host_ref,
                                     'autocertkit',
-                                    'run_ack_logrotate', 
+                                    'run_ack_logrotate',
                                     {})
     utils.configure_logging('auto-cert-kit')
 

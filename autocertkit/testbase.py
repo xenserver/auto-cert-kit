@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """Module for base test clasess from which test cases are derived"""
@@ -73,7 +73,7 @@ class TestClass(object):
         extra initialisation"""
         # Make sure we only run this on test run.
         if 'device_config' in self.config.keys():
-            self.generate_static_net_conf()        
+            self.generate_static_net_conf()
 
     def host_setup(self):
         """Method for running setup commands on a host
@@ -121,7 +121,7 @@ class TestClass(object):
                         rec[field] = res[field]
                     elif keep_tag:
                         rec[field] = ""
-                
+
                 copy_field(rec, res, 'info')
                 copy_field(rec, res, 'data')
                 copy_field(rec, res, 'config')
@@ -143,7 +143,7 @@ class TestClass(object):
                 rec['result'] = 'fail'
                 rec['trackeback'] = traceb
                 rec['exception'] = "Unexpected error: %s" % sys.exc_info()[0]
-                log.debug(traceb)  
+                log.debug(traceb)
                 if debug:
                     log.debug("Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
                     sys.exit(0)
@@ -174,8 +174,8 @@ class TestClass(object):
 
     def list_tests(self):
         """Return a list of tests contained within this class"""
-        method_list = [method for method in dir(self) 
-                      if callable(getattr(self,method)) 
+        method_list = [method for method in dir(self)
+                      if callable(getattr(self,method))
                       and method.startswith('test')]
         return method_list
 
@@ -208,7 +208,7 @@ class TestClass(object):
         res = {}
         regex = re.compile(r'static_(?P<netid>\d+)_(?P<vlan>\d+)')
 
-        # Iterate through the network config structure to 
+        # Iterate through the network config structure to
         # see if we have any static managers to initialise.
         for k, v in self.get_netconf().iteritems():
             # We only care about vlans on the physical network ID this test is running on
@@ -223,7 +223,7 @@ class TestClass(object):
 
                 # We must assign this static manager to all of the network references
                 # which have the netid that has been specified.
-                if network_id in netid_rec.keys():    
+                if network_id in netid_rec.keys():
                     for iface in netid_rec[network_id]:
                         log.debug("Create static config for %s (%s)" % (iface, vlan))
                         key_name = "%s_%s" % (iface, vlan)
@@ -231,7 +231,6 @@ class TestClass(object):
                         res[key_name] = sm
                         log.debug("Added static conf for '%s'" % key_name)
 
-        
         self.static_managers = res
         log.debug("Static Managers Created: %s" % self.static_managers)
 
@@ -251,7 +250,7 @@ class TestClass(object):
 
         # In the case of a bond, we do not mind which device is used.
         iface = devices.pop()
-    
+
         key = "%s_%s" % (iface, vlan)
         if key in self.static_managers.keys():
             return self.static_managers[key]
@@ -259,7 +258,7 @@ class TestClass(object):
             return None
 
     def get_vlans(self, iface):
-        """ For a specified ethernet interface, return the list of 
+        """ For a specified ethernet interface, return the list of
         VLANs that the user has declared to be in operation."""
         netconf = eval(self.config['netconf'])
         if iface not in netconf:
@@ -313,15 +312,15 @@ class TestClass(object):
         results = []
         for device in devices:
             #Array access exception would be raised by filter_pif_devices
-            pifs = get_pifs_by_device(self.session, device) 
+            pifs = get_pifs_by_device(self.session, device)
 
             #Assumption that two PIFs are on the same network
             network_ref = self.session.xenapi.PIF.get_network(pifs[0])
             if len(pifs) > 1:
                 for pif in pifs[1:]:
                     if self.session.xenapi.PIF.get_network(pif) != network_ref:
-                        raise Exception("Assumption that identical devices " + 
-                                        "in a pool are attached to the same " + 
+                        raise Exception("Assumption that identical devices " +
+                                        "in a pool are attached to the same " +
                                         "network is invalid!")
             results.append(network_ref)
 
@@ -336,11 +335,11 @@ class NetworkTestClass(TestClass):
     base_tag = 'NA'
     network_backend = 'vswitch'
     num_ips_required = 0
-    
+
     def host_setup(self):
         """Overload setup function. Setup networking backend"""
         master_ref = get_pool_master(self.session)
-    
+
         host_refs = self.session.xenapi.host.get_all()
 
         for host_ref in host_refs:
@@ -351,13 +350,13 @@ class NetworkTestClass(TestClass):
                 route_recs = [route.get_record() for route in routes]
                 oc[default_routes_key] = str(route_recs)
                 self.session.xenapi.host.set_other_config(host_ref, oc)
-    
+
         def plugin_call(method, args):
             return self.session.xenapi.host.call_plugin(master_ref,
                                                         'autocertkit',
                                                         method,
                                                         args)
-        
+
         backend = plugin_call('get_network_backend', {})
         log.debug("Current network backend: %s" % backend)
         log.debug("self.network_backend %s" % self.network_backend)
@@ -403,16 +402,19 @@ class NetworkTestClass(TestClass):
         for iface in self.get_equivalent_devices():
             if self.get_bondable_ifaces(iface):
                 res.append(iface)
-                
+
         return res
+
 
 class LocalStorageTestClass(TestClass):
     """Sub class for storage tests"""
     base_tag = 'LS'
 
+
 class CPUTestClass(TestClass):
     """Sub class for CPU tests"""
     base_tag = 'CPU'
+
 
 class OperationsTestClass(TestClass):
     """Sub class for Operations tests"""

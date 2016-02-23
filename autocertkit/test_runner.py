@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """Interface for running a test set. For CLI, you
@@ -39,7 +39,7 @@ global parameters as set on the CLI should be passed
 to this file.
 
 The CLI, when it creates the test file, will add a init
-script to run this python file on the test and config 
+script to run this python file on the test and config
 files on every boot. As we process the test file, we will
 mark off each executed test. This gives us the ability to
 perform a host reboot for particular tests, and then to
@@ -108,7 +108,7 @@ def mark_test_as_executed(test_file, test_name):
     for test_line in mlist:
         if test_line['fqtn'] == test_name:
             test_line['executed'] = True
-        
+
         #Translate to text
         if test_line['executed']:
             executed = 'yes'
@@ -179,11 +179,11 @@ def run_tests_from_file(test_file):
     ack_model = models.parse_xml(test_file)
 
     config = ack_model.get_global_config()
-    
+
     log.debug("ACK Model: %s" % ack_model.is_finished())
     if not ack_model.is_finished():
         # Ensure that we cleanup before running tests, in case
-        # the system has been left in a failed state. 
+        # the system has been left in a failed state.
         pool_wide_cleanup(session)
 
     while not ack_model.is_finished():
@@ -210,7 +210,7 @@ def run_tests_from_file(test_file):
 
         # Update the python objects with results
         next_test_class.update(result)
-     
+
         # Save the updated test class back to the config file
         next_test_class.save(test_file)
 
@@ -241,25 +241,24 @@ def run_tests_from_file(test_file):
         log.debug("The output package has been saved here: %s" % package_loc)
 
     return test_file, package_loc
-    
 
 def get_test_class(fqtn):
     arr = fqtn.split('.')
     if len(arr) != 2:
         raise Exception("Test name specified is incorrect. It should be module.class")
-    
+
     modules = get_module_names(arr[0])
     assert len(modules) == 1
-    
+
     test_classes = inspect.getmembers(sys.modules[modules[0]],
                                       inspect.isclass)
 
     for test_name, test_class in test_classes:
         if arr[1] == test_name:
             return test_class
-    
+
     raise Exception("Specified FQTN not found! (%s)" % fqtn)
-    
+ 
 
 if __name__ == "__main__":
     #Main function entry point
@@ -268,11 +267,11 @@ if __name__ == "__main__":
     log = configure_logging('auto-cert-kit')
 
     parser = OptionParser(usage="%prog [-c] [-t]", version="%prog 0.1")
-    
+
     parser.add_option("-t", "--test file",
                       dest="testfile",
                       help="Specify the test sequence file")
-    
+
     (options, _) = parser.parse_args()
 
     if not options.testfile:

@@ -49,7 +49,7 @@ class NetworkConfRobustTests(unittest.TestCase):
             self.assertRaises(exception, ack_cli.parse_netconf_file, filename)
         else:
             self.assertTrue(ack_cli.parse_netconf_file(filename) == output)
-        
+
     def testExampleNetconf(self):
         output = {'static_0_200': {'gw': '192.168.0.1',
                                 'netmask': '255.255.255.0',
