@@ -47,7 +47,7 @@ class Session(XenAPIObject):
 
     def __init__(self):
         super(Session, self).__init__()
-        self.__hosts = [Host(), Host()]
+        self.__pool = Pool()
         self.__xenapi = XenapiMock()
 
     @property
@@ -57,6 +57,22 @@ class Session(XenAPIObject):
     @property
     def handle(self):
         return self.__opaque
+
+    @property
+    def pools(self):
+        return [self.__pool]
+
+    @property
+    def hosts(self):
+        return self.__pool.hosts
+
+
+class Pool(XenAPIObject):
+    """Pool data structure for XenAPI Pool mock"""
+
+    def __init__(self):
+        super(Pool, self).__init__()
+        self.__hosts = [Host(), Host()]
 
     @property
     def hosts(self):
@@ -111,12 +127,38 @@ class XenapiMock(mock.Mock):
     """ 
 
     @property
+    def pool(self):
+        return PoolMock()
+
+    @property
     def host(self):
         return HostMock()
 
     @property
     def host_metrics(self):
         return HostMetricsMock()
+
+
+class PoolMock(mock.Mock):
+    """
+    session.xenapi.pool lib mock class.
+
+    All pool XenAPI calls are made on this module.
+    """
+
+    def get_all(self):
+        # For ACK only 1 pool of 2 hosts exist only.
+        return [pool.opaque for pool in Session.instance().pools]
+
+    def __getPool(self, opaque):
+        for p in Session.instance().pools:
+            if p.opaque == opaque:
+                return p
+
+        raise Exception('Cannot find pool opaque: %s' % opaque)
+                
+    def get_master(self, opaque):
+        return self.__getPool(opaque).hosts[0].opaque
 
 
 class HostMock(mock.Mock):
@@ -135,7 +177,7 @@ class HostMock(mock.Mock):
                 return h
 
         raise Exception('Cannot find host opaque: %s' % opaque)
-                
+
     def get_record(self, opaque):
         host = self.__getHost(opaque)
         host_record = {'enabled': host.enabled, 'metrics': host.metrics.opaque}
