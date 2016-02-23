@@ -188,7 +188,7 @@ class RebootFlagTimestamps(unittest.TestCase):
         self.assertEqual(fts.strftime(fmt_str), ts.strftime(fmt_str))
 
 
-class  HostLibMethodsTests(unittest.TestCase):
+class HostLibMethodsTests(unittest.TestCase):
     """
     Host related functions unit tests.
     """
@@ -203,9 +203,6 @@ class  HostLibMethodsTests(unittest.TestCase):
             host.metrics.live = True
 
     def test_wait_for_hosts(self):
-        """
-        Unit test for wait_for_hosts function.
-        """
         utils.wait_for_hosts(self.session)
 
         self.session.hosts[0].enabled = False
@@ -219,6 +216,32 @@ class  HostLibMethodsTests(unittest.TestCase):
 
         self.__enable_all_hosts()
 
+class PoolLibMethodsTests(unittest.TestCase):
+    """
+    Pool related functions unit tests.
+    """
+
+    def setUp(self):
+        self.session = xenapi_mock.Session.instance()
+
+    def test_get_pool_master(self):
+        self.assertTrue(utils.get_pool_master(self.session) == \
+                self.session.hosts[0].opaque)
+
+    def test_get_pool_slaves(self):
+        self.assertTrue(utils.get_pool_slaves(self.session) == \
+                [host.opaque for host in self.session.hosts[1:]])
+
+
+class SimpleMethodsTests(unittest.TestCase):
+    """
+    Simple methods in utils module test
+    """
+
+    def test_kis_64_bit(self):
+        self.assertTrue(utils.is_64_bit("x86_64"))
+        self.assertFalse(utils.is_64_bit("i386"))
+        self.assertFalse(utils.is_64_bit("i686"))
 
 if __name__ == '__main__':
     unittest.main()
