@@ -249,15 +249,14 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
         if 'crash_begin_time' not in tc_info:
             raise Exception("Reboot flag is not persistent and does not include crash info. Does host restarted by forced crashdump?")
         crash_beg_time = datetime(*(time.strptime(tc_info['crash_begin_time'],"%Y-%m-%d %H:%M:%S")[0:6]))
-        crash_end_time = datetime.now()
-        log.debug("host crash duration: %s to %s" % (str(crash_beg_time), str(crash_end_time)))
+        log.debug("host crashed at %s" % str(crash_beg_time))
 
         # Check new crashdump was created during host crash.
         crashdumps_all = retrieve_crashdumps(session)
         log.debug("available crashdumps: %s" % (str(crashdumps_all)))
-        crashdumps_matching = [cd for cd in crashdumps_all if crash_beg_time < cd['timestamp'] and cd['timestamp'] < crash_end_time]
+        crashdumps_matching = [cd for cd in crashdumps_all if crash_beg_time < cd['timestamp']]
         log.debug("matched crashdump(s): %s" % (str(crashdumps_matching)))
-        if not len(crashdumps_matching)==1:
+        if not len(crashdumps_matching) == 1:
             raise Exception("Host didn't create crashdump properly. number of new crashdumps: %d" % len(crashdumps_matching))
 
         res = {'info': "An additional crashdump was detected."}
