@@ -214,10 +214,19 @@ class IPv4Addr(object):
                 return False
         return True        
         
-def get_network_routes(session, host_ref):
+def get_network_routes(session, host_ref, retry=6):
     """Return a list of NetRoute objects for this system"""
-    results = call_ack_plugin(session, 'get_host_routes', {}, host=host_ref)
-    recs = xml_to_dicts(results, 'routes')
+    attempt = retry
+    while attempt:
+        attempt -= 1
+        try:
+            results = call_ack_plugin(session, 'get_host_routes', {}, host=host_ref)
+        except:
+            log.debug("Failed. retrying. (retry=%d)" % attempt)
+            time.sleep(10)
+        else:
+            recs = xml_to_dicts(results, 'routes')
+            break
 
     routes = []
 
@@ -2213,22 +2222,31 @@ def wait_for_hosts(session, timeout=300):
     log.debug("Total in %d hosts are being checked." % num_hosts)
 
     start = time.time()
-    while hosts:
-        host = hosts[0]
-        rec = session.xenapi.host.get_record(host)
-        if rec['enabled'] and \
-                session.xenapi.host_metrics.get_live(rec['metrics']):
-            log.debug("Host %s(%s) is up and live." % (
-                    session.xenapi.host.get_hostname(host),
-                    session.xenapi.host.get_uuid(host)))
-            hosts.remove(host)
+    while not should_timeout(start, timeout):
+        for host in hosts:
+            rec = session.xenapi.host.get_record(host)
+            if rec['enabled'] and \
+                    session.xenapi.host_metrics.get_live(rec['metrics']):
+                pif = session.xenapi.host.get_management_interface(host)
+                dev = session.xenapi.PIF.get_device(pif)
+                hostname = session.xenapi.host.get_hostname(host)
+                hostuuid = session.xenapi.host.get_uuid(host)
+                try:
+                    dom0 = _find_control_domain(session, host)
+                    _get_control_domain_ip(session, dom0, dev)
+                except:
+                    log.debug("Host %s(%s) is up but not live yet." % (hostname, hostuuid))
+                    break
+                else:
+                    log.debug("Host %s(%s) is up and live." % (hostname, hostuuid))
+            else:
+                log.debug("Host %s(%s) is not fully up yet." % (hostname, hostuuid))
+                break
         else:
-            if should_timeout(start, timeout):
-                raise Exception("Hosts failed to come back online %s for timeout %d" % 
-                        (hosts, timeout))
-            time.sleep(2)
+            return
+        time.sleep(2)
 
-    log.debug("Hosts are up.")
+    raise Exception("Hosts(%s) failed to come back online" % hosts)
 
 def get_ack_version(session, host):
     """Return the version string corresponding to the cert kit on a particular host"""

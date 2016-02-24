@@ -243,6 +243,7 @@ class SimpleMethodsTests(unittest.TestCase):
         self.assertFalse(utils.is_64_bit("i386"))
         self.assertFalse(utils.is_64_bit("i686"))
 
+
 if __name__ == '__main__':
     unittest.main()
 
