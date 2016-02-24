@@ -2225,12 +2225,12 @@ def wait_for_hosts(session, timeout=300):
     while not should_timeout(start, timeout):
         for host in hosts:
             rec = session.xenapi.host.get_record(host)
+            hostname = session.xenapi.host.get_hostname(host)
+            hostuuid = session.xenapi.host.get_uuid(host)
             if rec['enabled'] and \
                     session.xenapi.host_metrics.get_live(rec['metrics']):
                 pif = session.xenapi.host.get_management_interface(host)
                 dev = session.xenapi.PIF.get_device(pif)
-                hostname = session.xenapi.host.get_hostname(host)
-                hostuuid = session.xenapi.host.get_uuid(host)
                 try:
                     dom0 = _find_control_domain(session, host)
                     _get_control_domain_ip(session, dom0, dev)
