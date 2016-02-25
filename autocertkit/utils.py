@@ -461,15 +461,12 @@ class IperfTestStatsValidator(object):
         setattr(self, 'arch', pre_stats.arch)
 
     def value_in_range(self, value, min_v, max_v):
-        if is_64_bit(self.arch):
-            log.debug("IfaceStats 64bit. (%s)" % self.arch)
-            return value_in_range(value, min_v, max_v)
-        else:
-            log.debug("IfaceStats 32bit. Wrapping. (%s)" % self.arch)
-            return wrapped_value_in_range(value, min_v, max_v, 4*G)
-
-    def wrapped_value_in_range(self, value, min_v, max_v, wrap):
-        return wrapped_value_in_range(value, min_v, max_v, wrap)
+        ret = value_in_range(value, min_v, max_v)
+        if not ret and not is_64_bit(self.arch):
+            log.debug("IfaceStats 32bit and value is not in rage." \
+                    "Try checking with wrapped value. (%s)" % self.arch)
+            ret = wrapped_value_in_range(value, min_v, max_v, 4*G)
+        return ret
 
     def validate_bytes(self, sent_bytes, attr):
         pre_bytes = getattr(self.pre, attr)
