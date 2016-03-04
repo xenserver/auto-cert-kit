@@ -733,6 +733,19 @@ def get_xenserver_version(session):
             return version
     raise Exception("XenServer Version could not be detected! %s" % xs_str)
 
+def get_xcp_version(session):
+    """Return the XCP version (using the master host)"""
+    master_ref = get_pool_master(session)
+    software = session.xenapi.host.get_software_version(master_ref)
+    xs_str = software['xcp:main']
+    #parse string of the form: 'XenServer Pack, version 6.0.0, build 50762c'
+    arr = xs_str.split(',')
+    for item in arr:
+        if item.strip().startswith('version'):
+            version = item.strip().split(' ')[1]
+            return version
+    raise Exception("XCP Version could not be detected! %s" % xs_str)
+
 def get_kernel_version(session):
     """Return kernel version using uname"""
     host = get_pool_master(session)    
