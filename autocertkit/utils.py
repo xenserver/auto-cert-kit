@@ -949,6 +949,16 @@ def get_management_network(session):
 
     raise Exception("ERROR: No management network found!")
 
+def get_management_interface(session, host):
+    # this is for backward compatibility.
+    # host.get_management_interface is added in XenServer 6.1
+    # pif = session.xenapi.host.get_management_interface(host)
+    for pif in session.xenapi.host.get_PIFs(host):
+        if session.xenapi.PIF.get_management(pif):
+            return pif
+
+    raise Exception("ERROR: No management interface found!")
+
 def create_vlan(session, pif_ref, network_ref, vlan_id):
     """Create a VLAN PIF from an existing physical PIF on the specified
     network"""
@@ -2226,7 +2236,7 @@ def wait_for_hosts(session, timeout=300):
             hostuuid = session.xenapi.host.get_uuid(host)
             if rec['enabled'] and \
                     session.xenapi.host_metrics.get_live(rec['metrics']):
-                pif = session.xenapi.host.get_management_interface(host)
+                pif = get_management_interface(session, host)
                 dev = session.xenapi.PIF.get_device(pif)
                 try:
                     dom0 = _find_control_domain(session, host)
