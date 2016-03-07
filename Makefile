@@ -146,7 +146,7 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC) $(RPM_DIRECTORIES)
 	$(RPMBUILD) -bb $(TEST_KIT_SPEC)
 
 $(SUPP_PACK_ISO): $(TEST_KIT_RPM) $(DOM0_RPMS)
-	python setup-supp-pack.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --bld $(BUILD) $^
+	python setup-supp-pack.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --pln $(PLATFORM_NAME) --plv $(PLATFORM_VERSION) --bld $(BUILD) $^
 
 pylint:
 	$(PYLINT) $(TEST_KIT)/*.py

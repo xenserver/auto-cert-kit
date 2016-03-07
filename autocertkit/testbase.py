@@ -51,7 +51,8 @@ class TestClass(object):
     required_config = []
     session = None
     base_tag = "Base"
-    XS = ["> 5.6"]
+    XS_REQ = ">= 6.0"
+    XCP_REQ = ">= 1.0"
     REQUIRED_FOR = None
 
     def __init__(self, session, config):
@@ -167,10 +168,13 @@ class TestClass(object):
                 log.debug("Tag %s: %s" % (tag, self.config[tag]))
 
         xs_version = get_xenserver_version(self.session)
-        for expr in self.XS:
-            if not eval_expr(expr, xs_version):
-                raise Exception("Could not run test due to XenServer version constraints:" +
-                                " %s" % self.XS)
+        if eval_expr(self.XS_REQ, xs_version):
+            return
+        xcp_version = get_xcp_version(self.session)
+        if eval_expr(self.XCP_REQ, xcp_version):
+            return
+
+        raise Exception("versions do not meet requirements.")
 
     def list_tests(self):
         """Return a list of tests contained within this class"""
