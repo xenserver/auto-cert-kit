@@ -8,6 +8,7 @@ while running unit tests.
 import mock
 import random
 
+
 class XenAPIObjectMock(object):
     """Base class for XenAPI object models"""
 
@@ -16,12 +17,12 @@ class XenAPIObjectMock(object):
     @classmethod
     def genIdentity(cls, clsname=''):
         """A Opaque generator"""
-    
+
         suffix = '_%d' % random.randint(0, 9999999)
         while suffix in cls.USED_SUFFIXES:
             suffix = '_%d' % random.randint(0, 9999999)
         cls.USED_SUFFIXES.append(suffix)
-    
+
         return ('Opaque: %sOpaque%s' % (clsname, suffix), \
                 '%sUUID%s' % (clsname, suffix))
 
@@ -41,19 +42,22 @@ class Session(XenAPIObjectMock):
     """Session data structure for XenAPI Session mock"""
 
     __INSTANCE = None
+    __INITIALIZED = False
 
-    @classmethod
-    def instance(cls):
-        # session needs to be the same while test runs throughly.
+    def __new__(cls, hosts=2, networks=1):
+        # There can be only 1 session during tests.
         if Session.__INSTANCE is None:
-            Session.__INSTANCE = Session()
+            Session.__INSTANCE = super(Session, cls).__new__(cls)
+            Session.__INITIALIZED = False
         return Session.__INSTANCE
 
     def __init__(self, hosts=2, networks=1):
-        super(Session, self).__init__()
-        self.__networks = [Network(i) for i in xrange(networks)]
-        self.__pool = Pool(hosts, self.__networks)
-        self.__xenapi = XenapiMock()
+        if not self.__INITIALIZED:
+            super(Session, self).__init__()
+            self.__networks = [Network(i) for i in xrange(networks)]
+            self.__pool = Pool(hosts, self.__networks)
+            self.__xenapi = XenapiMock()
+            self.__INITIALIZED = True
 
     @property
     def xenapi(self):
@@ -64,8 +68,8 @@ class Session(XenAPIObjectMock):
         return self.__opaque
 
     @property
-    def pools(self):
-        return [self.__pool]
+    def pool(self):
+        return self.__pool
 
     @property
     def hosts(self):
@@ -124,7 +128,7 @@ class PIF(XenAPIObjectMock):
     @plugged.setter
     def plugged(self, value):
         self.__plugged = value
-        
+
     @property
     def enabled(self):
         return self.__enabled
@@ -196,10 +200,10 @@ class Host(XenAPIObjectMock):
         return "AFakeHostName"
 
     def startVMs(self, n=1):
-        self.__vms = self.__vms + [VM()] * n
+        self.__vms = self.__vms + [VM() for i in xrange(n)]
 
     def killAllVMs(self):
-        self.__vms = self.__vms[:1]
+        self.__vms = self.__vms[1:]
 
 
 class HostMetrics(XenAPIObjectMock):
@@ -246,7 +250,7 @@ class XenapiMock(mock.Mock):
 
     As all lib are referred from session.xenapi, this needs to be mocked.
     This only replicate all required xenapi component as properties.
-    """ 
+    """
 
     @property
     def pool(self):
@@ -305,10 +309,10 @@ class XenapiPIFMock(mock.Mock):
     """
 
     def get_all(self):
-        return [pif.opaque for host in Session.instance().hosts for pif in host.PIFs]
+        return [pif.opaque for host in Session().hosts for pif in host.PIFs]
 
     def __getPIF(self, opaque):
-        for p in [pif for host in Session.instance().hosts for pif in host.PIFs]:
+        for p in [pif for host in Session().hosts for pif in host.PIFs]:
             if p.opaque == opaque:
                 return p
 
@@ -316,7 +320,7 @@ class XenapiPIFMock(mock.Mock):
 
     def get_device(self, opaque):
         return self.__getPIF(opaque).device
-        
+
 
 class XenapiPoolMock(mock.Mock):
     """
@@ -326,17 +330,12 @@ class XenapiPoolMock(mock.Mock):
     """
 
     def get_all(self):
-        return [pool.opaque for pool in Session.instance().pools]
+        return [Session().pool.opaque]
 
-    def __getPool(self, opaque):
-        for p in Session.instance().pools:
-            if p.opaque == opaque:
-                return p
-
-        raise Exception('Cannot find pool opaque: %s' % opaque)
-                
     def get_master(self, opaque):
-        return self.__getPool(opaque).hosts[0].opaque
+        if Session().pool.opaque != opaque:
+            raise Exception('Cannot find pool opaque: %s' % opaque)
+        return Session().hosts[0].opaque
 
 
 class XenapiHostMock(mock.Mock):
@@ -347,10 +346,10 @@ class XenapiHostMock(mock.Mock):
     """
 
     def get_all(self):
-        return [host.opaque for host in Session.instance().hosts]
+        return [host.opaque for host in Session().hosts]
 
     def __getHost(self, opaque):
-        for h in Session.instance().hosts:
+        for h in Session().hosts:
             if h.opaque == opaque:
                 return h
 
@@ -384,7 +383,7 @@ class XenapiHostMetricsMock(mock.Mock):
     """
 
     def __getMetrics(self, opaque):
-        for h in Session.instance().hosts:
+        for h in Session().hosts:
             if h.metrics.opaque == opaque:
                 return h.metrics
 
@@ -401,7 +400,7 @@ class XenapiVMMock(mock.Mock):
     """
 
     def __getVM(self, opaque):
-        for h in Session.instance().hosts:
+        for h in Session().hosts:
             for vm in h.VMs:
                 if vm.opaque == opaque:
                     return vm
@@ -416,7 +415,7 @@ class XenapiVMMock(mock.Mock):
 
     def get_all_records(self):
         rec = {}
-        for h in Session.instance().hosts:
+        for h in Session().hosts:
             for vm in h.VMs:
                 rec[vm.opaque] = vm.record
 

@@ -194,7 +194,7 @@ class HostLibMethodsTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.session = xenapi_mock.Session.instance()
+        self.session = xenapi_mock.Session()
         self.__enable_all_hosts()
 
     def __enable_all_hosts(self):
@@ -222,7 +222,7 @@ class PoolLibMethodsTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.session = xenapi_mock.Session.instance()
+        self.session = xenapi_mock.Session()
 
     def test_get_pool_master(self):
         self.assertTrue(utils.get_pool_master(self.session) == \
