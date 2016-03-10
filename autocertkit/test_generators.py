@@ -140,9 +140,9 @@ class TestGenerator(object):
         test_classes = self.get_test_classes()
         for test_class_name, test_class in test_classes:
             skipthis = False
-            xs_version = utils.get_xenserver_version(self.session)
+            xcp_version = utils.get_xcp_version(self.session)
             if test_class.REQUIRED_FOR:
-                if utils.eval_expr(test_class.REQUIRED_FOR, xs_version):
+                if utils.eval_expr(test_class.REQUIRED_FOR, xcp_version):
                     if not utils.REQ_CAP in test_class.caps:
                         test_class.caps.append(utils.REQ_CAP)
                 else:
@@ -166,8 +166,8 @@ class TestGenerator(object):
                 if skipthis:
                     result_node.appendChild(doc.createTextNode('skip'))
                     reason_node = doc.createElement('reason')
-                    reason_node.appendChild(doc.createTextNode('%s is not required for XenServer %s.'
-                                            % (test_class_name, xs_version)))
+                    reason_node.appendChild(doc.createTextNode('%s is not required for XCP %s.'
+                                            % (test_class_name, xcp_version)))
                     method_node.appendChild(reason_node)
                 else:
                     result_node.appendChild(doc.createTextNode('NULL'))
