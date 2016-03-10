@@ -978,7 +978,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 
 class GROOffloadTestClass(testbase.NetworkTestClass):
     """ Check whether GRO can be on. GRO is on by default from XS 6.5 """
-    REQUIRED_FOR = ">= 6.4"
+    REQUIRED_FOR = ">= 1.9.0"
 
     def test_offload_config(self, session):
         net_ref = self.get_networks()[0]
