@@ -121,8 +121,6 @@ def parse_cmd_args():
     if options.info:
         print_documentation(options.info)
 
-    validate_param(options.mode, ['ALL', 'NET', 'LSTOR', 'CPU', 'OPS'], "Run Mode")
-
     if options.netconf:
         assert_file_exists(options.netconf, 'Network config')
         config['netconf'] = parse_netconf_file(options.netconf)
@@ -322,28 +320,15 @@ def generate_test_config(session, config, test_run_file):
     # Based on the mode of operation, generate the particular tests
     # that the user would like to run.
     ifs = network_interfaces_to_test(session, config)
-    if config['mode'] == 'ALL' or config['mode'] == 'NET':
-        for iface in ifs:
-            print "iface: %s" % iface
-            natg = NetworkAdapterTestGenerator(session, config, iface)
-            natg.append_xml_config(doc, devices_node)
+    storage_devs = storage_interfaces_to_test(session)
 
     # Take an interface to use for non-networking tests
     if not len(ifs):
-        raise Exception("Error: in order to run these tests, you need at least one network defined.")
+        raise Exception("Error: in order to run these tests, you need at least one network defined.") 
 
-    if config['mode'] == 'ALL' or config['mode'] == 'CPU':
-        cputg = ProcessorTestGenerator(session, config)
-        cputg.append_xml_config(doc, devices_node)
-
-    if config['mode'] == 'ALL' or config['mode'] == 'LSTOR':
-        for device in storage_interfaces_to_test(session):
-            lstg = StorageTestGenerator(session, config, device)
-            lstg.append_xml_config(doc, devices_node)
-
-    if config['mode'] == 'ALL' or config['mode'] == 'OPS':
-        optg = OperationsTestGenerator(session, config)
-        optg.append_xml_config(doc, devices_node)
+    for gen_cls in XML_GENERATORS:
+        xml_generator = gen_cls(session, config, config['mode'], ifs, storage_devs)
+        xml_generator.append_xml_config(doc, devices_node)
 
     fh = open(test_run_file, 'w')
     fh.write(doc.toxml())
