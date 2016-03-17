@@ -67,6 +67,11 @@ from xml.dom import minidom
 
 from optparse import OptionParser
 
+try:
+    import ack_addons
+except ImportError:
+    log.debug("No ack_addons module.")
+
 def parse_test_line(test_line):
     """Parse test line"""
     arr = test_line.split(',')
@@ -204,7 +209,7 @@ def run_tests_from_file(test_file):
         # that will then be passed to the test class.
         config['device_config'] = next_test_class.get_device_config()
 
-        log.debug("About to run test: '%s.%s'" % (next_test_class.get_name(), next_test_method.get_name()))
+        log.debug("About to run test: '%s'" % (next_test_class.get_name()))
         test_inst = get_test_class(next_test_class.get_name())(session, config)
         result = test_inst.run(to_bool(get_value(config, 'debug')), next_test_method.get_name())
 
@@ -245,21 +250,24 @@ def run_tests_from_file(test_file):
 
 def get_test_class(fqtn):
     arr = fqtn.split('.')
-    if len(arr) != 2:
-        raise Exception("Test name specified is incorrect. It should be module.class")
-    
-    modules = get_module_names(arr[0])
+    if len(arr) not in [2,3]:
+        raise Exception("Test name specified is incorrect. It should be module.class or module.submodule.class")
+
+    test_class_module = ".".join(arr[:-1])
+    test_class_name = arr[-1]
+
+    modules = get_module_names(test_class_module)
     assert len(modules) == 1
-    
+
     test_classes = inspect.getmembers(sys.modules[modules[0]],
                                       inspect.isclass)
 
     for test_name, test_class in test_classes:
-        if arr[1] == test_name:
+        if test_class_name == test_name:
             return test_class
-    
+
     raise Exception("Specified FQTN not found! (%s)" % fqtn)
-    
+
 
 if __name__ == "__main__":
     #Main function entry point
