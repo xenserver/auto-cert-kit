@@ -33,6 +33,7 @@
 import sys
 import inspect
 import utils
+import os
 
 import network_tests
 import cpu_tests
@@ -231,8 +232,6 @@ class NetworkAdapterTestGenerator(TestGenerator):
                     in test_classes if append_filter(testname, dont_run)]
         else:
             return test_classes
-                   
-
 
 class ProcessorTestGenerator(TestGenerator):
     """TestGenertor class specific to Processor tests"""
@@ -267,7 +266,7 @@ class StorageTestGenerator(TestGenerator):
         """Retrieve info regarding the local SCSI devices"""
         rec = super(StorageTestGenerator, self).get_device_config()
         return utils.combine_recs(rec, self.device)
-    
+
 class OperationsTestGenerator(TestGenerator):
     """TestGenertor class specific to Operations tests"""
     TAG = 'OP'
@@ -283,6 +282,79 @@ class OperationsTestGenerator(TestGenerator):
         rec = utils.combine_recs(rec, utils.get_xs_info(self.session))
         rec = utils.combine_recs(rec, utils.get_system_info())
         return rec
+
+##############################################################################
+
+class DeviceXMLGenerator(object):
+
+    TAGS = []
+    CLS = None
+
+    def __init__(self, session, config, mode, network_ifs, storage_devs):
+        self.session = session
+        self.config = config
+        self.mode = mode
+        self.network_ifs = network_ifs
+        self.storage_devs = storage_devs
+
+    def should_generate(self):
+        return self.mode in self.TAGS or self.mode == 'ALL'
+
+    def append_xml_config(self, doc, devices_node):
+        if self.should_generate():
+            self._append_xml_config(doc, devices_node)
+
+    def _append_xml_config(self, doc, devices_node):
+        gen = self.CLS(self.session, self.config)
+        gen.append_xml_config(doc, devices_node)
+
+class NetworkAdaptersXMLGenerator(DeviceXMLGenerator):
+
+    TAGS = ["NET"]
+
+    def _append_xml_config(self, doc, devices_node):
+        for iface in self.network_ifs:
+            natg = NetworkAdapterTestGenerator(self.session, self.config, iface)
+            natg.append_xml_config(doc, devices_node)
+
+
+class StorageAdaptersXMLGenerator(DeviceXMLGenerator):
+
+    TAGS = ["LSTOR"]
+
+    def _append_xml_config(self, doc, devices_node):
+        for dev in self.storage_devs:
+            lstg = StorageTestGenerator(self.session, self.config, dev)
+            lstg.append_xml_config(doc, devices_node)
+
+
+class ProcessorsXMLGenerator(DeviceXMLGenerator):
+
+    TAGS = ["CPU"]
+    CLS = ProcessorTestGenerator
+
+class OperationsXMLGenerator(DeviceXMLGenerator):
+
+    TAGS = ["OPS"]
+    CLS = OperationsTestGenerator
+
+
+XML_GENERATORS = [
+    NetworkAdaptersXMLGenerator,
+    StorageAdaptersXMLGenerator,
+    ProcessorsXMLGenerator,
+    OperationsXMLGenerator,
+]
+
+# Support the loading of additional tests
+try:
+    import ack_addons
+    XML_GENERATORS.extend(ack_addons.XML_GENERATORS)
+except ImportError:
+    utils.log.debug("No ack_addons module found.")
+
+##############################################################################
+
 
 def print_documentation(object_name):
     print "--------- %s ---------" % utils.bold(object_name)
