@@ -347,9 +347,11 @@ XML_GENERATORS = [
 ]
 
 # Support the loading of additional tests
-if os.path.isfile('addons.py'):
-    import addons
-    XML_GENERATORS.extend(addons.XML_GENERATORS)
+try:
+    import ack_addons
+    XML_GENERATORS.extend(ack_addons.XML_GENERATORS)
+except ImportError:
+    utils.log.debug("No ack_addons module found.")
 
 ##############################################################################
 
