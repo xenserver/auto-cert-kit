@@ -326,7 +326,16 @@ def generate_test_config(session, config, test_run_file):
     if not len(ifs):
         raise Exception("Error: in order to run these tests, you need at least one network defined.") 
 
-    for gen_cls in XML_GENERATORS:
+    xml_generators = list(XML_GENERATORS)
+
+    # Support the loading of additional tests
+    try:
+        import ack_addons
+        xml_generators.extend(ack_addons.XML_GENERATORS)
+    except ImportError:
+        utils.log.debug("No ack_addons module found.")
+
+    for gen_cls in xml_generators:
         xml_generator = gen_cls(session, config, config['mode'], ifs, storage_devs)
         xml_generator.append_xml_config(doc, devices_node)
 
