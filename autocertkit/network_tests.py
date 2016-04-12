@@ -127,7 +127,7 @@ class IperfTest:
         self.plugin_call('reset_arp',
                     {'vm_ref': self.server,
                     })
-        
+
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',
                    {'vm_ref': self.client,
@@ -152,6 +152,7 @@ class IperfTest:
     def run(self):
         """This classes run test function"""
         self.deploy_iperf()
+        time.sleep(30)
         self.configure_server_ip()
         self.configure_client_ip()
 
@@ -164,13 +165,13 @@ class IperfTest:
         # Capture interface statistics pre test run
         self.record_stats()
 
-        iperf_test_inst = TimeoutFunction(self.run_iperf_client, 
+        iperf_test_inst = TimeoutFunction(self.run_iperf_client,
                                           self.timeout,
                                           'iPerf test timed out %d' % self.timeout)
 
         # Run the iperf tests
         iperf_data = iperf_test_inst()
-    
+
         # Capture interface statistcs post test run
         bytes_transferred = int(iperf_data['transfer'])
         self.validate_stats(bytes_transferred)
@@ -211,11 +212,11 @@ class IperfTest:
                              {'vm_ref': vm_ref,
                               'username': self.username,
                               'password': self.password})
-                             
+
         deploy(self.client)
         deploy(self.server)
 
-    def get_device_name(self, vm_ref): 
+    def get_device_name(self, vm_ref):
         vm_host = self.session.xenapi.VM.get_resident_on(vm_ref)
 
         if self.session.xenapi.VM.get_is_control_domain(vm_ref):
@@ -226,11 +227,11 @@ class IperfTest:
                 host_ref = self.session.xenapi.PIF.get_host(pif)
                 if vm_host == host_ref:
                     device_names.append(self.session.xenapi.PIF.get_device(pif))
-                  
+
             if len(device_names) > 1:
                 raise Exception("Error: expected only a single device " + \
                                 "name to be found in PIF list ('%s') " + \
-                                "Instead, '%s' were returned." % 
+                                "Instead, '%s' were returned." %
                                                 (pifs, device_names))
             device_name = device_names.pop()
             # For control domains, only deal with bridges
@@ -244,8 +245,8 @@ class IperfTest:
                       if self.session.xenapi.VIF.get_device(vif) != '0']
 
             network_vifs = self.session.xenapi.network.get_VIFs(self.network)
-    
-            int_vifs = intersection(filtered_vifs, network_vifs) 
+
+            int_vifs = intersection(filtered_vifs, network_vifs)
 
             if len(int_vifs) > 1:
                 raise Exception("Error: more than one VIF connected " + \
@@ -255,8 +256,8 @@ class IperfTest:
                           self.session.xenapi.VIF.get_device(int_vifs.pop())
 
         log.debug("Device under test for VM %s is '%s'" % (vm_ref, device_name))
-        return device_name 
-    
+        return device_name
+
     def get_iface_stats(self, vm_ref):
         device_name = self.get_device_name(vm_ref)
 
