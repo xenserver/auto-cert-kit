@@ -215,6 +215,9 @@ class IperfTest:
         deploy(self.client)
         deploy(self.server)
 
+        log.debug("Wait for 30 secs until iperf deployed properly")
+        time.sleep(30)
+
     def get_device_name(self, vm_ref): 
         vm_host = self.session.xenapi.VM.get_resident_on(vm_ref)
 
