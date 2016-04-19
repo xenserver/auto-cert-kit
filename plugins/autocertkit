@@ -1632,18 +1632,16 @@ def _get_local_device_bridge(session, device):
             log.debug("%s is a bridge." % device)
             return device
 
-    log.debug("Cannot determine bridge of given device %s." % device)
+    log.debug("XAPI does not know bridge of given device %s." % device)
 
-    if device.startswith('xenbr'):
-        log.debug("Try using device name %s." % device)
-        return device
-
-    elif device.startswith('eth'):
+    if device.startswith('eth'):
         devname = device.replace('eth', 'xenbr')
         log.debug("Try using %s instead." % devname)
         return devname
 
-    raise Exception("Cannot determine bridge of given device %s." % device)
+    log.debug("Try using device name %s." % device)
+
+    return device
 
 @log_exceptions
 def get_local_device_info(session, args):
