@@ -739,8 +739,9 @@ class PIFParamTestClass(IperfTestClass):
                 # If it is not possible due to the hardware ristriction, then ACK should
                 # ignore this failure and keep running tests.
                 if '[fixed]' in hw_offloads[k]:
-                    raise FixedOffloadException("Required offload %s is fixed to %s." % (k, hw_offloads[k]))
-                raise Exception("%s offload was not in the correct state (is %s)" % (k, hw_offloads[k]))
+                    log.debug("Required offload %s is fixed to %s." % (k, hw_offloads[k]))
+                else:
+                    raise Exception("%s offload was not in the correct state (is %s)" % (k, hw_offloads[k]))
                                 
     def _setup_pif_params(self, session, network_ref):
         pifs = session.xenapi.network.get_PIFs(network_ref)
