@@ -1634,7 +1634,7 @@ def _get_local_device_bridge(session, device):
 
     log.debug("Cannot determine bridge of given device %s." % device)
 
-    if device.startswith('xenbr'):
+    if device.startswith('xenbr') or device.startswith('usb'):
         log.debug("Try using device name %s." % device)
         return device
 
