@@ -28,7 +28,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
 # SUCH DAMAGE.
 
-import socket, string, sys, os, os.path, traceback, time
+import socket, string, sys, os, os.path, traceback, time, gc
 import paramiko
 
 SSHPORT = 22
@@ -148,8 +148,11 @@ class SSHSession:
 
     def close(self):
         if self.trans:
+            self.trans.sock.shutdown(socket.SHUT_RDWR)
             self.trans.close()
             self.trans = None
+            gc.collect()
+            time.sleep(5)
 
     def __del__(self):
         self.close()
@@ -220,16 +223,24 @@ class SFTPSession(SSHSession):
                           nowarn=self.nowarn)
 
     def close(self):
+        gc = False
         if self.client:
             try:
+                self.client._tansport.sock.shutdown(socket.SHUT_RDWR)
                 self.client.close()
+                gc = True
             except Exception, e:
                 log.debug("SFTP close exception %s" % (str(e)))
         if self.trans:
             try:
+                self.trans.sock.shutdown(socket.SHUT_RDWR)
                 self.trans.close()
+                gc = True
             except Exception, e:
                 log.debug("SFTP trans close exception %s" % (str(e)))
+        if gc:
+            gc.collect()
+            time.sleep(5)
 
     def copyTo(self, source, dest, preserve=True):
         log.debug("SFTP local:%s to remote:%s" % (source, dest))
