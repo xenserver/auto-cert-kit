@@ -138,7 +138,7 @@ class SSHSession:
         else:
             if not k:
                 raise RuntimeError("No password given and no key read")
-            self.log("Using SSH public key %s" % (dsskey))
+            self.log.debug("Using SSH public key %s" % (dsskey))
             self.trans.auth_publickey(username, k)
         if not self.trans.is_authenticated():
             raise RuntimeError("Problem with SSH authentication")
@@ -167,10 +167,9 @@ class SFTPSession(SSHSession):
                  password=None,
                  nowarn=False):
         self.log = log
-        self.log("SFTP session to %s@%s" % (username, ip))
+        self.log.debug("SFTP session to %s@%s" % (username, ip))
         self.ip = ip
         self.username = username
-        self.log = log
         self.timeout = timeout
         self.password = password
         self.nowarn = nowarn
