@@ -678,16 +678,25 @@ class IperfTestClass(testbase.NetworkTestClass):
             
         log.debug("About to run iperf test...")
 
-        #Run an iperf test - if failure, an exception should be raised.
-        iperf_data = IperfTest(session, client, server, 
+        #Run an iperf test - if failure (with 1 additional attempt), an exception should be raised.
+        try:
+            iperf_data = IperfTest(session, client, server, 
                                 self.network_for_test,
                                 self.get_static_manager(self.network_for_test), 
                                 config=self.IPERF_ARGS).run()
-
-        return {'info': 'Test ran successfully',
-                'data': iperf_data,
-                'config': self.IPERF_ARGS }
-
+            return {'info': 'Test ran successfully',
+                    'data': iperf_data,
+                    'config': self.IPERF_ARGS }
+        except Exception, e:
+            log.warning("Failure seen on first attempt: %s" % str(e))
+            log.debug("About to re-run iperf test...")
+            iperf_data = IperfTest(session, client, server,
+                                self.network_for_test,
+                                self.get_static_manager(self.network_for_test),
+                                config=self.IPERF_ARGS).run()
+            return {'info': 'Test passed with warning: (failure seen on first Iperf run: %s)' % str(e),
+                    'data': iperf_data,
+                    'config': self.IPERF_ARGS }
 
     def test_tx_throughput(self, session):
         """Generic throughput Iperf test"""
