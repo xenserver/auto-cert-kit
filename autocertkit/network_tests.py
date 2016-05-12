@@ -601,8 +601,14 @@ class IperfTestClass(testbase.NetworkTestClass):
     required_config = ['device_config']
     network_for_test = None 
     num_ips_required = 2
-
+    max_failure_allowed = 1
     mode = "vm-vm"
+
+    def __init__(self, session, config):
+        super(IperfTestClass, self).__init__(session=session, config=config)
+        self.attempt_count = 0
+        self.fail_count = 0
+        self.fail_data = {}
 
     def _setup_network(self, session):
         """Utility method for returning the network reference to be used by VMs"""
@@ -675,19 +681,29 @@ class IperfTestClass(testbase.NetworkTestClass):
 
         log.debug("Client IPerf VM ref: %s" % client)
         log.debug("Server IPerf VM ref: %s" % server)
-            
-        log.debug("About to run iperf test...")
 
-        #Run an iperf test - if failure, an exception should be raised.
-        iperf_data = IperfTest(session, client, server, 
+        while self.attempt_count==self.fail_count:
+            self.attempt_count += 1
+            try:
+                log.debug("About to run iperf test...")
+                #Run an iperf test - if failure, an exception should be raised.
+                iperf_data = IperfTest(session, client, server,
                                 self.network_for_test,
-                                self.get_static_manager(self.network_for_test), 
+                                self.get_static_manager(self.network_for_test),
                                 config=self.IPERF_ARGS).run()
-
-        return {'info': 'Test ran successfully',
+            except Exception, e:
+                self.fail_count += 1
+                if self.fail_count <= self.max_failure_allowed:
+                    log.warning(str(e))
+                    self.fail_data["failed_attempt_%d"%(self.fail_count)]=str(e)
+                else:
+                    raise e
+        res = {'info': 'Test ran successfully',
                 'data': iperf_data,
                 'config': self.IPERF_ARGS }
-
+        if self.fail_count:
+            res.update({'warning': self.fail_data})
+        return res
 
     def test_tx_throughput(self, session):
         """Generic throughput Iperf test"""

@@ -127,6 +127,7 @@ class TestClass(object):
                 copy_field(rec, res, 'data')
                 copy_field(rec, res, 'config')
                 copy_field(rec, res, 'reason', False)
+                copy_field(rec, res, 'warning', False)
 
             except Exception, e:
                 traceb = traceback.format_exc()
