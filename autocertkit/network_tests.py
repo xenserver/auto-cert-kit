@@ -675,19 +675,34 @@ class IperfTestClass(testbase.NetworkTestClass):
 
         log.debug("Client IPerf VM ref: %s" % client)
         log.debug("Server IPerf VM ref: %s" % server)
-            
-        log.debug("About to run iperf test...")
 
-        #Run an iperf test - if failure, an exception should be raised.
-        iperf_data = IperfTest(session, client, server, 
+        attempt_count = 0
+        fail_count = 0
+        max_failure_allowed = 1
+        fail_data = {}
+        while attempt_count==fail_count:
+            attempt_count += 1
+            try:
+                log.debug("About to run iperf test...")
+                #Run an iperf test - if failure, an exception should be raised.
+                iperf_data = IperfTest(session, client, server,
                                 self.network_for_test,
-                                self.get_static_manager(self.network_for_test), 
+                                self.get_static_manager(self.network_for_test),
                                 config=self.IPERF_ARGS).run()
-
-        return {'info': 'Test ran successfully',
+            except Exception, e:
+                fail_count += 1
+                if fail_count <= max_failure_allowed:
+                    fail_data["info_fail%d"%(fail_count)] = "Failure seen on "\
+                            + " attempt %d: %s" % (attempt_count, str(e))
+                    log.warning(fail_data["info_fail%d"%(fail_count)])
+                else:
+                    raise e
+        res = {'info': 'Test ran successfully',
                 'data': iperf_data,
                 'config': self.IPERF_ARGS }
-
+        if fail_count:
+            res.update({'warning': fail_data})
+        return res
 
     def test_tx_throughput(self, session):
         """Generic throughput Iperf test"""
