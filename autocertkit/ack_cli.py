@@ -94,7 +94,7 @@ def parse_cmd_args():
                       dest="exclude",
                       action="append",
                       default=[],
-                      help="Exclude one or multiple set of tests. (OVS | BRIDGE | LSTOR | CPU | OPS).")
+                      help="Exclude one or multiple set of tests. (OVS | BRIDGE | LSTOR | CPU | OPS | CRASH).")
     parser.add_option("-n","--netconf",
                       dest="netconf",
                       help="Specify the network config file.")
