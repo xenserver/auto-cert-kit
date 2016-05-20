@@ -1910,8 +1910,8 @@ class TimeoutFunction:
         try:
             result = self.function(*args)
         finally:
+            signal.alarm(0)
             signal.signal(signal.SIGALRM, old)
-        signal.alarm(0)
         return result
 
 def xml_to_dicts(xml, tag):
