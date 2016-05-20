@@ -274,6 +274,9 @@ class OperationsTestGenerator(TestGenerator):
     def filter_test_classes(self, test_classes):
         if 'OPS' in self.config['exclude']:
             return []
+        if 'CRASH' in self.config['exclude']:
+            test_classes = [(testname, testclass) for testname, testclass
+                    in test_classes if 'CrashDump' not in testname]
         return test_classes
 
     def get_device_config(self):
