@@ -45,6 +45,7 @@ import os
 import base64
 import threading
 import re
+import json
 
 from acktools.net import route, generate_mac
 import acktools.log
@@ -225,7 +226,7 @@ def get_network_routes(session, host_ref, retry=6):
             log.debug("Failed. retrying. (retry=%d)" % attempt)
             time.sleep(10)
         else:
-            recs = xml_to_dicts(results, 'routes')
+            recs = json_loads(results)
             break
 
     routes = []
@@ -666,11 +667,10 @@ def retrieve_crashdumps(session, host=None, fromxapi=False):
     """Retrive all list of crashdump of master."""
     if not host:
         host = get_pool_master(session)
-    cds = xml_to_dicts(session.xenapi.host.call_plugin(host,
+    cds = json_loads(session.xenapi.host.call_plugin(host,
                     'autocertkit',
                     'retrieve_crashdumps',
-                    {'host': host, 'from_xapi': str(fromxapi)}),
-                    'crashdump')
+                    {'host': host, 'from_xapi': str(fromxapi)}))
     for cd in cds:
         cd['size'] = int(cd['size'])
         ts = cd['timestamp']
@@ -1147,7 +1147,7 @@ def wait_for_linkstate(session, device, state, host_ref=None, timeout=60):
     start = time.time()
     while not should_timeout(start, timeout):
         results = call_ack_plugin(session, 'get_local_device_linkstate', args, host_ref)
-        cur_state = xml_to_dicts(results, 'linkstate')[0]
+        cur_state = json_loads(results)[0]
         log.debug("Current linkstate of %s on host %s is %s." % (device, host_ref, cur_state))
         if state.lower() == 'up' and _is_link_up(cur_state):
             return
@@ -1932,6 +1932,29 @@ def xml_to_dicts(xml, tag):
     log.debug(result)
     return result
 
+def json_loads(json_data):
+    def process_dict_keys(d):
+        new_d = {}
+        for key in d.iterkeys():
+            new_key = str(key.replace(" ","_"))
+            new_d[new_key] = d[key]
+        return new_d
+
+    def process_values(item):
+        if isinstance(item, unicode):
+            item = str(item)
+        elif isinstance(item, list):
+            for elem in item:
+                elem = process_values(elem)
+        elif isinstance(item, dict):
+            item = process_dict_keys(item)
+            for key in item.iterkeys():
+                item[key] = process_values(item[key])
+        return item
+
+    data = json.loads(json_data, object_hook=process_values) if json_data else []
+    return [data] if isinstance(data, dict) else data
+
 def call_ack_plugin(session, method, args={}, host=None):
     if not host:
         host = get_pool_master(session)
@@ -1948,20 +1971,20 @@ def get_hw_offloads(session, device):
     master to return the offload capabilites of a device."""
 
     if call_ack_plugin(session, 'get_kernel_version').startswith('2.6'):
-        xml_res = call_ack_plugin(session, 'get_hw_offloads_from_core',
+        json_res = call_ack_plugin(session, 'get_hw_offloads_from_core',
                               {'eth_dev':device})
     else:
-        xml_res = call_ack_plugin(session, 'get_hw_offloads',
+        json_res = call_ack_plugin(session, 'get_hw_offloads',
                               {'eth_dev':device})
 
-    return xml_to_dicts(xml_res, 'hw_offloads')[0]
+    return json_loads(json_res)[0]
 
 def get_dom0_iface_info(session, host_ref, device):
-    xml_res = call_ack_plugin(session, 'get_local_device_info',
+    json_res = call_ack_plugin(session, 'get_local_device_info',
                                         {'device': device},
                                         host=host_ref)
 
-    device_dict = xml_to_dicts(xml_res, 'devices')[0]
+    device_dict = json_loads(json_res)[0]
     return Iface(device_dict)
 
 def get_vm_device_mac(session, vm_ref, device):
@@ -1984,10 +2007,10 @@ def get_vm_device_mac(session, vm_ref, device):
                         (device, vm_ref))
 
 def get_iface_statistics(session, vm_ref, iface): 
-    xml_res = call_ack_plugin(session, 'get_iface_stats',
+    json_res = call_ack_plugin(session, 'get_iface_stats',
                                         {'iface':iface,
                                         'vm_ref': vm_ref})
-    stats_dict = xml_to_dicts(xml_res, 'iface_stats')[0]
+    stats_dict = json_loads(json_res)[0]
     return IfaceStats(iface, stats_dict)
 
 def set_hw_offload(session, device, offload, state):
@@ -2053,15 +2076,15 @@ def check_test_thread_status(threads):
     return False
 
 def get_master_network_devices(session):
-    xml_devices = call_ack_plugin(session, 'get_network_devices')
-    log.debug("Network Devices found on machine: '%s'" % xml_devices)
-    return xml_to_dicts(xml_devices, 'device')
+    json_devices = call_ack_plugin(session, 'get_network_devices')
+    log.debug("Network Devices found on machine: '%s'" % json_devices)
+    return json_loads(json_devices)
 
 def get_local_storage_info(session):
     """Returns info about the local storage devices"""
-    xml_devices = call_ack_plugin(session, 'get_local_storage_devices')
-    log.debug("Local Storage Devices found on machine: '%s'" % xml_devices)
-    return xml_to_dicts(xml_devices, 'device')
+    json_devices = call_ack_plugin(session, 'get_local_storage_devices')
+    log.debug("Local Storage Devices found on machine: '%s'" % json_devices)
+    return json_loads(json_devices)
 
 def get_xs_info(session):
     """Returns a limited subset of info about the XenServer version"""
