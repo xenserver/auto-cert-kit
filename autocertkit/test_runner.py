@@ -62,15 +62,8 @@ import models
 
 from utils import *
 
-
 from xml.dom import minidom
-
 from optparse import OptionParser
-
-try:
-    import ack_addons
-except ImportError:
-    log.debug("No ack_addons module.")
 
 def parse_test_line(test_line):
     """Parse test line"""
