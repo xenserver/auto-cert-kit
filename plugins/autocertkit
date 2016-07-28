@@ -47,6 +47,7 @@ import re
 import base64
 import tarfile
 import datetime
+import json
 
 from acktools.net import route
 import acktools.log
@@ -386,7 +387,7 @@ def get_local_device_linkstate(session, arg):
     else:
         res['link'] = 'unknown'
 
-    return to_xml(res, 'linkstate')
+    return json_dumps(res)
     
 def save_bugtool():
     """Saves a bugtool and returns the name"""
@@ -464,7 +465,6 @@ def validate_xml_key(key):
     else:
         return False
 
-
 def to_xml(d, t):
     s = '<?xml version="1.0"?>\n<%s' % t
     for k, v in d.iteritems():
@@ -484,7 +484,10 @@ def list_to_xml(l, t):
             s += ' %s="%s"' % (str(k).replace(' ','_'), xmlrpclib.escape(str(v)))
         s += '></%s>\n' % t
     s += '</%ss>' % t
-    return s    
+    return s
+
+def json_dumps(data):
+    return json.dumps(data, indent=2)
 
 @log_exceptions
 def deploy_iperf(session, args):
@@ -640,8 +643,8 @@ def get_network_devices(session, args):
         device['PCI_subsystem'] = get_pci_subsystem(device['Bus Info'])
         devices.append(device)
 
-    return list_to_xml(devices, 'device')
-    
+    return json_dumps(devices)
+
 def _get_local_storage_disk(session):
     disk_path = get_from_xensource_inventory('PRIMARY_DISK')
     log.debug("Local Storage Disk Path: %s" % disk_path)
@@ -777,7 +780,7 @@ def get_local_storage_devices(session, args):
         log.debug("Buses found: %s" % bus_paths)
 
         if len(bus_paths) == 0:
-            return list_to_xml([{'Exception':'Cannot find Storage interface.'}], 'device')
+            return json_dumps([{'Exception':'Cannot find Storage interface.'}])
 
         # Enumerate PCI Devices
         devices = PCIDevices()
@@ -820,11 +823,11 @@ def get_local_storage_devices(session, args):
             if not device in storage_devices:
                 storage_devices.append(device)
     
-        return list_to_xml(storage_devices, 'device')
+        return json_dumps(storage_devices)
 
     except Exception, e:
         log.debug("Could not get local storage info. Exception: %s" % str(e))
-        return list_to_xml([{'Exception':'StorageInfoNotAvailable','Exception_Info':str(e)}], 'device')
+        return json_dumps([{'Exception':'StorageInfoNotAvailable','Exception_Info':str(e)}])
 
 
 @log_exceptions
@@ -863,7 +866,7 @@ def get_hw_offloads_from_core(session, args):
         else:
             rec[offload] = 'off'
 
-    return to_xml(rec, 'hw_offloads')
+    return json_dumps(rec)
         
 @log_exceptions
 def get_hw_offloads(session, args):
@@ -883,7 +886,7 @@ def get_hw_offloads(session, args):
                             "has been returned. %s" % offloads)
         if arr[0] in OFFLOAD_CODES:
             rec[OFFLOAD_CODES[arr[0]]] = arr[1]
-    return to_xml(rec, 'hw_offloads')
+    return json_dumps(rec)
 
 @log_exceptions
 def get_network_backend(session, args):
@@ -1179,14 +1182,14 @@ def get_iface_stats(session, args):
 
     log.debug("Device Stats: %s %s" % (vm_ref, device_stats))
 
-    return to_xml(device_stats, 'iface_stats') 
+    return json_dumps(device_stats)
 
 @log_exceptions
 def get_host_routes(session, args):
     """Return a XML dictionary list of host routes"""
     routes = route.get_all_routes()
     route_recs = [route_obj.get_record() for route_obj in routes]
-    return list_to_xml(route_recs, 'routes')
+    return json_dumps(route_recs)
 
 ############### Host Crash #######################
 
@@ -1224,7 +1227,7 @@ def _retrieve_crashdumps_from_xapi(session, host):
             'other-config': str(session.xenapi.host_crashdump.get_other_config(cd))
             })
 
-    return list_to_xml(ret, 'crashdump')
+    return json_dumps(ret)
 
 CD_PATTERN = re.compile(r'\d{8}\-\d{6}\-.*')
 @log_exceptions
@@ -1232,7 +1235,7 @@ def _retrieve_crashdumps(session, host):
     """Search for crashdumps from /var/crash."""
     CD_LOC = '/var/crash'
     if not os.path.isdir(CD_LOC):
-        return list_to_xml([], 'crashdump')
+        return json_dumps([])
 
     ret = []
     for apath in os.listdir(CD_LOC):
@@ -1249,7 +1252,7 @@ def _retrieve_crashdumps(session, host):
             'size': str(size)
             })
 
-    return list_to_xml(ret, 'crashdump')
+    return json_dumps(ret)
 
 def retrieve_crashdumps(session, args):
     """Search all crashdumps and return."""
@@ -1650,7 +1653,7 @@ def get_local_device_info(session, args):
 
     log.debug("get_local_device_info for %s" % devname)
     dev = _get_local_device(devname)
-    return to_xml(dev.to_rec(), 'devices')
+    return json_dumps(dev.to_rec())
 
 @log_exceptions
 def get_local_device_ip(session, args):
