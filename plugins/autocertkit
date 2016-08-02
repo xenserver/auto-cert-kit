@@ -466,7 +466,7 @@ def validate_xml_key(key):
         return False
 
 def json_dumps(data):
-    return json.dumps(data, indent=2)
+    return json.dumps(data, indent=2, separators=(',', ': '))
 
 @log_exceptions
 def deploy_iperf(session, args):

@@ -1942,11 +1942,9 @@ def call_ack_plugin(session, method, args={}, host=None):
                                            method,
                                            args)
     try:
-        res = json_loads(res)
+        return json_loads(res)
     except ValueError:
-        pass
-
-    return res
+        return res
 
 def get_hw_offloads(session, device):
     """We want to call the XAPI plugin on the pool
