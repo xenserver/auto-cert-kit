@@ -344,10 +344,7 @@ class NetworkTestClass(TestClass):
     
     def host_setup(self):
         """Overload setup function. Setup networking backend"""
-        master_ref = get_pool_master(self.session)
-    
         host_refs = self.session.xenapi.host.get_all()
-
         for host_ref in host_refs:
             oc = self.session.xenapi.host.get_other_config(host_ref)
             default_routes_key = 'default_routes'
@@ -356,23 +353,19 @@ class NetworkTestClass(TestClass):
                 route_recs = [route.get_record() for route in routes]
                 oc[default_routes_key] = str(route_recs)
                 self.session.xenapi.host.set_other_config(host_ref, oc)
-    
-        def plugin_call(method, args):
-            return self.session.xenapi.host.call_plugin(master_ref,
-                                                        'autocertkit',
-                                                        method,
-                                                        args)
-        
-        backend = plugin_call('get_network_backend', {})
+
+        backend = call_ack_plugin(self.session, 'get_network_backend')
         log.debug("Current network backend: %s" % backend)
         log.debug("self.network_backend %s" % self.network_backend)
         if self.network_backend == 'vswitch' and backend == 'bridge':
             #Switch backend to vswitch
-            plugin_call('set_network_backend_pool', {'backend': 'openvswitch'})
+            call_ack_plugin(self.session, 'set_network_backend_pool',
+                            {'backend': 'openvswitch'})
             host_reboot(self.session)
         elif self.network_backend == 'bridge' and backend == 'openvswitch':
             #Switch backend to bridge
-            plugin_call('set_network_backend_pool', {'backend': 'bridge'})
+            call_ack_plugin(self.session, 'set_network_backend_pool',
+                            {'backend': 'bridge'})
             host_reboot(self.session)
         #Nothing to do, just return
         return

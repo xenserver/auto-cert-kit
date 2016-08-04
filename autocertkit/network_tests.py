@@ -187,10 +187,8 @@ class IperfTest:
         if self.session.xenapi.VM.get_is_control_domain(self.server):
             # Handle Dom0 Case
             host_ref = self.session.xenapi.VM.get_resident_on(self.server)
-            ip = self.session.xenapi.host.call_plugin(host_ref,
-                                                      'autocertkit',
-                                                      'get_local_device_ip',
-                                                      {'device':iface})
+            ip = call_ack_plugin(self.session, 'get_local_device_ip',
+                                 {'device':iface}, host_ref)
             return ip
 
         else:
@@ -347,12 +345,7 @@ class IperfTest:
 
     def plugin_call(self, method, args):
         """Make a plugin call to autocertkit"""
-        log.debug("Host: %s Plugin: %s Method: %s Args: %s" %
-                  (self.host, 'autocertkit', method, str(args)))
-        return self.session.xenapi.host.call_plugin(self.host,
-                                                    'autocertkit',
-                                                    method,
-                                                    args)
+        return call_ack_plugin(self.session, method, args, self.host)
 
     def get_iperf_command(self):
         params = []

@@ -643,7 +643,7 @@ def host_crash(session, do_cleanup = False):
 
     host = get_pool_master(session)
     log.debug("Crashing host: %s" % host)
-    session.xenapi.host.call_plugin(host, 'autocertkit', 'force_crash_host', {})
+    call_ack_plugin(session, 'force_crash_host')
 
     # Once it is successful, host will be crashed hence code should not reach here.
     raise Exception("Failed to crash host.")
@@ -742,12 +742,7 @@ def get_xcp_version(session):
 
 def get_kernel_version(session):
     """Return kernel version using uname"""
-    host = get_pool_master(session)    
-    log.debug("Checking version of kernel.")
-    return session.xenapi.host.call_plugin(host,
-                                          'autocertkit',
-                                          'get_kernel_version',
-                                          {})
+    return call_ack_plugin(session, 'get_kernel_version')
 
 def eval_expr(expr, val):
     """Evaluate an expression against a provided value.
@@ -1060,12 +1055,8 @@ def _get_control_domain_ip(session, vm_ref, device='xenbr0'):
         raise Exception("Specified VM is not a control domain")
 
     host_ref = session.xenapi.VM.get_resident_on(vm_ref)
-
-    return session.xenapi.host.call_plugin(host_ref, 
-                                          'autocertkit',
-                                          'get_local_device_ip', 
-                                           {'device': device}
-                                           ) 
+    return call_ack_plugin(session, 'get_local_device_ip', {'device': device},
+                           host_ref)
 
 def wait_for_ip(session, vm_ref, device, timeout=300):
     """Wait for an IP address to be returned (until a given timeout)"""
@@ -1941,10 +1932,9 @@ def call_ack_plugin(session, method, args={}, host=None):
                                            'autocertkit',
                                            method,
                                            args)
-    try:
-        return json_loads(res)
-    except ValueError:
-        return res
+    log.debug("Plugin Output: %s" % res)
+    return json_loads(res)
+
 
 def get_hw_offloads(session, device):
     """We want to call the XAPI plugin on the pool
@@ -1996,15 +1986,10 @@ def get_iface_statistics(session, vm_ref, iface):
 def set_hw_offload(session, device, offload, state):
     """Call the a XAPI plugin on the pool master to set
     the state of an offload path on/off"""
-    host = get_pool_master(session)    
     log.debug("Device: %s - Set %s %s" % (device, offload, state))
-    res = session.xenapi.host.call_plugin(host,
-                                          'autocertkit',
-                                          'set_hw_offload',
-                                          {'eth_dev': device,
-                                           'offload': offload,
-                                           'state': state})
-    return res
+    return call_ack_plugin(session, 'set_hw_offload',
+                           {'eth_dev': device, 'offload': offload,
+                            'state': state})
 
 def parse_csv_list(string):
     arr = string.split(',')
