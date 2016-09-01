@@ -6,6 +6,7 @@ import sys
 
 import autocertkit.utils
 
+
 class DevTestCase(unittest.TestCase):
     """Subclass unittest for extended setup/tear down
     functionality"""
@@ -15,10 +16,10 @@ class DevTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        #Read user config from file
+        # Read user config from file
         pass
 
     @classmethod
     def tearDownClass(cls):
-        #Destroy the session
-        pass 
+        # Destroy the session
+        pass

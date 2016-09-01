@@ -3,6 +3,7 @@ import re
 
 from acktools.net import generate_mac
 
+
 class MACGeneratorTest(unittest.TestCase):
     """Test util methods for manipulating MACs"""
 

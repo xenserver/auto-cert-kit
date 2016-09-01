@@ -7,6 +7,7 @@ import sys
 
 utils.configure_logging('ack_tests')
 
+
 class TagsTests(unittest_base.DevTestCase):
     """Test that tags are enumerated correctly for a specified testclass"""
 
@@ -18,9 +19,10 @@ class TagsTests(unittest_base.DevTestCase):
     def testForTagMutilation(self):
         tg = test_generators.TestGenerator('fake_session', {}, 'nonexistent')
         for test_name, test_class in tg.get_test_classes():
-            orig_tags = list(test_class('fake_session',{}).tags)
-            new_tags = test_class('fake_session',{}).tags
-            assert orig_tags == new_tags, "%s != %s - Tags are being mutilated. (%s)" % (orig_tags, new_tags, test_name)
+            orig_tags = list(test_class('fake_session', {}).tags)
+            new_tags = test_class('fake_session', {}).tags
+            assert orig_tags == new_tags, "%s != %s - Tags are being mutilated. (%s)" % (
+                orig_tags, new_tags, test_name)
 
 if __name__ == '__main__':
     unittest.main()

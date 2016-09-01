@@ -7,6 +7,4 @@ setup(name='AutoCertKit',
       author='Citrix System Inc.',
       url='http://github.com/xenserver/auto-cert-kit',
       packages=['acktools', 'acktools.net'],
-     )
-
-
+      )

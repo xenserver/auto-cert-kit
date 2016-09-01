@@ -11,17 +11,17 @@ import acktools
 class RouteObjectTests(unittest.TestCase):
 
     route_rec = {
-                 'dest': '0.0.0.0',
-                 'gw': '10.80.2.1',
-                 'mask': '0.0.0.0',
-                 'iface': 'eth1',
-                }
-        
+        'dest': '0.0.0.0',
+        'gw': '10.80.2.1',
+        'mask': '0.0.0.0',
+        'iface': 'eth1',
+    }
+
     def setUp(self):
         self.route_obj = route.Route(**self.route_rec)
 
     def test_get_dest(self):
-        self.assertEqual(self.route_obj.get_dest(), 
+        self.assertEqual(self.route_obj.get_dest(),
                          self.route_rec['dest'])
 
     def test_get_gw(self):
@@ -48,12 +48,12 @@ class RouteObjectTests(unittest.TestCase):
 
 class RouteTableTests(unittest.TestCase):
 
-    route_recs = [ 
-                   {'dest': '0.0.0.0', 'gw': '10.80.2.1', 
-                    'mask': '0.0.0.0', 'iface': 'eth1'},
-                   {'dest': '192.168.0.0', 'gw':'192.168.0.1',
-                    'mask': '255.255.255.0', 'iface':'eth3'}
-                 ]
+    route_recs = [
+        {'dest': '0.0.0.0', 'gw': '10.80.2.1',
+         'mask': '0.0.0.0', 'iface': 'eth1'},
+        {'dest': '192.168.0.0', 'gw': '192.168.0.1',
+         'mask': '255.255.255.0', 'iface': 'eth3'}
+    ]
 
     def setUp(self):
         route_list = []
@@ -91,9 +91,9 @@ class RouteTableTests(unittest.TestCase):
             self.assertEqual(route.get_gw(), rec['gw'])
 
     def test_get_nonexistent_route(self):
-        routes = self.route_table.get_routes('192.145.2.5','255.255.255.0')
+        routes = self.route_table.get_routes('192.145.2.5', '255.255.255.0')
         self.assertEqual(routes, [])
-        routes = self.route_table.get_routes('192.168.0.0','255.255.254.0')
+        routes = self.route_table.get_routes('192.168.0.0', '255.255.254.0')
         self.assertEqual(routes, [])
 
     def test_get_missing_routes(self):
@@ -108,11 +108,12 @@ class RouteTableTests(unittest.TestCase):
 
 
 ROUTE_TABLE = \
-"""Kernel IP routing table
+    """Kernel IP routing table
 Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 0.0.0.0         10.80.2.1       0.0.0.0         UG    0      0        0 eth0
 10.80.2.0       0.0.0.0         255.255.254.0   U     1      0        0 eth0
 169.254.0.0     0.0.0.0         255.255.0.0     U     1000   0        0 eth0"""
+
 
 class RouteMethodTests(unittest.TestCase):
 
@@ -126,7 +127,7 @@ class RouteMethodTests(unittest.TestCase):
             self.assertEqual(route_obj.get_gw(), gw)
             self.assertEqual(route_obj.get_mask(), mask)
             self.assertEqual(route_obj.get_iface(), iface)
-        
+
         for route_obj in routes:
             if route_obj.get_dest() == '0.0.0.0':
                 assert_about_obj(route_obj, '10.80.2.1', '0.0.0.0', 'eth0')
@@ -135,7 +136,7 @@ class RouteMethodTests(unittest.TestCase):
             elif route_obj.get_dest() == '169.254.0.0':
                 assert_about_obj(route_obj, '0.0.0.0', '255.255.0.0', 'eth0')
             else:
-                raise Exception("Error: route not in original list! " \
+                raise Exception("Error: route not in original list! "
                                 "'%s'" % route)
 
     @mock.patch('acktools.net.route.get_route_table', mock.Mock(return_value='Blah'))
@@ -145,4 +146,3 @@ class RouteMethodTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
