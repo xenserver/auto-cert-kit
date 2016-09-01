@@ -401,10 +401,8 @@ def main(config, test_run_file):
 
     # Run log rotate before ACK produces any log.
     for host_ref in session.xenapi.host.get_all():
-        res = session.xenapi.host.call_plugin(host_ref, 
-                                    'autocertkit',
-                                    'run_ack_logrotate', 
-                                    {})
+        session.xenapi.host.call_plugin(host_ref, 'autocertkit',
+                                        'run_ack_logrotate', {})
     utils.configure_logging('auto-cert-kit')
 
     pre_flight_checks(session, config)

@@ -45,6 +45,7 @@ import os
 import base64
 import threading
 import re
+import json
 
 from acktools.net import route, generate_mac
 import acktools.log
@@ -224,14 +225,11 @@ def get_network_routes(session, host_ref, retry=6):
         except:
             log.debug("Failed. retrying. (retry=%d)" % attempt)
             time.sleep(10)
-        else:
-            recs = xml_to_dicts(results, 'routes')
-            break
 
     routes = []
 
     # Create NetRoute objects
-    for rec in recs:
+    for rec in results:
         route_obj = route.Route(**rec)
         routes.append(route_obj)
 
@@ -645,7 +643,7 @@ def host_crash(session, do_cleanup = False):
 
     host = get_pool_master(session)
     log.debug("Crashing host: %s" % host)
-    session.xenapi.host.call_plugin(host, 'autocertkit', 'force_crash_host', {})
+    call_ack_plugin(session, 'force_crash_host')
 
     # Once it is successful, host will be crashed hence code should not reach here.
     raise Exception("Failed to crash host.")
@@ -666,11 +664,7 @@ def retrieve_crashdumps(session, host=None, fromxapi=False):
     """Retrive all list of crashdump of master."""
     if not host:
         host = get_pool_master(session)
-    cds = xml_to_dicts(session.xenapi.host.call_plugin(host,
-                    'autocertkit',
-                    'retrieve_crashdumps',
-                    {'host': host, 'from_xapi': str(fromxapi)}),
-                    'crashdump')
+    cds = call_ack_plugin(session, 'retrieve_crashdumps', {'host': host, 'from_xapi': str(fromxapi)})
     for cd in cds:
         cd['size'] = int(cd['size'])
         ts = cd['timestamp']
@@ -748,12 +742,7 @@ def get_xcp_version(session):
 
 def get_kernel_version(session):
     """Return kernel version using uname"""
-    host = get_pool_master(session)    
-    log.debug("Checking version of kernel.")
-    return session.xenapi.host.call_plugin(host,
-                                          'autocertkit',
-                                          'get_kernel_version',
-                                          {})
+    return call_ack_plugin(session, 'get_kernel_version')
 
 def eval_expr(expr, val):
     """Evaluate an expression against a provided value.
@@ -1066,12 +1055,8 @@ def _get_control_domain_ip(session, vm_ref, device='xenbr0'):
         raise Exception("Specified VM is not a control domain")
 
     host_ref = session.xenapi.VM.get_resident_on(vm_ref)
-
-    return session.xenapi.host.call_plugin(host_ref, 
-                                          'autocertkit',
-                                          'get_local_device_ip', 
-                                           {'device': device}
-                                           ) 
+    return call_ack_plugin(session, 'get_local_device_ip', {'device': device},
+                           host_ref)
 
 def wait_for_ip(session, vm_ref, device, timeout=300):
     """Wait for an IP address to be returned (until a given timeout)"""
@@ -1147,7 +1132,7 @@ def wait_for_linkstate(session, device, state, host_ref=None, timeout=60):
     start = time.time()
     while not should_timeout(start, timeout):
         results = call_ack_plugin(session, 'get_local_device_linkstate', args, host_ref)
-        cur_state = xml_to_dicts(results, 'linkstate')[0]
+        cur_state = results[0]
         log.debug("Current linkstate of %s on host %s is %s." % (device, host_ref, cur_state))
         if state.lower() == 'up' and _is_link_up(cur_state):
             return
@@ -1914,54 +1899,62 @@ class TimeoutFunction:
             signal.signal(signal.SIGALRM, old)
         return result
 
-def xml_to_dicts(xml, tag):
-    doc = minidom.parseString(xml.strip())
-    try:
-        result = []
-        elems = doc.getElementsByTagName(tag)
-        for el in elems:
-            # Note that we have to convert this dictionary to non-unicode
-            # strings, because we're being casual elsewhere.  That's why we're
-            # not just returning dict(el.attributes.items()).
-            item = {}
-            for k, v in el.attributes.items():
-                item[str(k)] = str(v)
-            result.append(item)
-    finally:
-        doc.unlink()
-    log.debug(result)
-    return result
+def json_loads(json_data):
+    def process_dict_keys(d):
+        new_d = {}
+        for key in d.iterkeys():
+            new_key = str(key.replace(" ","_"))
+            new_d[new_key] = d[key]
+        return new_d
+
+    def process_values(item):
+        if isinstance(item, unicode):
+            item = str(item)
+        elif isinstance(item, list):
+            for elem in item:
+                elem = process_values(elem)
+        elif isinstance(item, dict):
+            item = process_dict_keys(item)
+            for key in item.iterkeys():
+                item[key] = str(item[key])
+        return item
+
+    data = json.loads(json_data, object_hook=process_values)
+    return [data] if isinstance(data, dict) else data
 
 def call_ack_plugin(session, method, args={}, host=None):
     if not host:
         host = get_pool_master(session)
     log.debug("About to call plugin '%s' on host '%s' with args '%s'" % \
                 (method, host, args))
-                
-    return session.xenapi.host.call_plugin(host,
+
+    res = session.xenapi.host.call_plugin(host,
                                            'autocertkit',
                                            method,
                                            args)
+    log.debug("Plugin Output: %s" % res)
+    return json_loads(res)
+
 
 def get_hw_offloads(session, device):
     """We want to call the XAPI plugin on the pool
     master to return the offload capabilites of a device."""
 
     if call_ack_plugin(session, 'get_kernel_version').startswith('2.6'):
-        xml_res = call_ack_plugin(session, 'get_hw_offloads_from_core',
+        res = call_ack_plugin(session, 'get_hw_offloads_from_core',
                               {'eth_dev':device})
     else:
-        xml_res = call_ack_plugin(session, 'get_hw_offloads',
+        res = call_ack_plugin(session, 'get_hw_offloads',
                               {'eth_dev':device})
 
-    return xml_to_dicts(xml_res, 'hw_offloads')[0]
+    return res[0]
 
 def get_dom0_iface_info(session, host_ref, device):
-    xml_res = call_ack_plugin(session, 'get_local_device_info',
+    res = call_ack_plugin(session, 'get_local_device_info',
                                         {'device': device},
                                         host=host_ref)
 
-    device_dict = xml_to_dicts(xml_res, 'devices')[0]
+    device_dict = res[0]
     return Iface(device_dict)
 
 def get_vm_device_mac(session, vm_ref, device):
@@ -1984,24 +1977,19 @@ def get_vm_device_mac(session, vm_ref, device):
                         (device, vm_ref))
 
 def get_iface_statistics(session, vm_ref, iface): 
-    xml_res = call_ack_plugin(session, 'get_iface_stats',
+    res = call_ack_plugin(session, 'get_iface_stats',
                                         {'iface':iface,
                                         'vm_ref': vm_ref})
-    stats_dict = xml_to_dicts(xml_res, 'iface_stats')[0]
+    stats_dict = res[0]
     return IfaceStats(iface, stats_dict)
 
 def set_hw_offload(session, device, offload, state):
     """Call the a XAPI plugin on the pool master to set
     the state of an offload path on/off"""
-    host = get_pool_master(session)    
     log.debug("Device: %s - Set %s %s" % (device, offload, state))
-    res = session.xenapi.host.call_plugin(host,
-                                          'autocertkit',
-                                          'set_hw_offload',
-                                          {'eth_dev': device,
-                                           'offload': offload,
-                                           'state': state})
-    return res
+    return call_ack_plugin(session, 'set_hw_offload',
+                           {'eth_dev': device, 'offload': offload,
+                            'state': state})
 
 def parse_csv_list(string):
     arr = string.split(',')
@@ -2053,15 +2041,15 @@ def check_test_thread_status(threads):
     return False
 
 def get_master_network_devices(session):
-    xml_devices = call_ack_plugin(session, 'get_network_devices')
-    log.debug("Network Devices found on machine: '%s'" % xml_devices)
-    return xml_to_dicts(xml_devices, 'device')
+    devices = call_ack_plugin(session, 'get_network_devices')
+    log.debug("Network Devices found on machine: '%s'" % devices)
+    return devices
 
 def get_local_storage_info(session):
     """Returns info about the local storage devices"""
-    xml_devices = call_ack_plugin(session, 'get_local_storage_devices')
-    log.debug("Local Storage Devices found on machine: '%s'" % xml_devices)
-    return xml_to_dicts(xml_devices, 'device')
+    devices = call_ack_plugin(session, 'get_local_storage_devices')
+    log.debug("Local Storage Devices found on machine: '%s'" % devices)
+    return devices
 
 def get_xs_info(session):
     """Returns a limited subset of info about the XenServer version"""

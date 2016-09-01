@@ -72,18 +72,15 @@ class PerfTestClass(testbase.LocalStorageTestClass):
                                               sr_ref)
         
     def _call_plugin(self, session, vm_ref_list, call):
-        """Util function to call a XenAPI plugin"""
+        """Util function to call ACK plugin method"""
         res = []
-        host = get_pool_master(session)
         for vm_ref in vm_ref_list:
-            res.append(self.session.xenapi.host.call_plugin(host,
-                                                            'autocertkit',
-                                                            call,
-                                                            {'vm_ref': vm_ref,
-                                                             'username': self.username,
-                                                             'password': self.password}))
+            res.append(call_ack_plugin(self.session, call,
+                                       {'vm_ref': vm_ref,
+                                        'username': self.username,
+                                        'password': self.password}))
         return res
-            
+
     def _create_test_threads(self, session, vm_ref_list):    
         """Spawns a new test thread using the cmd_strin a 
         timeout function over SSH to every VM in vm_ref_list"""

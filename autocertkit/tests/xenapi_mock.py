@@ -7,7 +7,7 @@ while running unit tests.
 
 import mock
 import random
-
+import json
 
 class XenAPIObjectMock(object):
     """Base class for XenAPI object models"""
@@ -373,7 +373,10 @@ class XenapiHostMock(mock.Mock):
     def get_management_interface(self, opaque):
         return self.__getHost(opaque).PIFs[0].opaque
 
-    def call_plugin(self, *arg):
+    def call_plugin(self, host_ref, plugin, method, *arg):
+        if plugin == "autocertkit":
+            # autocertkit plugin has output in json format
+            return json.dumps("")
         return ""
 
 
