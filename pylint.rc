@@ -63,7 +63,7 @@ disable=W0603,R0913,W0703,W0614,R0201,W0401,W0404
 
 # set the output format. Available formats are text, parseable, colorized and
 # html
-output-format=parseable
+output-format=text
 
 # Include message's id in output
 include-ids=yes
