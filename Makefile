@@ -5,15 +5,7 @@ include $(B_BASE)/common.mk
 include $(B_BASE)/rpmbuild.mk
 endif
 
-VENDOR_CODE := xs
-VENDOR_NAME := "Citrix Systems, Inc."
-LABEL := xs-auto-cert-kit
-TEXT := XenServer Auto Cert Kit
-VERSION := $(PRODUCT_VERSION)
-BUILD := $(BUILD_NUMBER)
 KIT_VERSION := $(shell git describe)
-
-STAGING := $(MY_OBJ_DIR)/auto-cert-supp-pack
 
 REPONAME := auto-cert-kit
 ifdef B_BASE
@@ -23,14 +15,6 @@ REPO := .
 endif
 
 PYLINT := sh $(REPO)/pylint.sh
-
-SUPP_PACK_ISO := $(MY_OUTPUT_DIR)/xenserver-auto-cert-kit.iso
-SUPP_PACK_DIR := $(MY_OUTPUT_DIR)/PACKAGES.auto-cert-kit
-SUPP_PACK_ISO_TMP := $(MY_OBJ_DIR)/$(LABEL).iso
-SUPP_PACK_ISO_TMP_MD5 := $(SUPP_PACK_ISO_TMP).md5
-SUPP_PACK_TARBALL := $(MY_OBJ_DIR)/xenserver-auto-cert-kit.tar.gz
-SUPP_PACK_SOURCES := $(MY_OUTPUT_DIR)/SOURCES/xenserver-auto-cert-kit-src.tar.gz
-SUPP_PACK_SOURCES_ISO := $(MY_OUTPUT_DIR)/SOURCES/xs-auto-cert-kit-sources.iso
 
 PY_PACKAGE := pypackages
 TEST_KIT_RPM := $(MY_OUTPUT_DIR)/RPMS/noarch/xenserver-auto-cert-kit-$(PRODUCT_VERSION)-$(BUILD_NUMBER).noarch.rpm
@@ -97,20 +81,30 @@ SRC_RPMS  += $(ACK_DISTFILES)/lmbench-3.0-0.a7.1.rf.src.rpm
 VM_RPMS   += $(ACK_DISTFILES)/make-3.81-3.el5.i386.rpm
 SRC_RPMS  += $(ACK_DISTFILES)/make-3.81-3.el5.src.rpm
 
-OUTPUT := $(SUPP_PACK_ISO)
+# Definition of the pack.
+PACK_LABEL := xenserver-auto-cert-kit
+PACK_VERSION := $(PRODUCT_VERSION)
+PACK_UUID := 9815300b-9faf-4b8f-82a3-a7cfb02a46c4
+PACK_DESCRIPTION := XenServer Auto Cert Kit
+
+# Contents of the pack.
+PACK_PACKAGES = $(TEST_KIT_RPM) $(DOM0_RPMS)
+
+# Generated outputs
+ISO := $(MY_OUTPUT_DIR)/$(PACK_LABEL).iso
+SRCS := $(MY_OUTPUT_DIR)/$(PACK_LABEL)-sources.tar
+
+BUILD_DIR := $(MY_OBJ_DIR)/$(PACK_LABEL)
+
+BASE_REQUIRES ?= platform-version = $(PLATFORM_VERSION)
+
+GPG_KEY_FILE := RPM-GPG-KEY-XS-Eng-Test
+GPG_OPTIONS := --homedir=/.gpg --lock-never --batch --yes
+GPG_UID := $(shell gpg $(GPG_OPTIONS) -k --with-colons 2>/dev/null | awk -F: '$$1=="uid" {print $$10}')
 
 .PHONY: build
-build: $(SUPP_PACK_ISO) $(SUPP_PACK_SOURCES_ISO)
+build: $(ISO) $(SRCS)
 	@:
-
-$(SUPP_PACK_SOURCES): $(SRC_RPMS)
-	mkdir -p $(dir $@)
-	mkdir -p $(TMP_SRC_DIR)
-	cp $(SRC_RPMS) $(TMP_SRC_DIR)/
-	tar -C $(MY_OBJ_DIR) -cvf $@ SOURCES/
-
-$(SUPP_PACK_SOURCES_ISO): $(SUPP_PACK_SOURCES)
-	mkisofs -A "Citrix" -V "Auto Cert Kit" -J -joliet-long -r -o $@ $(SUPP_PACK_SOURCES)
 
 $(TEST_KIT_SPEC): $(REPO)/xenserver-auto-cert-kit.spec.in
 	mkdir -p $(dir $@)
@@ -145,8 +139,18 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC) $(RPM_DIRECTORIES)
 	cd $(TEST_KIT_RPM_TMP_DIR) && tar zcvf $(RPM_SOURCESDIR)/auto-cert-kit.tar.gz *
 	$(RPMBUILD) -bb $(TEST_KIT_SPEC)
 
-$(SUPP_PACK_ISO): $(TEST_KIT_RPM) $(DOM0_RPMS)
-	python setup-supp-pack.py --out $(dir $@) --pdn $(PRODUCT_BRAND) --pdv $(PRODUCT_VERSION) --pln $(PLATFORM_NAME) --plv $(PLATFORM_VERSION) --bld $(BUILD) $^
+$(ISO): $(MY_OUTPUT_DIR)/.dirstamp $(PACK_PACKAGES)
+	GNUPGHOME=/.gpg build-update --uuid $(PACK_UUID) --label "$(PACK_LABEL)" --version $(PACK_VERSION) \
+		--description "$(PACK_DESCRIPTION)" --base-requires "$(BASE_REQUIRES)" $(PACK_GUIDANCE:%=--after-apply %) \
+		$(PACK_PRECHECK:%=--precheck %) $(PACK_REMOVE:%=--remove %) \
+		--key "$(GPG_UID)" --keyfile $(GPG_KEY_FILE) --no-passphrase \
+		-o $@ $(PACK_PACKAGES)
+
+$(SRCS): $(SRC_RPMS)
+	mkdir -p $(dir $@)
+	mkdir -p $(TMP_SRC_DIR)
+	cp $(SRC_RPMS) $(TMP_SRC_DIR)/
+	tar -C $(MY_OBJ_DIR)/SOURCES -cvf $@ .
 
 pylint:
 	$(PYLINT) $(TEST_KIT)/*.py
