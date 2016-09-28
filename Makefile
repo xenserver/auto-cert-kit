@@ -92,7 +92,7 @@ PACK_PACKAGES = $(TEST_KIT_RPM) $(DOM0_RPMS)
 
 # Generated outputs
 ISO := $(MY_OUTPUT_DIR)/xs-auto-cert-kit.iso
-SRCS := $(MY_OUTPUT_DIR)/$(PACK_LABEL)-sources.tar
+SRCS_ISO := $(MY_OUTPUT_DIR)/SOURCES/xs-auto-cert-kit-sources.iso
 
 BUILD_DIR := $(MY_OBJ_DIR)/$(PACK_LABEL)
 
@@ -103,7 +103,7 @@ GPG_OPTIONS := --homedir=/.gpg --lock-never --batch --yes
 GPG_UID := $(shell gpg $(GPG_OPTIONS) -k --with-colons 2>/dev/null | awk -F: '$$1=="uid" {print $$10}')
 
 .PHONY: build
-build: $(ISO) $(SRCS)
+build: $(ISO) $(SRCS_ISO)
 	@:
 
 $(TEST_KIT_SPEC): $(REPO)/xenserver-auto-cert-kit.spec.in
@@ -146,11 +146,11 @@ $(ISO): $(MY_OUTPUT_DIR)/.dirstamp $(PACK_PACKAGES)
 		--key "$(GPG_UID)" --keyfile $(GPG_KEY_FILE) --no-passphrase \
 		-o $@ $(PACK_PACKAGES)
 
-$(SRCS): $(SRC_RPMS)
-	mkdir -p $(dir $@)
+$(SRCS_ISO): $(SRC_RPMS)
+	mkdir -p $(@D)
 	mkdir -p $(TMP_SRC_DIR)
-	cp $(SRC_RPMS) $(TMP_SRC_DIR)/
-	tar -C $(MY_OBJ_DIR)/SOURCES -cvf $@ .
+	cp $(SRC_RPMS) $(TMP_SRC_DIR)
+	genisoimage -J -R -V "$(PACK_DESCRIPTION)" -o $@ $(TMP_SRC_DIR)
 
 pylint:
 	$(PYLINT) $(TEST_KIT)/*.py
