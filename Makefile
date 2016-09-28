@@ -90,7 +90,7 @@ PACK_DESCRIPTION := XenServer Auto Cert Kit
 PACK_PACKAGES = $(TEST_KIT_RPM) $(DOM0_RPMS)
 
 # Generated outputs
-ISO := $(MY_OUTPUT_DIR)/$(PACK_LABEL).iso
+ISO := $(MY_OUTPUT_DIR)/xs-auto-cert-kit.iso
 SRCS := $(MY_OUTPUT_DIR)/$(PACK_LABEL)-sources.tar
 
 BUILD_DIR := $(MY_OBJ_DIR)/$(PACK_LABEL)
