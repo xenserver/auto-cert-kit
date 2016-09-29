@@ -8,6 +8,7 @@ install:
 
 script: 
     - nosetests -c .noserc autocertkit/tests/ acktools/
+    - tools/checkpep8.sh
 
 after_success:
     - coveralls
