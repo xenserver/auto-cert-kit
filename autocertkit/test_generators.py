@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """Python module for generating the list of tests specific to each device"""
@@ -41,6 +41,7 @@ import storage_tests
 import operations_tests
 import testbase
 from xml.dom import minidom
+
 
 class TestGenerator(object):
     """Test class for enumerating test config and information. The class
@@ -60,7 +61,7 @@ class TestGenerator(object):
         self.session = session
         self.config = config
         self.interface = interface
-        #if not self.TAG:
+        # if not self.TAG:
         #    raise Exception("The TestGenerator class is generic. Please inherit for a specific device")
         self.prereq_check()
 
@@ -82,17 +83,19 @@ class TestGenerator(object):
         for test_module in utils.get_module_names('_tests'):
             test_classes = inspect.getmembers(sys.modules[test_module],
                                               inspect.isclass)
-            #utils.log.debug(test_classes)
+            # utils.log.debug(test_classes)
             for test_name, test_class in test_classes:
-                #Check that the class is subclassed from the base TestClass
+                # Check that the class is subclassed from the base TestClass
                 if issubclass(test_class, testbase.TestClass):
                     # If a tag exists, then we should make sure that the classes tags list
                     # contains the specified tag. If not, then we will add the test to be run
                     # anyway.
-                    if self.TAG and (not self.TAG in test_class(self.session,self.config).tags):
+                    if self.TAG and (not self.TAG in test_class(self.session, self.config).tags):
                         continue
-                    test_classes_to_run.append(("%s.%s" % (test_module, test_name), test_class))
-        #Return the tuple (test_class_name, test_class) where the test_class value is a class object
+                    test_classes_to_run.append(
+                        ("%s.%s" % (test_module, test_name), test_class))
+        # Return the tuple (test_class_name, test_class) where the test_class
+        # value is a class object
         return self.filter_test_classes(test_classes_to_run)
 
     def get_uid(self):
@@ -153,38 +156,41 @@ class TestGenerator(object):
 
             class_node = doc.createElement('test_class')
             class_node.setAttribute('name', test_class_name)
-            class_node.setAttribute('caps', str(test_class(self.session,self.config).caps))
-            class_node.setAttribute('order', str(test_class(self.session,self.config).order))
+            class_node.setAttribute('caps', str(
+                test_class(self.session, self.config).caps))
+            class_node.setAttribute('order', str(
+                test_class(self.session, self.config).order))
 
             test_methods = test_class(self.session, self.config).list_tests()
             for method in test_methods:
                 method_node = doc.createElement('test_method')
                 method_node.setAttribute('name', str(method))
 
-                #Result/Info fields
+                # Result/Info fields
                 result_node = doc.createElement('result')
                 info_node = doc.createElement('info')
                 if skipthis:
                     result_node.appendChild(doc.createTextNode('skip'))
                     reason_node = doc.createElement('reason')
                     reason_node.appendChild(doc.createTextNode('%s is not required for XCP %s.'
-                                            % (test_class_name, xcp_version)))
+                                                               % (test_class_name, xcp_version)))
                     method_node.appendChild(reason_node)
                 else:
                     result_node.appendChild(doc.createTextNode('NULL'))
-                
+
                 method_node.appendChild(result_node)
                 method_node.appendChild(info_node)
                 testname_node = doc.createElement('test_name')
                 testname_node.appendChild(doc.createTextNode('%s.%s' %
-                    (test_class_name.split('.')[1], str(method))))
+                                                             (test_class_name.split('.')[1], str(method))))
                 method_node.appendChild(testname_node)
 
                 class_node.appendChild(method_node)
 
             cts_node.appendChild(class_node)
-            
+
         xml_node.appendChild(device_node)
+
 
 class NetworkAdapterTestGenerator(TestGenerator):
     """TestGenerator class specific for NA tests"""
@@ -199,12 +205,14 @@ class NetworkAdapterTestGenerator(TestGenerator):
             # which are going to be run.
             min_ips_required = 0
             for test_name, test_class in self.get_test_classes():
-                class_ips = test_class(self.session, self.config).num_ips_required
+                class_ips = test_class(
+                    self.session, self.config).num_ips_required
                 if class_ips > min_ips_required:
                     min_ips_required = class_ips
-                             
+
             if min_ips_required > num_ips_provided:
-                raise Exception("For these tests, at least %d static IPs must be provided. You provided only %d" % (min_ips_required, num_ips_provided))
+                raise Exception("For these tests, at least %d static IPs must be provided. You provided only %d" % (
+                    min_ips_required, num_ips_provided))
 
     def filter_test_classes(self, test_classes):
         utils.log.debug("Config Keys: %s" % self.config.keys())
@@ -218,20 +226,21 @@ class NetworkAdapterTestGenerator(TestGenerator):
             return True
 
         if 'OVS' in self.config['exclude']:
-            test_classes = [(testname, testclass) for testname, testclass 
-                    in test_classes if not testclass.network_backend or
-                    testclass.network_backend == 'bridge']
+            test_classes = [(testname, testclass) for testname, testclass
+                            in test_classes if not testclass.network_backend or
+                            testclass.network_backend == 'bridge']
         if 'BRIDGE' in self.config['exclude']:
-            test_classes = [(testname, testclass) for testname, testclass 
-                    in test_classes if not testclass.network_backend or
-                    testclass.network_backend == 'vswitch']
+            test_classes = [(testname, testclass) for testname, testclass
+                            in test_classes if not testclass.network_backend or
+                            testclass.network_backend == 'vswitch']
 
         if 'singlenic' in self.config.keys() and self.config['singlenic'] == "true":
             dont_run = ["BondingTestClass", "MTUPingTestClass"]
-            return [(testname, testclass) for testname, testclass 
+            return [(testname, testclass) for testname, testclass
                     in test_classes if append_filter(testname, dont_run)]
         else:
             return test_classes
+
 
 class ProcessorTestGenerator(TestGenerator):
     """TestGenertor class specific to Processor tests"""
@@ -249,10 +258,11 @@ class ProcessorTestGenerator(TestGenerator):
         cpu_rec = self.session.xenapi.host.get_cpu_info(master_ref)
         return utils.combine_recs(rec, cpu_rec)
 
+
 class StorageTestGenerator(TestGenerator):
     """TestGenertor class specific to Storage tests"""
     TAG = 'LS'
-    
+
     def __init__(self, session, config, device):
         super(StorageTestGenerator, self).__init__(session, config)
         self.device = device
@@ -267,16 +277,17 @@ class StorageTestGenerator(TestGenerator):
         rec = super(StorageTestGenerator, self).get_device_config()
         return utils.combine_recs(rec, self.device)
 
+
 class OperationsTestGenerator(TestGenerator):
     """TestGenertor class specific to Operations tests"""
     TAG = 'OP'
-    
+
     def filter_test_classes(self, test_classes):
         if 'OPS' in self.config['exclude']:
             return []
         if 'CRASH' in self.config['exclude']:
             test_classes = [(testname, testclass) for testname, testclass
-                    in test_classes if 'CrashDump' not in testname]
+                            in test_classes if 'CrashDump' not in testname]
         return test_classes
 
     def get_device_config(self):
@@ -287,6 +298,7 @@ class OperationsTestGenerator(TestGenerator):
         return rec
 
 ##############################################################################
+
 
 class DeviceXMLGenerator(object):
 
@@ -311,13 +323,15 @@ class DeviceXMLGenerator(object):
         gen = self.CLS(self.session, self.config)
         gen.append_xml_config(doc, devices_node)
 
+
 class NetworkAdaptersXMLGenerator(DeviceXMLGenerator):
 
     TAGS = ["NET"]
 
     def _append_xml_config(self, doc, devices_node):
         for iface in self.network_ifs:
-            natg = NetworkAdapterTestGenerator(self.session, self.config, iface)
+            natg = NetworkAdapterTestGenerator(
+                self.session, self.config, iface)
             natg.append_xml_config(doc, devices_node)
 
 
@@ -335,6 +349,7 @@ class ProcessorsXMLGenerator(DeviceXMLGenerator):
 
     TAGS = ["CPU"]
     CLS = ProcessorTestGenerator
+
 
 class OperationsXMLGenerator(DeviceXMLGenerator):
 
@@ -359,7 +374,7 @@ def print_documentation(object_name):
     for test_class_name, test_class in classes:
         arr = (object_name).split('.')
         if test_class_name == object_name:
-            #get the class info
+            # get the class info
             print "%s: %s" % (utils.bold('Prereqs'), test_class.required_config)
             print "%s: %s" % (utils.bold('Collects'), test_class.collects)
             print ""
@@ -372,7 +387,7 @@ def print_documentation(object_name):
             print ""
             sys.exit(0)
         elif len(arr) == 3 and ".".join(arr[:2]) == test_class_name:
-            #get the method info
+            # get the method info
             print utils.format(getattr(test_class, arr[2]).__doc__)
             print ""
             sys.exit(0)
@@ -380,9 +395,12 @@ def print_documentation(object_name):
     print "The test name specified (%s) was incorrect. Please specify the full test name." % object_name
     sys.exit(0)
 
+
 def enumerate_all_test_classes():
-    tg = TestGenerator('nonexistent_session', 'nonexistent_config', 'nonexistent_iface')
+    tg = TestGenerator('nonexistent_session',
+                       'nonexistent_config', 'nonexistent_iface')
     return tg.get_test_classes()
+
 
 def print_all_test_classes():
     print "---------- %s ---------" % utils.bold("Test List")
@@ -392,4 +410,3 @@ def print_all_test_classes():
         for test_name in obj.list_tests():
             print "%s.%s" % (test_class_name, test_name)
     sys.exit(0)
-

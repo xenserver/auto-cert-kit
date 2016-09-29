@@ -1,11 +1,14 @@
 #!/usr/bin/python
 
-import unittest, unittest_base
+import unittest
+import unittest_base
 from autocertkit import utils, test_generators, models
 from xml.dom import minidom
 
+
 class StreamMock(object):
     """Fake stream to get result."""
+
     def __init__(self):
         self.__data = ""
 
@@ -20,15 +23,15 @@ class ReportPrintsTests(unittest_base.DevTestCase):
     """Test Report output is generated properly"""
 
     device = {'vendor': 'fakevender',
-            'PCI_id': 'fakeid',
-            'PCI_subsystem': 'fakess',
-            'device': 'fakedevice',
-            'driver': 'fake',
-            'PCI_description': 'fakedesc',
-            'modelname': 'fake AMD model',
-            'version': 'fakeversion',
-            'build': 'fakebuildnumber'
-            }
+              'PCI_id': 'fakeid',
+              'PCI_subsystem': 'fakess',
+              'device': 'fakedevice',
+              'driver': 'fake',
+              'PCI_description': 'fakedesc',
+              'modelname': 'fake AMD model',
+              'version': 'fakeversion',
+              'build': 'fakebuildnumber'
+              }
     config = {'exclude': ['LSTOR', 'OVS', 'BRIDGE', 'OPS', 'CPU']}
 
     def createDeviceNode(self, generator):
@@ -43,20 +46,22 @@ class ReportPrintsTests(unittest_base.DevTestCase):
         device_node.appendChild(cts_node)
 
         return device_node
-        
+
     def testLSReport(self):
-        device_node = self.createDeviceNode(test_generators.StorageTestGenerator)
+        device_node = self.createDeviceNode(
+            test_generators.StorageTestGenerator)
         report = StreamMock()
         models.Device(device_node).print_report(report)
 
-        assert 'fakevender:fakedevice' in report.output(), "Failed to compile vender and device."
+        assert 'fakevender:fakedevice' in report.output(
+        ), "Failed to compile vender and device."
         expected = "Storage device using the fake driver"
         assert expected in report.output(), "Failed to compile driver."
         assert 'fakedesc' in report.output(), "Failed to compile PCI_description."
 
-
     def testNetReport(self):
-        device_node = self.createDeviceNode(test_generators.NetworkAdapterTestGenerator)
+        device_node = self.createDeviceNode(
+            test_generators.NetworkAdapterTestGenerator)
         report = StreamMock()
         models.Device(device_node).print_report(report)
 
@@ -65,14 +70,16 @@ class ReportPrintsTests(unittest_base.DevTestCase):
         assert 'fakess' in report.output(), "Failed to compile PCI_subsystem."
 
     def testCPUReport(self):
-        device_node = self.createDeviceNode(test_generators.ProcessorTestGenerator)
+        device_node = self.createDeviceNode(
+            test_generators.ProcessorTestGenerator)
         report = StreamMock()
         models.Device(device_node).print_report(report)
 
         assert 'fake AMD model' in report.output(), "Failed to compile model name"
 
     def testOpsReport(self):
-        device_node = self.createDeviceNode(test_generators.OperationsTestGenerator)
+        device_node = self.createDeviceNode(
+            test_generators.OperationsTestGenerator)
         report = StreamMock()
         models.Device(device_node).print_report(report)
 

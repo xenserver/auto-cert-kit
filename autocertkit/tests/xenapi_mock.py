@@ -9,6 +9,7 @@ import mock
 import random
 import json
 
+
 class XenAPIObjectMock(object):
     """Base class for XenAPI object models"""
 
@@ -23,11 +24,12 @@ class XenAPIObjectMock(object):
             suffix = '_%d' % random.randint(0, 9999999)
         cls.USED_SUFFIXES.append(suffix)
 
-        return ('Opaque: %sOpaque%s' % (clsname, suffix), \
+        return ('Opaque: %sOpaque%s' % (clsname, suffix),
                 '%sUUID%s' % (clsname, suffix))
 
     def __init__(self):
-        self.__opaque, self.__uuid = self.__class__.genIdentity(self.__class__.__name__)
+        self.__opaque, self.__uuid = self.__class__.genIdentity(
+            self.__class__.__name__)
 
     @property
     def opaque(self):
@@ -123,7 +125,7 @@ class PIF(XenAPIObjectMock):
 
     @property
     def plugged(self):
-        return  self.__plugged
+        return self.__plugged
 
     @plugged.setter
     def plugged(self, value):
@@ -169,11 +171,11 @@ class Host(XenAPIObjectMock):
         super(Host, self).__init__()
         self.__metrics = HostMetrics()
         self.__pifs = [PIF(self, networks[i], i * 2) for i in xrange(len(networks))] + \
-                [PIF(self, networks[i], i * 2 + 1) for i in xrange(len(networks))]
+            [PIF(self, networks[i], i * 2 + 1) for i in xrange(len(networks))]
         for pif in self.__pifs:
             pif.network.addPIF(pif)
         self.__enabled = True
-        self.__vms = [VM(self, True)] # Control Domain
+        self.__vms = [VM(self, True)]  # Control Domain
 
     @property
     def enabled(self):
@@ -232,7 +234,7 @@ class VM(XenAPIObjectMock):
 
     @property
     def record(self):
-        return {'is_control_domain': self.__controlDomain, \
+        return {'is_control_domain': self.__controlDomain,
                 'resident_on': self.__host.opaque}
 
     @property
@@ -423,4 +425,3 @@ class XenapiVMMock(mock.Mock):
                 rec[vm.opaque] = vm.record
 
         return rec
-

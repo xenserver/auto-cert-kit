@@ -11,10 +11,10 @@ parser.add_option('--out', dest="outdir")
 (options, args) = parser.parse_args()
 
 xs = Requires(originator='xcp', name='main', test='ge',
-               product=options.platform_name, version='1.0.99',
-               build='50762p')
+              product=options.platform_name, version='1.0.99',
+              build='50762p')
 
-setup(originator='xs', name='xs-auto-cert-kit', product=options.platform_name, 
-      version=options.platform_version, build=options.build, vendor='Citrix Systems, Inc.', 
+setup(originator='xs', name='xs-auto-cert-kit', product=options.platform_name,
+      version=options.platform_version, build=options.build, vendor='Citrix Systems, Inc.',
       description="XenServer Auto Cert Kit", packages=args, requires=[xs],
       outdir=options.outdir, output=['iso'])

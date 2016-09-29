@@ -3,31 +3,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """Module for checking the status of the kit. This will be of most interest
@@ -43,41 +43,47 @@ TEST_FILE = "test_run.conf"
 DEFAULT_RUN_LEVEL = 3
 running = False
 
+
 def get_process_strings():
-    ps = subprocess.Popen(['ps', 'aux'], stdout=subprocess.PIPE).communicate()[0]
+    ps = subprocess.Popen(
+        ['ps', 'aux'], stdout=subprocess.PIPE).communicate()[0]
     process_strings = []
     for line in ps.split('\n'):
         if 'ack_cli.py' in line or 'test_runner.py' in line:
             process_strings.append(line)
     return process_strings
 
+
 def check_for_process():
     process_strings = get_process_strings()
-    my_pid = str(os.getpid())    
+    my_pid = str(os.getpid())
     for line in process_strings:
         if my_pid in line:
             process_strings.remove(line)
     if process_strings:
         return True
 
+
 def get_run_level():
-    output = subprocess.Popen(['/sbin/runlevel'], stdout=subprocess.PIPE).communicate()[0]
+    output = subprocess.Popen(
+        ['/sbin/runlevel'], stdout=subprocess.PIPE).communicate()[0]
     _, level = output.split()
     return int(level)
+
 
 def main():
     running = False
 
-    #Check for manifest file
+    # Check for manifest file
     if not os.path.exists(TEST_FILE):
         print "4:Manifest file has not been created. Have run the kit? (Has an error occured?)"
         sys.exit(0)
 
-    #Check for the python process
+    # Check for the python process
     if check_for_process():
         running = True
 
-    #Check the XML file to find out how many tests have been run
+    # Check the XML file to find out how many tests have been run
     try:
         ack_run = models.parse_xml(TEST_FILE)
     except:
@@ -87,15 +93,15 @@ def main():
     p, f, s, w = ack_run.get_status()
 
     if w == 0:
-        print "0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p,f,s)
+        print "0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p, f, s)
     elif not running and utils.get_reboot_flag():
-        print "3:Server rebooting... (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d)" % (p,f,s,w)
+        print "3:Server rebooting... (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d)" % (p, f, s, w)
     elif not running and not utils.get_reboot_flag():
-        print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Skipped: %d, Waiting:%d)" % (p,f,s,w)
+        print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Skipped: %d, Waiting:%d)" % (p, f, s, w)
         sys.exit(1)
     else:
-        perc = float(p + f + s)/float(w + p + f + s) * 100
-        print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d)" % (perc,p,f,s,w)
+        perc = float(p + f + s) / float(w + p + f + s) * 100
+        print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d)" % (perc, p, f, s, w)
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,7 @@
 
 import subprocess
 
+
 def make_local_call(call):
     """Function wrapper for making a simple call to shell"""
     process = subprocess.Popen(call, stdout=subprocess.PIPE)
@@ -10,4 +11,3 @@ def make_local_call(call):
         return str(stdout).strip()
     else:
         raise Exception("Error: '%s' '%s'" % (stdout, stderr))
-

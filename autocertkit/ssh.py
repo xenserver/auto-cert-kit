@@ -1,34 +1,41 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import socket, string, sys, os, os.path, traceback, time, gc
+import socket
+import string
+import sys
+import os
+import os.path
+import traceback
+import time
+import gc
 import paramiko
 
 SSHPORT = 22
@@ -41,14 +48,17 @@ __all__ = ["SSHSession",
            "SSHread",
            "getPublicKey"]
 
+
 def getPublicKey():
-    filename = ".ssh/id_dsa.pub" 
+    filename = ".ssh/id_dsa.pub"
     f = file(filename, "r")
     data = f.read()
     f.close()
     return string.strip(data)
 
+
 class SSHSession:
+
     def __init__(self,
                  ip,
                  log,
@@ -87,7 +97,7 @@ class SSHSession:
                 else:
                     # Probably a legitimate exception
                     pass
-                self.reply ="SSH connection failed"
+                self.reply = "SSH connection failed"
                 self.toreply = 1
                 self.close()
                 break
@@ -103,11 +113,11 @@ class SSHSession:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         sock.connect((ip, SSHPORT))
-            
+
         # Create SSH transport.
         self.trans = paramiko.Transport(sock)
         self.trans.set_log_channel("")
-            
+
         # Negotiate SSH session synchronously.
         goes = 3
         while goes > 0:
@@ -121,15 +131,15 @@ class SSHSession:
                     time.sleep(10)
                 else:
                     raise e
-            
+
         # Load DSS key.
         k = None
         try:
-            dsskey = ".ssh/id_dsa" 
+            dsskey = ".ssh/id_dsa"
             k = paramiko.DSSKey.from_private_key_file(dsskey)
         except:
             pass
-        
+
         # Authenticate session. No host key checking is performed.
         if password:
             if password == "<NOPASSWORD>":
@@ -157,8 +167,10 @@ class SSHSession:
     def __del__(self):
         self.close()
 
+
 class SFTPSession(SSHSession):
     """An SFTP session guarded for target lockups."""
+
     def __init__(self,
                  ip,
                  log,
@@ -182,7 +194,8 @@ class SFTPSession(SSHSession):
                             nowarn=nowarn)
         try:
             # We do this rather than the simple trans.open_sftp_client() because
-            # if we don't then we don't get a timeout set so we can hang forever
+            # if we don't then we don't get a timeout set so we can hang
+            # forever
             c = self.trans.open_channel("session")
             c.settimeout(timeout)
             c.invoke_subsystem("sftp")
@@ -213,7 +226,8 @@ class SFTPSession(SSHSession):
                 alive = False
 
         if not alive:
-            log.warn("SFTP session appears to have gone away, attempting to reconnect...")
+            log.warn(
+                "SFTP session appears to have gone away, attempting to reconnect...")
             self.__init__(self.ip,
                           self.log,
                           username=self.username,
@@ -251,8 +265,8 @@ class SFTPSession(SSHSession):
             log.debug("Skipping %s, too old" % (source))
             return
         elif sizethresh and st.st_size > long(sizethresh):
-            log.debug("Skipping %s, too big (%u)" %\
-                                   (source, st.st_size))
+            log.debug("Skipping %s, too big (%u)" %
+                      (source, st.st_size))
             return
         self.client.get(source, dest)
         if preserve:
@@ -266,8 +280,8 @@ class SFTPSession(SSHSession):
         source: local directory being root of the tree
         dest:   remote directory to be the new root of the tree
         """
-        log.debug("SFTP recursive local:%s to remote:%s" %\
-                               (source, dest))
+        log.debug("SFTP recursive local:%s to remote:%s" %
+                  (source, dest))
         self.check()
         source = os.path.normpath(source)
         dirs = os.walk(source)
@@ -310,7 +324,7 @@ class SFTPSession(SSHSession):
                 dummy = self.client.listdir("%s/%s" % (source, i))
                 isdir = True
             except:
-                isdir = False                
+                isdir = False
             if isdir:
                 self.copyTreeFromRecurse("%s/%s" % (source, i),
                                          "%s/%s" % (dest, i),
@@ -321,11 +335,11 @@ class SFTPSession(SSHSession):
                 log.debug("About to copy %s/%s" % (source, i))
                 st = self.client.stat("%s/%s" % (source, i))
                 if threshold and st.st_mtime < threshold:
-                    log.debug("Skipping %s/%s, too old" %\
-                                           (source, i))
+                    log.debug("Skipping %s/%s, too old" %
+                              (source, i))
                 elif sizethresh and st.st_size > long(sizethresh):
-                    log.debug("Skipping %s/%s, too big (%u)" %\
-                                           (source, i, st.st_size))
+                    log.debug("Skipping %s/%s, too big (%u)" %
+                              (source, i, st.st_size))
                 else:
                     self.client.get("%s/%s" % (source, i),
                                     "%s/%s" % (dest, i))
@@ -342,8 +356,8 @@ class SFTPSession(SSHSession):
         source: remote directory being root of the tree
         dest:   local directory to be the new root of the tree
         """
-        log.debug("SFTP recursive remote:%s to local:%s" %\
-                               (source, dest))
+        log.debug("SFTP recursive remote:%s to local:%s" %
+                  (source, dest))
         self.check()
         self.copyTreeFromRecurse(source,
                                  dest,
@@ -354,8 +368,8 @@ class SFTPSession(SSHSession):
     def copyLogsFrom(self, pathlist, dest, threshold=None, sizethresh=None):
         """Copy any files or directory trees from pathlist remotely to
         dest locally"""
-        log.debug("SFTP log fetch of %s to local:%s" %\
-                               (`pathlist`, dest))
+        log.debug("SFTP log fetch of %s to local:%s" %
+                  (`pathlist`, dest))
         for p in pathlist:
             # Directory?
             log.debug("Trying to fetch %s." % (p))
@@ -373,12 +387,14 @@ class SFTPSession(SSHSession):
                                   sizethresh=sizethresh)
                 except:
                     pass
-    
+
     def __del__(self):
-        SSHSession.__del__(self)                
+        SSHSession.__del__(self)
+
 
 class SSHCommand(SSHSession):
     """An SSH session guarded for target lockups."""
+
     def __init__(self,
                  ip,
                  command,
@@ -395,7 +411,7 @@ class SSHCommand(SSHSession):
             log.debug("ssh %s@%s %s" % (username, ip, command))
         SSHSession.__init__(self,
                             ip,
-                            log,                         
+                            log,
                             username=username,
                             timeout=timeout,
                             password=password,
@@ -410,8 +426,8 @@ class SSHCommand(SSHSession):
             self.client.settimeout(timeout)
             self.client.set_combine_stderr(True)
             self.client.exec_command(command)
-            self.client.shutdown(1)            
-            self.fh = self.client.makefile()            
+            self.client.shutdown(1)
+            self.fh = self.client.makefile()
         except Exception, e:
             self.reply = "SSH connection failed",
             self.toreply = 1
@@ -422,12 +438,12 @@ class SSHCommand(SSHSession):
 
         @param retval: Whether to return the result code (default) or 
             stdout as a string.
-    
+
             string  :   Return a stdout as a string.
             code    :   Return the result code. (Default). 
-                  
+
             If "string" is used then a failure results in an exception.
- 
+
         """
 
         if self.toreply:
@@ -454,10 +470,10 @@ class SSHCommand(SSHSession):
             if not self.nolog and not fh:
                 self.log.debug(output)
         self.exit_status = self.client.recv_exit_status()
-        
+
         # Local clean up.
         self.close()
-        
+
         if retval == "code":
             return self.exit_status
         if self.exit_status == -1:
@@ -466,10 +482,11 @@ class SSHCommand(SSHSession):
             return "SSH command exited with error (%s)" % (self.command)
 
         return reply
-    
+
     def __del__(self):
-        SSHSession.__del__(self)   
- 
+        SSHSession.__del__(self)
+
+
 def SSH(ip,
         command,
         username="root",
@@ -485,8 +502,8 @@ def SSH(ip,
     tries = 0
     while True:
         tries = tries + 1
-        log.debug("SSH %s@%s %s (attempt %u)" %\
-                               (username, ip, command, tries))
+        log.debug("SSH %s@%s %s (attempt %u)" %
+                  (username, ip, command, tries))
         try:
             s = SSHCommand(ip,
                            command,
@@ -514,9 +531,10 @@ def SSH(ip,
             if string.find(str(e), "SSH command exited with error") > -1:
                 raise e
             if not nowarn:
-                log.debug("Retrying ssh connection %s@%s %s after %s"\
-                                    % (username, ip, command, str(e)))
+                log.debug("Retrying ssh connection %s@%s %s after %s"
+                          % (username, ip, command, str(e)))
             time.sleep(5)
+
 
 def SSHread(ip,
             command,
@@ -530,8 +548,8 @@ def SSHread(ip,
     tries = 0
     while True:
         tries = tries + 1
-        log.debug("SSH %s@%s %s (attempt %u)" %\
-                               (username, ip, command, tries))
+        log.debug("SSH %s@%s %s (attempt %u)" %
+                  (username, ip, command, tries))
         try:
             s = SSHCommand(ip,
                            command,
@@ -549,7 +567,6 @@ def SSHread(ip,
             if string.find(str(e), "SSH command exited with error") > -1:
                 raise e
             if not nowarn:
-                log.debug("Retrying ssh connection %s@%s %s after %s"\
-                                    % (username, ip, command, str(e)))
+                log.debug("Retrying ssh connection %s@%s %s after %s"
+                          % (username, ip, command, str(e)))
             time.sleep(5)
-

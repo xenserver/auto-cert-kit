@@ -1,31 +1,31 @@
 # Copyright (c) Citrix Systems Inc.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, 
-# with or without modification, are permitted provided 
+# Redistribution and use in source and binary forms,
+# with or without modification, are permitted provided
 # that the following conditions are met:
 #
-# *   Redistributions of source code must retain the above 
-#     copyright notice, this list of conditions and the 
+# *   Redistributions of source code must retain the above
+#     copyright notice, this list of conditions and the
 #     following disclaimer.
-# *   Redistributions in binary form must reproduce the above 
-#     copyright notice, this list of conditions and the 
-#     following disclaimer in the documentation and/or other 
+# *   Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the
+#     following disclaimer in the documentation and/or other
 #     materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
-# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
-# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR 
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+# INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
 """Module for base test clasess from which test cases are derived"""
@@ -35,6 +35,7 @@ import re
 import signal
 from utils import *
 log = get_logger('auto-cert-kit')
+
 
 class TestClass(object):
     """The base test class for defining attributes
@@ -61,7 +62,7 @@ class TestClass(object):
         global config used by each test case"""
         self.config = config
         self.session = session
-        #Take a copy of the tag list and then append.
+        # Take a copy of the tag list and then append.
         self.tags = list(self.tags)
         self.tags.append(self.base_tag)
         self.extra_init()
@@ -74,7 +75,7 @@ class TestClass(object):
         extra initialisation"""
         # Make sure we only run this on test run.
         if 'device_config' in self.config.keys():
-            self.generate_static_net_conf()        
+            self.generate_static_net_conf()
 
     def host_setup(self):
         """Method for running setup commands on a host
@@ -92,7 +93,7 @@ class TestClass(object):
         tests = self.list_tests()
         if test_name:
             arr = test_name.split('.')
-            test_name = arr[len(arr)-1]
+            test_name = arr[len(arr) - 1]
             log.debug("Test Selected = %s" % test_name)
         for test in tests:
             if test_name and test_name != test:
@@ -103,26 +104,29 @@ class TestClass(object):
                 sm.release_all()
 
             # Release Alarm signal to prevent handled signal from previous test
-            # interrupts this test. When there is no SIG_ALRM, this does nothing.
+            # interrupts this test. When there is no SIG_ALRM, this does
+            # nothing.
             signal.alarm(0)
 
             rec = {}
             try:
-                log.debug("******** %s.%s ********" % (self.__class__.__name__, test))
+                log.debug("******** %s.%s ********" %
+                          (self.__class__.__name__, test))
                 res = getattr(self, test)(self.session)
 
-                # If test executed without failure it can be either skipped or passed.
+                # If test executed without failure it can be either skipped or
+                # passed.
                 if 'skipped' in res and res['skipped']:
                     rec['result'] = 'skip'
                 else:
                     rec['result'] = 'pass'
 
-                def copy_field(rec, res, field, keep_tag = True):
+                def copy_field(rec, res, field, keep_tag=True):
                     if field in res:
                         rec[field] = res[field]
                     elif keep_tag:
                         rec[field] = ""
-                
+
                 copy_field(rec, res, 'info')
                 copy_field(rec, res, 'data')
                 copy_field(rec, res, 'config')
@@ -137,7 +141,8 @@ class TestClass(object):
                 log.error("Test Case Failure: %s" % str(test))
                 log.debug(traceb)
                 if debug:
-                    log.debug("Running in debug mode - exiting due to failure: %s" % str(e))
+                    log.debug(
+                        "Running in debug mode - exiting due to failure: %s" % str(e))
                     sys.exit(0)
             except:
                 traceb = traceback.format_exc()
@@ -145,12 +150,14 @@ class TestClass(object):
                 rec['result'] = 'fail'
                 rec['trackeback'] = traceb
                 rec['exception'] = "Unexpected error: %s" % sys.exc_info()[0]
-                log.debug(traceb)  
+                log.debug(traceb)
                 if debug:
-                    log.debug("Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
+                    log.debug(
+                        "Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
                     sys.exit(0)
 
-            log.debug("Test case %s: %s.%s" % (rec['result'], self.__class__.__name__, test))
+            log.debug("Test case %s: %s.%s" %
+                      (rec['result'], self.__class__.__name__, test))
             rec['test_name'] = "%s.%s" % (self.__class__.__name__, test)
             results.append(rec)
             pool_wide_cleanup(self.session)
@@ -164,7 +171,8 @@ class TestClass(object):
         for tag in self.required_config:
             log.debug("Checking for %s" % tag)
             if tag not in self.config or not self.config[tag]:
-                raise Exception("Prerequisite '%s' has not been passed to this object" % tag)
+                raise Exception(
+                    "Prerequisite '%s' has not been passed to this object" % tag)
             else:
                 log.debug("Tag %s: %s" % (tag, self.config[tag]))
 
@@ -179,9 +187,9 @@ class TestClass(object):
 
     def list_tests(self):
         """Return a list of tests contained within this class"""
-        method_list = [method for method in dir(self) 
-                      if callable(getattr(self,method)) 
-                      and method.startswith('test')]
+        method_list = [method for method in dir(self)
+                       if callable(getattr(self, method))
+                       and method.startswith('test')]
         return method_list
 
     def is_required(self):
@@ -213,30 +221,31 @@ class TestClass(object):
         res = {}
         regex = re.compile(r'static_(?P<netid>\d+)_(?P<vlan>\d+)')
 
-        # Iterate through the network config structure to 
+        # Iterate through the network config structure to
         # see if we have any static managers to initialise.
         for k, v in self.get_netconf().iteritems():
-            # We only care about vlans on the physical network ID this test is running on
+            # We only care about vlans on the physical network ID this test is
+            # running on
 
             match = regex.search(k)
             if match:
                 network_id = int(match.group('netid'))
                 vlan = match.group('vlan')
-                log.debug("Static Config Record for Netid %d and Vlan %s" % \
-                            (network_id, vlan))
+                log.debug("Static Config Record for Netid %d and Vlan %s" %
+                          (network_id, vlan))
                 sm = StaticIPManager(v)
 
                 # We must assign this static manager to all of the network references
                 # which have the netid that has been specified.
-                if network_id in netid_rec.keys():    
+                if network_id in netid_rec.keys():
                     for iface in netid_rec[network_id]:
-                        log.debug("Create static config for %s (%s)" % (iface, vlan))
+                        log.debug("Create static config for %s (%s)" %
+                                  (iface, vlan))
                         key_name = "%s_%s" % (iface, vlan)
                         assert(key_name not in res.keys())
                         res[key_name] = sm
                         log.debug("Added static conf for '%s'" % key_name)
 
-        
         self.static_managers = res
         log.debug("Static Managers Created: %s" % self.static_managers)
 
@@ -251,12 +260,12 @@ class TestClass(object):
         # Note: we expect two devices for the case where we have created
         # a bond between two PIFs.
         if len(devices) > 2:
-            raise Exception("Error: more than two devices " \
+            raise Exception("Error: more than two devices "
                             + "for network %s: %s" % (network_ref, devices))
 
         # In the case of a bond, we do not mind which device is used.
         iface = devices.pop()
-    
+
         key = "%s_%s" % (iface, vlan)
         if key in self.static_managers.keys():
             return self.static_managers[key]
@@ -285,7 +294,7 @@ class TestClass(object):
 
         equiv_ifaces = intersection(get_equivalent_devices(self.session,
                                                            self.config['device_config']),
-                                                           self.get_netconf().keys())
+                                    self.get_netconf().keys())
 
         log.debug("Equivalent devices for %s: %s" % (self.config['device_config']['Kernel_name'],
                                                      equiv_ifaces))
@@ -296,7 +305,8 @@ class TestClass(object):
         try:
             return filter_pif_devices(self.session, equiv_devs)
         except Exception, e:
-            log.error("Caught Exception - may be OK if running in single NIC mode.")
+            log.error(
+                "Caught Exception - may be OK if running in single NIC mode.")
             log.error("Exception Occurred: %s" % str(e))
             if self.singlenicmode():
                 return equiv_devs
@@ -312,36 +322,37 @@ class TestClass(object):
         if self.singlenicmode():
             devices = device_list
         else:
-            #Get no management ethernet devices
+            # Get no management ethernet devices
             devices = filter_pif_devices(self.session, device_list)
 
         results = []
         for device in devices:
-            #Array access exception would be raised by filter_pif_devices
-            pifs = get_pifs_by_device(self.session, device) 
+            # Array access exception would be raised by filter_pif_devices
+            pifs = get_pifs_by_device(self.session, device)
 
-            #Assumption that two PIFs are on the same network
+            # Assumption that two PIFs are on the same network
             network_ref = self.session.xenapi.PIF.get_network(pifs[0])
             if len(pifs) > 1:
                 for pif in pifs[1:]:
                     if self.session.xenapi.PIF.get_network(pif) != network_ref:
-                        raise Exception("Assumption that identical devices " + 
-                                        "in a pool are attached to the same " + 
+                        raise Exception("Assumption that identical devices " +
+                                        "in a pool are attached to the same " +
                                         "network is invalid!")
             results.append(network_ref)
 
-        #Raise an exception if no networks have been found
+        # Raise an exception if no networks have been found
         if not len(results):
             raise Exception("No non-management networks have been found")
 
         return results
+
 
 class NetworkTestClass(TestClass):
     """Sub class for Network Tests"""
     base_tag = 'NA'
     network_backend = 'vswitch'
     num_ips_required = 0
-    
+
     def host_setup(self):
         """Overload setup function. Setup networking backend"""
         host_refs = self.session.xenapi.host.get_all()
@@ -358,16 +369,16 @@ class NetworkTestClass(TestClass):
         log.debug("Current network backend: %s" % backend)
         log.debug("self.network_backend %s" % self.network_backend)
         if self.network_backend == 'vswitch' and backend == 'bridge':
-            #Switch backend to vswitch
+            # Switch backend to vswitch
             call_ack_plugin(self.session, 'set_network_backend_pool',
                             {'backend': 'openvswitch'})
             host_reboot(self.session)
         elif self.network_backend == 'bridge' and backend == 'openvswitch':
-            #Switch backend to bridge
+            # Switch backend to bridge
             call_ack_plugin(self.session, 'set_network_backend_pool',
                             {'backend': 'bridge'})
             host_reboot(self.session)
-        #Nothing to do, just return
+        # Nothing to do, just return
         return
 
     def get_bondable_ifaces(self, iface):
@@ -382,7 +393,7 @@ class NetworkTestClass(TestClass):
 
         blist = intersection([k for k, v in netconf.iteritems() if k.startswith('eth') and
                               v['network_id'] == phy_id],
-                          netconf.keys())
+                             netconf.keys())
 
         # Need to remove any occurances of the given interface, as we can't bond
         # with ourselves.
@@ -401,18 +412,20 @@ class NetworkTestClass(TestClass):
         for iface in self.get_equivalent_devices():
             if self.get_bondable_ifaces(iface):
                 res.append(iface)
-                
+
         return res
+
 
 class LocalStorageTestClass(TestClass):
     """Sub class for storage tests"""
     base_tag = 'LS'
 
+
 class CPUTestClass(TestClass):
     """Sub class for CPU tests"""
     base_tag = 'CPU'
 
+
 class OperationsTestClass(TestClass):
     """Sub class for Operations tests"""
     base_tag = 'OP'
-
