@@ -2424,12 +2424,13 @@ def wait_for_hosts(session, timeout=300):
     raise Exception("Hosts(%s) failed to come back online" % hosts)
 
 
-def get_ack_version(session, host):
+def get_ack_version(session, host=None):
     """Return the version string corresponding to the cert kit on a particular host"""
-    sw = session.xenapi.host.get_software_version(host)
-    key = 'xs:xs-auto-cert-kit'
-    if key in sw.keys():
-        return sw[key]
+    try:
+        return call_ack_plugin(session, 'get_ack_version', {}, host=host)
+    except XenAPI.Failure, e:
+        log.debug("Failed to execute ack plugin call means ACK is not installed.")
+        return None
 
 
 def combine_recs(rec1, rec2):

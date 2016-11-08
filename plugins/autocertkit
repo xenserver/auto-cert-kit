@@ -1913,6 +1913,20 @@ def get_kernel_version(session, args):
     """Check kernel version using uname."""
     return json_dumps(make_local_call(['uname', '-r'])["stdout"])
 
+
+@log_exceptions
+def get_ack_version(session, args):
+    """Check ACK version using `rpm -qi`"""
+    call = ['rpm', '-qi', 'xenserver-auto-cert-kit']
+    out = make_local_call(call)
+    if out['returncode']:
+        return json_dumps(None)
+    ver = [i.split(":")[-1]
+           for i in out['stdout'].split("\n") if i.startswith('Version')]
+    if ver and len(ver) == 1:
+        return json_dumps(ver[0].strip())
+    raise Exception("Unable to parse ack version")
+
 #####################################################
 
 if __name__ == '__main__':
@@ -1950,6 +1964,7 @@ if __name__ == '__main__':
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key,
                            'get_kernel_version': get_kernel_version,
+                           'get_ack_version': get_ack_version,
                            'run_ack_logrotate': run_ack_logrotate,
                            'retrieve_crashdumps': retrieve_crashdumps,
                            'force_crash_host': force_crash_host
