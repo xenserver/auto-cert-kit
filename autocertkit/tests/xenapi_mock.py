@@ -8,6 +8,7 @@ while running unit tests.
 import mock
 import random
 import json
+from XenAPI import XenAPI
 
 
 class XenAPIObjectMock(object):
@@ -43,23 +44,43 @@ class XenAPIObjectMock(object):
 class Session(XenAPIObjectMock):
     """Session data structure for XenAPI Session mock"""
 
-    __INSTANCE = None
-    __INITIALIZED = False
+    __INSTANCE = {}
+    __INITIALIZED = {}
 
-    def __new__(cls, hosts=2, networks=1):
-        # There can be only 1 session during tests.
-        if Session.__INSTANCE is None:
-            Session.__INSTANCE = super(Session, cls).__new__(cls)
-            Session.__INITIALIZED = False
-        return Session.__INSTANCE
+    def __new__(cls, desc="Generic"):
+        # There can be only 1 session during tests per desc.
+        if desc not in Session.__INSTANCE:
+            Session.__INSTANCE[desc] = super(Session, cls).__new__(cls)
+            Session.__INITIALIZED[desc] = False
+        return Session.__INSTANCE[desc]
 
-    def __init__(self, hosts=2, networks=1):
-        if not self.__INITIALIZED:
+    def __init__(self, desc="Generic"):
+        if not self.__INITIALIZED[desc]:
             super(Session, self).__init__()
-            self.__networks = [Network(i) for i in xrange(networks)]
-            self.__pool = Pool(hosts, self.__networks)
-            self.__xenapi = XenapiMock()
-            self.__INITIALIZED = True
+            self.fail_plugin = False
+
+            if desc == "EmptySession":
+                # Session is empty
+                self.__initEmptySession()
+            else:
+                # Standard session - 2 hosts, 1 network
+                self.__initGenericSession()
+
+            if desc == "ACK is not installed on slave":
+                self.hosts[1].setAckVersion(None)
+
+            self.__INITIALIZED[desc] = True
+
+    def __initEmptySession(self):
+        self.__Pool = None
+        self.__opaque = None
+        self.__xenapi = None
+        self.__networks = None
+
+    def __initGenericSession(self, hosts=2, networks=1):
+        self.__networks = [Network(i) for i in xrange(networks)]
+        self.__pool = Pool(hosts, self.__networks)
+        self.__xenapi = XenapiMock(self)
 
     @property
     def xenapi(self):
@@ -75,7 +96,7 @@ class Session(XenAPIObjectMock):
 
     @property
     def hosts(self):
-        return self.__pool.hosts
+        return self.pool.hosts if self.pool else []
 
     @property
     def networks(self):
@@ -169,13 +190,14 @@ class Host(XenAPIObjectMock):
 
     def __init__(self, networks):
         super(Host, self).__init__()
-        self.__metrics = HostMetrics()
+        self.__metrics = HostMetrics(self)
         self.__pifs = [PIF(self, networks[i], i * 2) for i in xrange(len(networks))] + \
             [PIF(self, networks[i], i * 2 + 1) for i in xrange(len(networks))]
         for pif in self.__pifs:
             pif.network.addPIF(pif)
         self.__enabled = True
         self.__vms = [VM(self, True)]  # Control Domain
+        self.__ack_version = "1.2.3"
 
     @property
     def enabled(self):
@@ -201,18 +223,26 @@ class Host(XenAPIObjectMock):
     def name(self):
         return "AFakeHostName"
 
+    @property
+    def ackVersion(self):
+        return self.__ack_version
+
     def startVMs(self, n=1):
         self.__vms = self.__vms + [VM() for i in xrange(n)]
 
     def killAllVMs(self):
         self.__vms = self.__vms[1:]
 
+    def setAckVersion(self, version):
+        self.__ack_version = version
+
 
 class HostMetrics(XenAPIObjectMock):
     """Host metric data structure for XenAPI Hose Metrics mock"""
 
-    def __init__(self):
+    def __init__(self, host):
         super(HostMetrics, self).__init__()
+        self.__host = host
         self.__live = True
 
     @property
@@ -254,36 +284,66 @@ class XenapiMock(mock.Mock):
     This only replicate all required xenapi component as properties.
     """
 
+    def __init__(self, session):
+        super(XenapiMock, self).__init__()
+        self.__session = session
+        self.__xenapiPool = XenapiPoolMock(self)
+        self.__xenapiHost = XenapiHostMock(self)
+        self.__xenapiHostMetrics = XenapiHostMetricsMock(self)
+        self.__xenapiPif = XenapiPIFMock(self)
+        self.__xenapiNetwork = XenapiNetworkMock(self)
+        self.__xenapiBond = XenapiBondMock(self)
+        self.__xenapiVm = XenapiVMMock(self)
+
+    @property
+    def session(self):
+        return self.__session
+
     @property
     def pool(self):
-        return XenapiPoolMock()
+        return self.__xenapiPool
 
     @property
     def host(self):
-        return XenapiHostMock()
+        return self.__xenapiHost
 
     @property
     def host_metrics(self):
-        return XenapiHostMetricsMock()
+        return self.__xenapiHostMetrics
 
     @property
     def PIF(self):
-        return XenapiPIFMock()
+        return self.__xenapiPif
 
     @property
     def network(self):
-        return XenapiPoolMock()
+        return self.__xenapiNetwork
 
     @property
     def bond(self):
-        return XenapiBondMock()
+        return self.__xenapiBond
 
     @property
     def VM(self):
-        return XenapiVMMock()
+        return self.__xenapiVm
 
 
-class XenapiNetworkMock(mock.Mock):
+class _XenapiSubclassMock(mock.Mock):
+
+    def __init__(self, xenapi_ref):
+        super(_XenapiSubclassMock, self).__init__()
+        self.__xenapi = xenapi_ref
+
+    @property
+    def xenapi(self):
+        return self.__xenapi
+
+    @property
+    def session(self):
+        return self.xenapi.session
+
+
+class XenapiNetworkMock(_XenapiSubclassMock):
     """
     session.xenapi.network lib mock class.
 
@@ -293,7 +353,7 @@ class XenapiNetworkMock(mock.Mock):
     pass
 
 
-class XenapiBondMock(mock.Mock):
+class XenapiBondMock(_XenapiSubclassMock):
     """
     session.xenapi.bond lib mock class.
 
@@ -303,7 +363,7 @@ class XenapiBondMock(mock.Mock):
     pass
 
 
-class XenapiPIFMock(mock.Mock):
+class XenapiPIFMock(_XenapiSubclassMock):
     """
     session.xenapi.pif lib mock class.
 
@@ -311,10 +371,10 @@ class XenapiPIFMock(mock.Mock):
     """
 
     def get_all(self):
-        return [pif.opaque for host in Session().hosts for pif in host.PIFs]
+        return [pif.opaque for host in self.session.hosts for pif in host.PIFs]
 
     def __getPIF(self, opaque):
-        for p in [pif for host in Session().hosts for pif in host.PIFs]:
+        for p in [pif for host in self.session.hosts for pif in host.PIFs]:
             if p.opaque == opaque:
                 return p
 
@@ -323,8 +383,13 @@ class XenapiPIFMock(mock.Mock):
     def get_device(self, opaque):
         return self.__getPIF(opaque).device
 
+    def get_management(self, opaque):
+        p = self.__getPIF(opaque)
+        management = p.host.PIFs[0].opaque
+        return opaque == management
 
-class XenapiPoolMock(mock.Mock):
+
+class XenapiPoolMock(_XenapiSubclassMock):
     """
     session.xenapi.pool lib mock class.
 
@@ -332,15 +397,15 @@ class XenapiPoolMock(mock.Mock):
     """
 
     def get_all(self):
-        return [Session().pool.opaque]
+        return [self.session.pool.opaque]
 
     def get_master(self, opaque):
-        if Session().pool.opaque != opaque:
+        if self.session.pool.opaque != opaque:
             raise Exception('Cannot find pool opaque: %s' % opaque)
-        return Session().hosts[0].opaque
+        return self.session.hosts[0].opaque
 
 
-class XenapiHostMock(mock.Mock):
+class XenapiHostMock(_XenapiSubclassMock):
     """
     session.xenapi.host lib mock class.
 
@@ -348,13 +413,12 @@ class XenapiHostMock(mock.Mock):
     """
 
     def get_all(self):
-        return [host.opaque for host in Session().hosts]
+        return [host.opaque for host in self.session.hosts]
 
     def __getHost(self, opaque):
-        for h in Session().hosts:
+        for h in self.session.hosts:
             if h.opaque == opaque:
                 return h
-
         raise Exception('Cannot find host opaque: %s' % opaque)
 
     def get_record(self, opaque):
@@ -376,19 +440,32 @@ class XenapiHostMock(mock.Mock):
         return self.__getHost(opaque).PIFs[0].opaque
 
     def call_plugin(self, host_ref, plugin, method, *arg):
+        if self.session.fail_plugin:
+            m = mock.Mock(side_effect=XenAPI.Failure(
+                "raised by Mock(): plugin failed"))
+            m()
+
         if plugin == "autocertkit":
-            # autocertkit plugin has output in json format
-            return json.dumps("")
+            obj = AckPluginMethods(self.session, host_ref)
+            func = getattr(obj, method, None)
+            if callable(func):
+                return func(*arg)
+            else:
+                # autocertkit plugin has output in json format
+                return json.dumps("")
         return ""
 
+    def get_ack_version(self, opaque):
+        return self.__getHost(opaque).ackVersion
 
-class XenapiHostMetricsMock(mock.Mock):
+
+class XenapiHostMetricsMock(_XenapiSubclassMock):
     """
     session.xenapi.host_metrics lib mock class.
     """
 
     def __getMetrics(self, opaque):
-        for h in Session().hosts:
+        for h in self.session.hosts:
             if h.metrics.opaque == opaque:
                 return h.metrics
 
@@ -399,13 +476,13 @@ class XenapiHostMetricsMock(mock.Mock):
         return metrics.live
 
 
-class XenapiVMMock(mock.Mock):
+class XenapiVMMock(_XenapiSubclassMock):
     """
     session.xenapi.vm lib mock class.
     """
 
     def __getVM(self, opaque):
-        for h in Session().hosts:
+        for h in self.session.hosts:
             for vm in h.VMs:
                 if vm.opaque == opaque:
                     return vm
@@ -420,8 +497,18 @@ class XenapiVMMock(mock.Mock):
 
     def get_all_records(self):
         rec = {}
-        for h in Session().hosts:
+        for h in self.session.hosts:
             for vm in h.VMs:
                 rec[vm.opaque] = vm.record
 
         return rec
+
+
+class AckPluginMethods(object):
+
+    def __init__(self, session, host_ref=None):
+        self.__session = session
+        self.__host_opaque = host_ref
+
+    def get_ack_version(self, *arg):
+        return json.dumps(self.__session.xenapi.host.get_ack_version(self.__host_opaque))

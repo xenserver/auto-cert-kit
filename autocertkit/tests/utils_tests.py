@@ -246,5 +246,21 @@ class SimpleMethodsTests(unittest.TestCase):
         self.assertFalse(utils.is_64_bit("i686"))
 
 
+class CheckGetMethodsTests(unittest.TestCase):
+
+    def test_get_ack_version(self):
+        s1 = xenapi_mock.Session()
+        self.assertEqual(utils.get_ack_version(s1), "1.2.3")
+        self.assertEqual(utils.get_ack_version(
+            s1, s1.hosts[1].opaque), "1.2.3")
+
+        s2 = xenapi_mock.Session("ACK is not installed on slave")
+        self.assertEqual(utils.get_ack_version(
+            s2, s2.hosts[0].opaque), "1.2.3")
+        self.assertEqual(utils.get_ack_version(s2, s2.hosts[1].opaque), None)
+
+        s2.fail_plugin = True
+        self.assertEqual(utils.get_ack_version(s2), None)
+
 if __name__ == '__main__':
     unittest.main()
