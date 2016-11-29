@@ -198,6 +198,7 @@ class Host(XenAPIObjectMock):
         self.__enabled = True
         self.__vms = [VM(self, True)]  # Control Domain
         self.__ack_version = "1.2.3"
+        self.__supportedPlugins = {"autocertkit": AckPluginMethods(self)}
 
     @property
     def enabled(self):
@@ -228,13 +229,23 @@ class Host(XenAPIObjectMock):
         return self.__ack_version
 
     def startVMs(self, n=1):
-        self.__vms = self.__vms + [VM() for i in xrange(n)]
+        self.__vms = self.__vms + [VM(self) for i in xrange(n)]
 
     def killAllVMs(self):
         self.__vms = self.__vms[1:]
 
     def setAckVersion(self, version):
         self.__ack_version = version
+
+    @property
+    def supportedPlugins(self):
+        return self.__supportedPlugins
+
+    def addNewPlugin(self, name, plugin):
+        self.__supportedPlugins.update({name: plugin})
+
+    def removePlugin(self, name):
+        del self.__supportedPlugins[name]
 
 
 class HostMetrics(XenAPIObjectMock):
@@ -445,18 +456,13 @@ class XenapiHostMock(_XenapiSubclassMock):
                 "raised by Mock(): plugin failed"))
             m()
 
-        if plugin == "autocertkit":
-            obj = AckPluginMethods(self.session, host_ref)
+        h = self.__getHost(host_ref)
+        if plugin in h.supportedPlugins:
+            obj = h.supportedPlugins[plugin]
             func = getattr(obj, method, None)
             if callable(func):
                 return func(*arg)
-            else:
-                # autocertkit plugin has output in json format
-                return json.dumps("")
         return ""
-
-    def get_ack_version(self, opaque):
-        return self.__getHost(opaque).ackVersion
 
 
 class XenapiHostMetricsMock(_XenapiSubclassMock):
@@ -506,9 +512,14 @@ class XenapiVMMock(_XenapiSubclassMock):
 
 class AckPluginMethods(object):
 
-    def __init__(self, session, host_ref=None):
-        self.__session = session
-        self.__host_opaque = host_ref
+    def __init__(self, host):
+        self.__hostObj = host
 
-    def get_ack_version(self, *arg):
-        return json.dumps(self.__session.xenapi.host.get_ack_version(self.__host_opaque))
+    def __getattr__(self, name):
+        return self.__defaultOutput
+
+    def __defaultOutput(self, *args):
+        return json.dumps("")
+
+    def get_ack_version(self, *args):
+        return json.dumps(self.__hostObj.ackVersion)
