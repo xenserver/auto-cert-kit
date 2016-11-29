@@ -11,7 +11,7 @@ import json
 from XenAPI import XenAPI
 
 
-class XenAPIObjectMock(object):
+class XenObjectMock(object):
     """Base class for XenAPI object models"""
 
     USED_SUFFIXES = []
@@ -41,41 +41,13 @@ class XenAPIObjectMock(object):
         return self.__uuid
 
 
-class Session(XenAPIObjectMock):
+class Session(XenObjectMock):
     """Session data structure for XenAPI Session mock"""
 
-    __INSTANCE = {}
-    __INITIALIZED = {}
-
-    def __new__(cls, desc="Generic"):
-        # There can be only 1 session during tests per desc.
-        if desc not in Session.__INSTANCE:
-            Session.__INSTANCE[desc] = super(Session, cls).__new__(cls)
-            Session.__INITIALIZED[desc] = False
-        return Session.__INSTANCE[desc]
-
-    def __init__(self, desc="Generic"):
-        if not self.__INITIALIZED[desc]:
-            super(Session, self).__init__()
-            self.fail_plugin = False
-
-            if desc == "EmptySession":
-                # Session is empty
-                self.__initEmptySession()
-            else:
-                # Standard session - 2 hosts, 1 network
-                self.__initGenericSession()
-
-            if desc == "ACK is not installed on slave":
-                self.hosts[1].setAckVersion(None)
-
-            self.__INITIALIZED[desc] = True
-
-    def __initEmptySession(self):
-        self.__Pool = None
-        self.__opaque = None
-        self.__xenapi = None
-        self.__networks = None
+    def __init__(self):
+        super(Session, self).__init__()
+        self.fail_plugin = False
+        self.__initGenericSession()
 
     def __initGenericSession(self, hosts=2, networks=1):
         self.__networks = [Network(i) for i in xrange(networks)]
@@ -103,7 +75,7 @@ class Session(XenAPIObjectMock):
         return self.__networks
 
 
-class Network(XenAPIObjectMock):
+class Network(XenObjectMock):
     """Network data structure for XenAPI Network mock"""
 
     def __init__(self, netid, bridge="xenbr"):
@@ -133,7 +105,7 @@ class Bond(Network):
         self.pifs = pifs
 
 
-class PIF(XenAPIObjectMock):
+class PIF(XenObjectMock):
     """PIF data structure for XenAPI PIC mock"""
 
     def __init__(self, host, network, devid):
@@ -173,7 +145,7 @@ class PIF(XenAPIObjectMock):
         return self.__network
 
 
-class Pool(XenAPIObjectMock):
+class Pool(XenObjectMock):
     """Pool data structure for XenAPI Pool mock"""
 
     def __init__(self, hosts, networks):
@@ -185,12 +157,12 @@ class Pool(XenAPIObjectMock):
         return self.__hosts
 
 
-class Host(XenAPIObjectMock):
+class Host(XenObjectMock):
     """Host data structure for XenAPI Host mock"""
 
     def __init__(self, networks):
         super(Host, self).__init__()
-        self.__metrics = HostMetrics(self)
+        self.__metrics = HostMetrics()
         self.__pifs = [PIF(self, networks[i], i * 2) for i in xrange(len(networks))] + \
             [PIF(self, networks[i], i * 2 + 1) for i in xrange(len(networks))]
         for pif in self.__pifs:
@@ -248,12 +220,11 @@ class Host(XenAPIObjectMock):
         del self.__supportedPlugins[name]
 
 
-class HostMetrics(XenAPIObjectMock):
+class HostMetrics(XenObjectMock):
     """Host metric data structure for XenAPI Hose Metrics mock"""
 
-    def __init__(self, host):
+    def __init__(self):
         super(HostMetrics, self).__init__()
-        self.__host = host
         self.__live = True
 
     @property
@@ -265,7 +236,7 @@ class HostMetrics(XenAPIObjectMock):
         self.__live = liveness
 
 
-class VM(XenAPIObjectMock):
+class VM(XenObjectMock):
     """VM data structure for XenAPI VM mock"""
 
     def __init__(self, host, isdom0=False):

@@ -254,13 +254,13 @@ class CheckGetMethodsTests(unittest.TestCase):
         self.assertEqual(utils.get_ack_version(
             s1, s1.hosts[1].opaque), "1.2.3")
 
-        s2 = xenapi_mock.Session("ACK is not installed on slave")
+        s1.hosts[1].setAckVersion(None)
         self.assertEqual(utils.get_ack_version(
-            s2, s2.hosts[0].opaque), "1.2.3")
-        self.assertEqual(utils.get_ack_version(s2, s2.hosts[1].opaque), None)
+            s1, s1.hosts[0].opaque), "1.2.3")
+        self.assertEqual(utils.get_ack_version(s1, s1.hosts[1].opaque), None)
 
-        s2.fail_plugin = True
-        self.assertEqual(utils.get_ack_version(s2), None)
+        s1.fail_plugin = True
+        self.assertEqual(utils.get_ack_version(s1), None)
 
 if __name__ == '__main__':
     unittest.main()
