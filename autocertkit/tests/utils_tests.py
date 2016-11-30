@@ -246,5 +246,21 @@ class SimpleMethodsTests(unittest.TestCase):
         self.assertFalse(utils.is_64_bit("i686"))
 
 
+class CheckGetMethodsTests(unittest.TestCase):
+
+    def test_get_ack_version(self):
+        s1 = xenapi_mock.Session()
+        self.assertEqual(utils.get_ack_version(s1), "1.2.3")
+        self.assertEqual(utils.get_ack_version(
+            s1, s1.hosts[1].opaque), "1.2.3")
+
+        s1.hosts[1].setAckVersion(None)
+        self.assertEqual(utils.get_ack_version(
+            s1, s1.hosts[0].opaque), "1.2.3")
+        self.assertEqual(utils.get_ack_version(s1, s1.hosts[1].opaque), None)
+
+        s1.fail_plugin = True
+        self.assertEqual(utils.get_ack_version(s1), None)
+
 if __name__ == '__main__':
     unittest.main()
