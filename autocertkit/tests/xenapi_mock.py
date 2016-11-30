@@ -310,10 +310,10 @@ class XenapiMock(mock.Mock):
         return self.__xenapiVm
 
 
-class _XenapiSubclassMock(mock.Mock):
+class XenapiMockBase(mock.Mock):
 
     def __init__(self, xenapi_ref):
-        super(_XenapiSubclassMock, self).__init__()
+        super(XenapiMockBase, self).__init__()
         self.__xenapi = xenapi_ref
 
     @property
@@ -325,7 +325,7 @@ class _XenapiSubclassMock(mock.Mock):
         return self.xenapi.session
 
 
-class XenapiNetworkMock(_XenapiSubclassMock):
+class XenapiNetworkMock(XenapiMockBase):
     """
     session.xenapi.network lib mock class.
 
@@ -335,7 +335,7 @@ class XenapiNetworkMock(_XenapiSubclassMock):
     pass
 
 
-class XenapiBondMock(_XenapiSubclassMock):
+class XenapiBondMock(XenapiMockBase):
     """
     session.xenapi.bond lib mock class.
 
@@ -345,7 +345,7 @@ class XenapiBondMock(_XenapiSubclassMock):
     pass
 
 
-class XenapiPIFMock(_XenapiSubclassMock):
+class XenapiPIFMock(XenapiMockBase):
     """
     session.xenapi.pif lib mock class.
 
@@ -371,7 +371,7 @@ class XenapiPIFMock(_XenapiSubclassMock):
         return opaque == management
 
 
-class XenapiPoolMock(_XenapiSubclassMock):
+class XenapiPoolMock(XenapiMockBase):
     """
     session.xenapi.pool lib mock class.
 
@@ -387,7 +387,7 @@ class XenapiPoolMock(_XenapiSubclassMock):
         return self.session.hosts[0].opaque
 
 
-class XenapiHostMock(_XenapiSubclassMock):
+class XenapiHostMock(XenapiMockBase):
     """
     session.xenapi.host lib mock class.
 
@@ -436,7 +436,7 @@ class XenapiHostMock(_XenapiSubclassMock):
         return ""
 
 
-class XenapiHostMetricsMock(_XenapiSubclassMock):
+class XenapiHostMetricsMock(XenapiMockBase):
     """
     session.xenapi.host_metrics lib mock class.
     """
@@ -453,7 +453,7 @@ class XenapiHostMetricsMock(_XenapiSubclassMock):
         return metrics.live
 
 
-class XenapiVMMock(_XenapiSubclassMock):
+class XenapiVMMock(XenapiMockBase):
     """
     session.xenapi.vm lib mock class.
     """
