@@ -772,28 +772,14 @@ def get_xenserver_version(session):
     """Return the XenServer version (using the master host)"""
     master_ref = get_pool_master(session)
     software = session.xenapi.host.get_software_version(master_ref)
-    xs_str = software['xs:main']
-    # parse string of the form: 'XenServer Pack, version 6.0.0, build 50762c'
-    arr = xs_str.split(',')
-    for item in arr:
-        if item.strip().startswith('version'):
-            version = item.strip().split(' ')[1]
-            return version
-    raise Exception("XenServer Version could not be detected! %s" % xs_str)
+    return software['product_version']
 
 
 def get_xcp_version(session):
     """Return the XCP version (using the master host)"""
     master_ref = get_pool_master(session)
     software = session.xenapi.host.get_software_version(master_ref)
-    xs_str = software['xcp:main']
-    # parse string of the form: 'XenServer Pack, version 6.0.0, build 50762c'
-    arr = xs_str.split(',')
-    for item in arr:
-        if item.strip().startswith('version'):
-            version = item.strip().split(' ')[1]
-            return version
-    raise Exception("XCP Version could not be detected! %s" % xs_str)
+    return software['platform_version']
 
 
 def get_kernel_version(session):
@@ -2201,12 +2187,7 @@ def get_local_storage_info(session):
 def get_xs_info(session):
     """Returns a limited subset of info about the XenServer version"""
     master_ref = get_pool_master(session)
-    info = session.xenapi.host.get_software_version(master_ref)
-    return {'version': info['product_version'],
-            'build': info['build_number'],
-            'xen': info['xen'],
-            'xapi': info['xapi'],
-            'date': info['date']}
+    return session.xenapi.host.get_software_version(master_ref)
 
 
 def _get_type_and_value(entry):
