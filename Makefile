@@ -5,7 +5,7 @@ include $(B_BASE)/common.mk
 include $(B_BASE)/rpmbuild.mk
 endif
 
-KIT_VERSION := $(shell git describe)
+KIT_VERSION := $(shell git describe --tags)
 
 REPONAME := auto-cert-kit
 ifdef B_BASE
