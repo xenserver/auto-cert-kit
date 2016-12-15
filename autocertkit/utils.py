@@ -2184,10 +2184,22 @@ def get_local_storage_info(session):
     return devices
 
 
+def _convertToValidXmlElementName(str1):
+    if str1 and not str1[0].isalpha():
+        str1 = "_" + str1
+    str1 = str1.replace(":", "_")
+    return str1
+
+
+def _convertDictKeysToValidXmlTags(d):
+    return {_convertToValidXmlElementName(k): d[k] for k in d}
+
+
 def get_xs_info(session):
     """Returns a limited subset of info about the XenServer version"""
     master_ref = get_pool_master(session)
-    return session.xenapi.host.get_software_version(master_ref)
+    info = session.xenapi.host.get_software_version(master_ref)
+    return _convertDictKeysToValidXmlTags(info)
 
 
 def _get_type_and_value(entry):
