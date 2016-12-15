@@ -62,6 +62,7 @@ XE = '/opt/xensource/bin/xe'
 DROID_TEMPLATE_TAG = "droid_vm_template"
 REBOOT_ERROR_CODE = 3
 REBOOT_FLAG_FILE = "/opt/xensource/packages/files/auto-cert-kit/reboot"
+LOG_NAME = "auto-cert-kit"
 LOG_LOC = "/var/log/auto-cert-kit.log"
 
 # Capability Tags
@@ -71,6 +72,35 @@ REQ_CAP = "REQ"
 XAPI_RUNNING_STATE = "Running"
 
 
+# Logger
+def configure_logging():
+    """Method for configuring Logging"""
+    global log
+    log = acktools.log.configure_log(LOG_NAME, LOG_LOC)
+
+configure_logging()
+
+
+def release_logging():
+    """Release logging object."""
+    if log:
+        acktools.log.release_log(log)
+
+
+def log_basic_info(session):
+    log.info("Auto Cert Kit Version: %s" % get_ack_version(session))
+    log.info("Host Software Version: %s" % get_xs_info(session))
+
+
+def init_ack_logging(session, rotate=True):
+    release_logging()
+    for host_ref in session.xenapi.host.get_all():
+        call_ack_plugin(session, 'run_ack_logrotate', {}, host=host_ref)
+    configure_logging()
+    log_basic_info(session)
+
+
+# Exceptions
 class TestCaseError(Exception):
     """A subclassed exception object, which is raised by any
     test failure"""
@@ -541,33 +571,6 @@ class Iface(object):
         for key in self.required_keys:
             rec[key] = getattr(self, key)
         return rec
-
-# Logging setup
-
-log = None
-
-
-def configure_logging(name):
-    """Method for configuring Logging"""
-    global log
-    if not log:
-        log = acktools.log.configure_log(name, LOG_LOC)
-    return log
-
-
-def release_logging():
-    """Release logging object."""
-    global log
-    acktools.log.release_log(log)
-    log = None
-
-if not log:
-    log = configure_logging('auto-cert-kit')
-
-
-def get_logger(name):
-    """Method to return instance of logger"""
-    return logging.getLogger(name)
 
 
 def get_local_xapi_session():

@@ -94,20 +94,21 @@ UNAME = "/bin/uname"
 PGREP = "/usr/bin/pgrep"
 
 # Logging setup
-
+LOG_NAME = "auto-cert-kit-plugin"
 LOG_LOC = '/var/log/auto-cert-kit-plugin.log'
 
-log = None
+
+def configure_logging():
+    global log
+    log = acktools.log.configure_log(LOG_NAME, LOG_LOC, False)
+
+configure_logging()
 
 
-def configure_logging(name):
+def release_logging():
     global log
     if log:
         acktools.log.release_log(log)
-    log = acktools.log.configure_log(name, LOG_LOC, False)
-    return log
-
-configure_logging('autocertkit')
 
 # Exceptions
 
@@ -429,20 +430,16 @@ def save_bugtool():
 
 def run_ack_logrotate(session, args):
     """Run logrotate for ACK logs"""
+    release_logging()
     ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
-    global log
-
-    # This method should not log before logrotate execution to avoid os file
-    # handle error
     try:
         shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
         call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
         res = make_local_call(call, False)
     except Exception, e:
         return json_dumps(str(e))
-
-    # Restart logging and leave results of logrotate in the log.
-    log = configure_logging('autocertkit')
+    finally:
+        configure_logging()
     if res['returncode'] != 0:
         msg = "ERR: Failed to run logrotate."
         log.error("%s: %s" % (msg, res['stderr']))

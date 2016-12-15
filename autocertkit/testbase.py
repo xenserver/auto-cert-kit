@@ -34,7 +34,6 @@ import traceback
 import re
 import signal
 from utils import *
-log = get_logger('auto-cert-kit')
 
 
 class TestClass(object):

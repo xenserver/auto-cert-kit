@@ -8,17 +8,14 @@ from mock import Mock
 
 class MockProcess:
 
-    returncode = 0
-    stderr = None
-
     def __init__(self, output, err=None):
         self.output = output
         if err:
-            self.returncode = 1
-            self.stderr = err
+            self.returncode = 1 if err else 0
+            self.__stderr = err
 
     def stderr(self):
-        return self.stderr
+        return self.__stderr
 
     def stdout(self):
         return self.output

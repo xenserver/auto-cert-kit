@@ -5,8 +5,6 @@ import unittest_base
 from autocertkit import utils, test_generators, testbase
 import sys
 
-utils.configure_logging('ack_tests')
-
 
 class TagsTests(unittest_base.DevTestCase):
     """Test that tags are enumerated correctly for a specified testclass"""

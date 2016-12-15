@@ -33,8 +33,6 @@
 import testbase
 from utils import *
 
-log = get_logger('auto-cert-kit')
-
 
 class PerfTestClass(testbase.CPUTestClass):
     """A somewhat generic test class for CPU performance tests

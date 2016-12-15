@@ -170,6 +170,8 @@ class Host(XenObjectMock):
         self.__enabled = True
         self.__vms = [VM(self, True)]  # Control Domain
         self.__ack_version = "1.2.3"
+        self.xs_software_version = {'platform_name': 'XCP', 'product_version': '7.0.93', 'build_number': '133861c', 'xapi': '1.9', 'xen': '4.7.1-1-d', 'hostname': '0222bde6733f', 'network_backend': 'bridge', 'platform_version': '2.1.4',
+                                    'product_version_text_short': '7.0', 'product_brand': 'XenServer', 'xencenter_max': '2.6', 'linux': '4.4.0+2', 'date': '2016-12-22', 'product_version_text': '7.0', 'xencenter_min': '2.6', 'dbv': '2016.0520'}
         self.__supportedPlugins = {"autocertkit": AckPluginMethods(self)}
 
     @property
@@ -417,6 +419,9 @@ class XenapiHostMock(XenapiMockBase):
 
     def get_PIFs(self, opaque):
         return [pif.opaque for pif in self.__getHost(opaque).PIFs]
+
+    def get_software_version(self, opaque):
+        return self.__getHost(opaque).xs_software_version
 
     def get_management_interface(self, opaque):
         return self.__getHost(opaque).PIFs[0].opaque

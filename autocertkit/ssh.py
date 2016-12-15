@@ -37,6 +37,7 @@ import traceback
 import time
 import gc
 import paramiko
+from utils import *
 
 SSHPORT = 22
 
@@ -507,6 +508,7 @@ def SSH(ip,
         try:
             s = SSHCommand(ip,
                            command,
+                           log,
                            username=username,
                            timeout=timeout,
                            password=password,

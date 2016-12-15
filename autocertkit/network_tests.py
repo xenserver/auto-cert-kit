@@ -36,8 +36,6 @@ import os.path
 import sys
 import math
 
-log = get_logger('auto-cert-kit')
-
 
 class FixedOffloadException(Exception):
     pass

@@ -11,8 +11,6 @@ import shutil
 
 from autocertkit import utils, ack_cli
 
-utils.configure_logging('ack_tests')
-
 
 class NetworkConfRobustTests(unittest.TestCase):
     """ Checking functionality and robust of netconf parser. """
