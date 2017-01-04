@@ -390,6 +390,19 @@ def get_vm_ips(session, vm_ref):
 
 
 @log_exceptions
+def set_nic_device_status(session, arg):
+    """Set an ifconfig ethX interface up or down."""
+    device = validate_exists(arg, 'device', None, True)
+    status = validate_exists(arg, 'status', None, True)
+    res = make_local_call([IFCONFIG, device, status])
+    if res['returncode'] != 0:
+        msg = "ERR: Failed to set device status. %s" % res['stderr']
+        log.error(msg)
+        return json_dumps(msg)
+    return json_dumps("OK")
+
+
+@log_exceptions
 def get_local_device_linkstate(session, arg):
     """ Return current operstate of network device."""
 
@@ -1924,6 +1937,13 @@ def get_ack_version(session, args):
         return json_dumps(ver[0].strip())
     raise Exception("Unable to parse ack version")
 
+
+@log_exceptions
+def get_dmidecode_output(session, args):
+    """Returns output of dmidecode call"""
+    return json_dumps(make_local_call(['dmidecode'])["stdout"])
+
+
 #####################################################
 
 if __name__ == '__main__':
@@ -1949,6 +1969,7 @@ if __name__ == '__main__':
                            'get_local_storage_devices': get_local_storage_devices,
                            'get_iface_stats': get_iface_stats,
                            'get_host_routes': get_host_routes,
+                           'set_nic_device_status': set_nic_device_status,
                            'get_local_device_linkstate': get_local_device_linkstate,
                            'create_output_package': create_output_package,
                            'start_iperf_server': start_iperf_server,
@@ -1961,6 +1982,7 @@ if __name__ == '__main__':
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key,
                            'get_kernel_version': get_kernel_version,
+                           'get_dmidecode_output': get_dmidecode_output,
                            'get_ack_version': get_ack_version,
                            'run_ack_logrotate': run_ack_logrotate,
                            'retrieve_crashdumps': retrieve_crashdumps,

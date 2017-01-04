@@ -6,6 +6,7 @@ import unittest_base
 import sys
 import shutil
 import xenapi_mock
+from config import CONFIG
 
 from autocertkit import utils
 from datetime import datetime
@@ -233,6 +234,21 @@ class PoolLibMethodsTests(unittest.TestCase):
                         [host.opaque for host in self.session.hosts[1:]])
 
 
+class NetworkLibMethodsTests(unittest.TestCase):
+    """
+    Host related functions unit tests.
+    """
+
+    def setUp(self):
+        self.session = xenapi_mock.Session()
+
+    def test_device_linkstate(self):
+        utils.set_nic_device_status(self.session, 'eth0', 'down')
+        utils.set_nic_device_status(self.session, 'eth1', 'up')
+        self.assertRaises(Exception, lambda: utils.set_nic_device_status(
+            self.session, 'invalidEth', 'up'))
+
+
 class SimpleMethodsTests(unittest.TestCase):
     """
     Simple methods in utils module test
@@ -272,6 +288,13 @@ class SimpleMethodsTests(unittest.TestCase):
 
         self.session.fail_plugin = True
         self.assertEqual(utils.get_ack_version(self.session), None)
+
+    def test_get_system_info(self):
+        self.session.hosts[0].dmidecode = ""
+        self.assertDictEqual(utils.get_system_info(self.session), {})
+        self.session.hosts[0].dmidecode = CONFIG["host"]["dmidecode"][0]
+        self.assertDictEqual(utils.get_system_info(self.session), CONFIG[
+                             "expected"]["get_system_info"][0])
 
 if __name__ == '__main__':
     unittest.main()

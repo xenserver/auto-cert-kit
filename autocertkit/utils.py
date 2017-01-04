@@ -90,12 +90,14 @@ def release_logging():
 def log_basic_info(session):
     log.info("Auto Cert Kit Version: %s" % get_ack_version(session))
     log.info("Host Software Version: %s" % get_xs_info(session))
+    log.info("Kernel Version       : %s" % get_kernel_version(session))
 
 
 def init_ack_logging(session, rotate=True):
     release_logging()
-    for host_ref in session.xenapi.host.get_all():
-        call_ack_plugin(session, 'run_ack_logrotate', {}, host=host_ref)
+    if rotate:
+        for host_ref in session.xenapi.host.get_all():
+            call_ack_plugin(session, 'run_ack_logrotate', {}, host=host_ref)
     configure_logging()
     log_basic_info(session)
 
@@ -2054,8 +2056,9 @@ def call_ack_plugin(session, method, args={}, host=None):
                                           'autocertkit',
                                           method,
                                           args)
-    log.debug("Plugin Output: %s" % res)
-    return json_loads(res)
+    log.debug("Plugin Output: %s" % (
+        "%s[...check plugin log for more]" % res[:1000] if res and len(res) > 1000 else res))
+    return json_loads(res) if res else None
 
 
 def get_hw_offloads(session, device):
@@ -2126,22 +2129,13 @@ def parse_csv_list(string):
     return res
 
 
-def set_nic_device_status(session, interface, status, creds=None):
+def set_nic_device_status(session, interface, status):
     """Function to set an ifconfig ethX interface up or down"""
     log.debug("Bringing %s network interface %s" % (status, interface))
-    call = ['ifconfig', interface, status]
-    if not creds:
-        res = make_local_call(call)
-        # only if it is dom0/host wait for link state actually changed.
-        wait_for_linkstate(session, interface, status)
-    else:
-        res = ssh_command(creds['host'],
-                          creds['user'],
-                          creds['pass'],
-                          ' '.join(call))
+    call_ack_plugin(session, 'set_nic_device_status',
+                    {'device': interface, 'status': status})
+    wait_for_linkstate(session, interface, status)
     time.sleep(5)
-
-    return res
 
 
 class TestThread(threading.Thread):
@@ -2216,11 +2210,11 @@ def _get_type_and_value(entry):
     return r
 
 
-def get_system_info():
+def get_system_info(session):
     """Returns some information of system and bios."""
 
     rec = {}
-    biosinfo = search_dmidecode("BIOS Information")
+    biosinfo = search_dmidecode(session, "BIOS Information")
     if biosinfo:
         entries = _get_type_and_value(biosinfo[0])
         if 'Vendor' in entries:
@@ -2232,7 +2226,7 @@ def get_system_info():
         if 'BIOS Revision' in entries:
             rec['BIOS_revision'] = entries['BIOS Revision']
 
-    sysinfo = search_dmidecode("System Information")
+    sysinfo = search_dmidecode(session, "System Information")
     if sysinfo:
         entries = _get_type_and_value(sysinfo[0])
         if 'Manufacturer' in entries:
@@ -2248,7 +2242,7 @@ def get_system_info():
         if 'Family' in entries:
             rec['system_family'] = entries['Family']
 
-    chassisinfo = search_dmidecode("Chassis Information")
+    chassisinfo = search_dmidecode(session, "Chassis Information")
     if chassisinfo:
         entries = _get_type_and_value(chassisinfo[0])
         if 'Type' in entries:
@@ -2490,30 +2484,25 @@ def valid_ping_response(ping_response, max_loss=0):
         return False
 
 
-dmidecode_output = None
-
-
 @log_exceptions
-def get_dmidecode_output():
+def get_dmidecode_output(session):
     """ Build dmidecode information data structure from output of dmidecode. """
-    global dmidecode_output
-    if not dmidecode_output:
-        binfo = make_local_call(['dmidecode'])
-        buf = ''
-        dmidecode_output = []
-        for line in binfo.split(os.linesep):
-            if len(line.strip()) == 0:
-                dmidecode_output.append(buf)
-                buf = ''
-            else:
-                buf += line + os.linesep
+    binfo = call_ack_plugin(session, 'get_dmidecode_output')
+    buf = ''
+    dmidecode_output = []
+    for line in binfo.split(os.linesep):
+        if len(line.strip()) == 0:
+            dmidecode_output.append(buf)
+            buf = ''
+        else:
+            buf += line + os.linesep
     return dmidecode_output
 
 
 @log_exceptions
-def search_dmidecode(keyword):
+def search_dmidecode(session, keyword):
     """ Search ttype or busid from ds """
-    ds = get_dmidecode_output()
+    ds = get_dmidecode_output(session)
     found = []
     for info in ds:
         if keyword in info:

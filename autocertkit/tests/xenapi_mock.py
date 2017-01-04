@@ -9,6 +9,7 @@ import mock
 import random
 import json
 from XenAPI import XenAPI
+from config import CONFIG
 
 
 class XenObjectMock(object):
@@ -144,6 +145,10 @@ class PIF(XenObjectMock):
     def network(self):
         return self.__network
 
+    @property
+    def status(self):
+        return "up" if self.plugged and self.enabled else "down"
+
 
 class Pool(XenObjectMock):
     """Pool data structure for XenAPI Pool mock"""
@@ -169,9 +174,9 @@ class Host(XenObjectMock):
             pif.network.addPIF(pif)
         self.__enabled = True
         self.__vms = [VM(self, True)]  # Control Domain
-        self.__ack_version = "1.2.3"
-        self.xs_software_version = {'platform_name': 'XCP', 'product_version': '7.0.93', 'build_number': '133861c', 'xapi': '1.9', 'xen': '4.7.1-1-d', 'hostname': '0222bde6733f', 'network_backend': 'bridge', 'platform_version': '2.1.4',
-                                    'product_version_text_short': '7.0', 'product_brand': 'XenServer', 'xencenter_max': '2.6', 'linux': '4.4.0+2', 'date': '2016-12-22', 'product_version_text': '7.0', 'xencenter_min': '2.6', 'dbv': '2016.0520'}
+        self.__ack_version = CONFIG["host"]["ack_version"][0]
+        self.xs_software_version = CONFIG["host"]["xs_software_version"][0]
+        self.dmidecode = CONFIG["host"]["dmidecode"][0]
         self.__supportedPlugins = {"autocertkit": AckPluginMethods(self)}
 
     @property
@@ -223,7 +228,7 @@ class Host(XenObjectMock):
 
 
 class HostMetrics(XenObjectMock):
-    """Host metric data structure for XenAPI Hose Metrics mock"""
+    """Host metric data structure for XenAPI Host Metrics mock"""
 
     def __init__(self):
         super(HostMetrics, self).__init__()
@@ -494,8 +499,25 @@ class AckPluginMethods(object):
     def __getattr__(self, name):
         return self.__defaultOutput
 
-    def __defaultOutput(self, *args):
+    def __defaultOutput(self, args):
         return json.dumps("")
 
-    def get_ack_version(self, *args):
+    def get_ack_version(self, args):
         return json.dumps(self.__hostObj.ackVersion)
+
+    def get_dmidecode_output(self, args):
+        return json.dumps(self.__hostObj.dmidecode)
+
+    def set_nic_device_status(self, args):
+        print args
+        pif = [p for p in self.__hostObj.PIFs if p.device == args['device']]
+        pif[0].plugged = True if args['status'] == "up" else False
+
+    def get_local_device_linkstate(self, args):
+        pif = [p for p in self.__hostObj.PIFs if p.device == args['device']][0]
+        out = {}
+        out['link'] = "unknown" if not pif else (
+            "yes" if pif.plugged else "no")
+        out['operstate'] = "down" if not pif else pif.status
+        out['carrier'] = "running" if out['operstate'] == "up" else ""
+        return json.dumps(out)
