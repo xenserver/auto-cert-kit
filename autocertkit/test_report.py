@@ -57,7 +57,8 @@ def wrap_text(string, width):
 
 def print_system_info(stream):
     """ Retrieve system information from SMBIOS and write to given stream. """
-    sys_info = search_dmidecode("System Information")
+    session = get_local_xapi_session()
+    sys_info = search_dmidecode(session, "System Information")
     stream.write("#########################\n")
     stream.write("System Information from SMBIOS\n")
     stream.write('\n'.join(sys_info))

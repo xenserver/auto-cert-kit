@@ -10,9 +10,8 @@ class MockProcess:
 
     def __init__(self, output, err=None):
         self.output = output
-        if err:
-            self.returncode = 1 if err else 0
-            self.__stderr = err
+        self.returncode = 1 if err else 0
+        self.__stderr = err
 
     def stderr(self):
         return self.__stderr
