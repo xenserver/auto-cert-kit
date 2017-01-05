@@ -5,7 +5,8 @@ include $(B_BASE)/common.mk
 include $(B_BASE)/rpmbuild.mk
 endif
 
-KIT_VERSION := $(shell git describe --tags)
+KIT_VERSION := $(shell git describe --tags --abbrev=0)
+KIT_RELEASE := $(shell git rev-list $(KIT_VERSION).. --count)
 
 REPONAME := auto-cert-kit
 ifdef B_BASE
@@ -17,7 +18,7 @@ endif
 PYLINT := sh $(REPO)/pylint.sh
 
 PY_PACKAGE := pypackages
-TEST_KIT_RPM := $(MY_OUTPUT_DIR)/RPMS/noarch/xenserver-auto-cert-kit-$(PRODUCT_VERSION)-$(BUILD_NUMBER).noarch.rpm
+TEST_KIT_RPM := $(MY_OUTPUT_DIR)/RPMS/noarch/xenserver-auto-cert-kit-$(KIT_VERSION)-$(KIT_RELEASE).noarch.rpm
 TEST_KIT_RPM_TMP_DIR := $(MY_OBJ_DIR)/RPM_BUILD_DIRECTORY/tmp/xenserver-auto-cert-kit
 
 TEST_KIT_DEST := /opt/xensource/packages/files/auto-cert-kit
@@ -83,7 +84,7 @@ SRC_RPMS  += $(ACK_DISTFILES)/make-3.81-3.el5.src.rpm
 
 # Definition of the pack.
 PACK_LABEL := xenserver-auto-cert-kit
-PACK_VERSION := $(PRODUCT_VERSION)
+PACK_VERSION := $(KIT_VERSION)
 PACK_UUID := 9815300b-9faf-4b8f-82a3-a7cfb02a46c4
 PACK_DESCRIPTION := XenServer Auto Cert Kit
 
@@ -133,11 +134,12 @@ $(TEST_KIT_RPM): $(TEST_KIT_SPEC) $(RPM_DIRECTORIES)
 	cp -r $(REPO)/config $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cp $(REPO)/acktools/*.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/
 	cp $(REPO)/acktools/net/*.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/acktools/net/
-	cp -r $(REPO)/mk/acktools-setup.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/setup.py
+	cp $(REPO)/setup.py $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/setup.py
+	sed -i 's/@KIT_VERSION@/$(KIT_VERSION)/g' $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)/$(PY_PACKAGE)/setup.py
 	cp $(DEMO_LINUX_XVA) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cp $(VM_RPMS) $(TEST_KIT_RPM_TMP_DIR)/$(TEST_KIT_DEST)
 	cd $(TEST_KIT_RPM_TMP_DIR) && tar zcvf $(RPM_SOURCESDIR)/auto-cert-kit.tar.gz *
-	$(RPMBUILD) -bb $(TEST_KIT_SPEC)
+	$(RPMBUILD) -bb $(TEST_KIT_SPEC) --define '_ver $(KIT_VERSION)' --define '_rel $(KIT_RELEASE)'
 
 $(ISO): $(MY_OUTPUT_DIR)/.dirstamp $(PACK_PACKAGES)
 	GNUPGHOME=/.gpg build-update --uuid $(PACK_UUID) --label "$(PACK_LABEL)" --version $(PACK_VERSION) \
