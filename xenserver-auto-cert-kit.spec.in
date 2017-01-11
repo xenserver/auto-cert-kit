@@ -1,7 +1,7 @@
 Summary: XenServer Automated Certification Kit
 Name: xenserver-auto-cert-kit
-Version: @PRODUCT_VERSION@
-Release: @BUILD_NUMBER@
+Version: %{_ver}
+Release: %{_rel}
 License: Proprietary
 Vendor: Citrix Systems, Inc.
 Group: Development/Libraries
