@@ -6,11 +6,10 @@ import unittest_base
 import sys
 import shutil
 import xenapi_mock
+from config import CONFIG
 
 from autocertkit import utils
 from datetime import datetime
-
-utils.configure_logging('ack_tests')
 
 K = 1024
 M = K * 1024
@@ -235,32 +234,67 @@ class PoolLibMethodsTests(unittest.TestCase):
                         [host.opaque for host in self.session.hosts[1:]])
 
 
+class NetworkLibMethodsTests(unittest.TestCase):
+    """
+    Host related functions unit tests.
+    """
+
+    def setUp(self):
+        self.session = xenapi_mock.Session()
+
+    def test_device_linkstate(self):
+        utils.set_nic_device_status(self.session, 'eth0', 'down')
+        utils.set_nic_device_status(self.session, 'eth1', 'up')
+        self.assertRaises(Exception, lambda: utils.set_nic_device_status(
+            self.session, 'invalidEth', 'up'))
+
+
 class SimpleMethodsTests(unittest.TestCase):
     """
     Simple methods in utils module test
     """
+
+    def setUp(self):
+        self.session = xenapi_mock.Session()
 
     def test_kis_64_bit(self):
         self.assertTrue(utils.is_64_bit("x86_64"))
         self.assertFalse(utils.is_64_bit("i386"))
         self.assertFalse(utils.is_64_bit("i686"))
 
+    def test_logging_methods(self):
+        utils.init_ack_logging(self.session)
 
-class CheckGetMethodsTests(unittest.TestCase):
+    def test_get_xenserver_version(self):
+        self.session.hosts[0].xs_software_version = {
+            'product_version': '7.0.93'}
+        self.assertEqual(utils.get_xenserver_version(self.session), "7.0.93")
+
+    def test_get_xcp_version(self):
+        self.session.hosts[0].xs_software_version = {
+            'platform_version': '2.1.4'}
+        self.assertEqual(utils.get_xcp_version(self.session), "2.1.4")
 
     def test_get_ack_version(self):
-        s1 = xenapi_mock.Session()
-        self.assertEqual(utils.get_ack_version(s1), "1.2.3")
+        self.assertEqual(utils.get_ack_version(self.session), "1.2.3")
         self.assertEqual(utils.get_ack_version(
-            s1, s1.hosts[1].opaque), "1.2.3")
+            self.session, self.session.hosts[1].opaque), "1.2.3")
 
-        s1.hosts[1].setAckVersion(None)
+        self.session.hosts[1].setAckVersion(None)
         self.assertEqual(utils.get_ack_version(
-            s1, s1.hosts[0].opaque), "1.2.3")
-        self.assertEqual(utils.get_ack_version(s1, s1.hosts[1].opaque), None)
+            self.session, self.session.hosts[0].opaque), "1.2.3")
+        self.assertEqual(utils.get_ack_version(
+            self.session, self.session.hosts[1].opaque), None)
 
-        s1.fail_plugin = True
-        self.assertEqual(utils.get_ack_version(s1), None)
+        self.session.fail_plugin = True
+        self.assertEqual(utils.get_ack_version(self.session), None)
+
+    def test_get_system_info(self):
+        self.session.hosts[0].dmidecode = ""
+        self.assertDictEqual(utils.get_system_info(self.session), {})
+        self.session.hosts[0].dmidecode = CONFIG["host"]["dmidecode"][0]
+        self.assertDictEqual(utils.get_system_info(self.session), CONFIG[
+                             "expected"]["get_system_info"][0])
 
 if __name__ == '__main__':
     unittest.main()

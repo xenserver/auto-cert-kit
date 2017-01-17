@@ -57,11 +57,10 @@ G = 1024 * M
 DROID_VM = 'droid_vm'
 DEFAULT_PASSWORD = 'citrix'
 FOR_CLEANUP = "for_cleanup"
-DROID_VM_LOC = '/opt/xensource/packages/files/auto-cert-kit/vpx-dlvm.xva'
-XE = '/opt/xensource/bin/xe'
 DROID_TEMPLATE_TAG = "droid_vm_template"
 REBOOT_ERROR_CODE = 3
 REBOOT_FLAG_FILE = "/opt/xensource/packages/files/auto-cert-kit/reboot"
+LOG_NAME = "auto-cert-kit"
 LOG_LOC = "/var/log/auto-cert-kit.log"
 
 # Capability Tags
@@ -71,6 +70,37 @@ REQ_CAP = "REQ"
 XAPI_RUNNING_STATE = "Running"
 
 
+# Logger
+def configure_logging():
+    """Method for configuring Logging"""
+    global log
+    log = acktools.log.configure_log(LOG_NAME, LOG_LOC)
+
+configure_logging()
+
+
+def release_logging():
+    """Release logging object."""
+    if log:
+        acktools.log.release_log(log)
+
+
+def log_basic_info(session):
+    log.info("Auto Cert Kit Version: %s" % get_ack_version(session))
+    log.info("Host Software Version: %s" % get_xs_info(session))
+    log.info("Kernel Version       : %s" % get_kernel_version(session))
+
+
+def init_ack_logging(session, rotate=True):
+    release_logging()
+    if rotate:
+        for host_ref in session.xenapi.host.get_all():
+            call_ack_plugin(session, 'run_ack_logrotate', {}, host=host_ref)
+    configure_logging()
+    log_basic_info(session)
+
+
+# Exceptions
 class TestCaseError(Exception):
     """A subclassed exception object, which is raised by any
     test failure"""
@@ -536,52 +566,12 @@ class Iface(object):
             if key not in rec.keys():
                 raise Exception("Error: invalid input rec '%s'" % rec)
 
-    def to_rec(self):
-        rec = {}
-        for key in self.required_keys:
-            rec[key] = getattr(self, key)
-        return rec
-
-# Logging setup
-
-log = None
-
-
-def configure_logging(name):
-    """Method for configuring Logging"""
-    global log
-    if not log:
-        log = acktools.log.configure_log(name, LOG_LOC)
-    return log
-
-
-def release_logging():
-    """Release logging object."""
-    global log
-    acktools.log.release_log(log)
-    log = None
-
-if not log:
-    log = configure_logging('auto-cert-kit')
-
-
-def get_logger(name):
-    """Method to return instance of logger"""
-    return logging.getLogger(name)
-
 
 def get_local_xapi_session():
     """Login to Xapi locally. This will only work if this script is being run 
     on Dom0. For this, no credentials are required."""
     session = XenAPI.xapi_local()
     session.login_with_password("", "")
-    return session
-
-
-def get_remote_xapi_session(creds):
-    """Return a remote xapi session based on creds"""
-    session = XenAPI.Session("http://%s" % creds['host'])
-    session.login_with_password(creds['user'], creds['pass'])
     return session
 
 
@@ -697,19 +687,6 @@ def host_crash(session, do_cleanup=False):
     raise Exception("Failed to crash host.")
 
 
-def retrieve_latest_crashdump(session, host=None, fromxapi=False):
-    """Retrieve latest one from crashdump list"""
-    cds = retrieve_crashdumps(session, host, fromxapi)
-    if not cds:
-        return None
-
-    latest = sorted(cds, key=lambda cd: cd['timestamp'], reverse=True)[0]
-
-    log.debug("Latest crashdump: %s" % latest)
-
-    return latest
-
-
 def retrieve_crashdumps(session, host=None, fromxapi=False):
     """Retrive all list of crashdump of master."""
     if not host:
@@ -735,25 +712,6 @@ def retrieve_crashdumps(session, host=None, fromxapi=False):
                                        int(ts[13:15]))  # second
     log.debug("Retained Crashdumps: %s" % str(cds))
     return cds
-
-
-def print_test_results(tracker):
-    """Method for pretty printing results"""
-    for mlist in tracker:
-        for testclass in mlist:
-            for test in testclass:
-                print "****Test Name:", test['test_name'], "****"
-                print "Test Result:", test['result']
-                if test.has_key('info'):
-                    print "Additional Info:", test['info']
-                if test.has_key('data'):
-                    print "Data:", test['data']
-                if test.has_key('config'):
-                    print "Config:", test['config']
-                if test.has_key('exception'):
-                    print "Exceptions:", test['exception'], "\n"
-                else:
-                    print
 
 
 def get_pool_slaves(session):
@@ -816,65 +774,6 @@ def eval_expr(expr, val):
                     condition)
 
 
-def append_result_node(dom, parent_node, result):
-    """parent_node is an xml node to be appended to, result
-    is a dictionary item"""
-    element = dom.createElement("test")
-    parent_node.appendChild(element)
-    for key in result.keys():
-        k = dom.createElement(key)
-        element.appendChild(k)
-        k.appendChild(dom.createTextNode(result[key]))
-
-
-def make_local_call(call):
-    """Function wrapper for making a simple call to shell"""
-    log.debug(' '.join(call))
-    process = subprocess.Popen(call, stdout=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode == 0:
-        return str(stdout).strip()
-    else:
-        log.debug("ERR: %s, %s" % (stdout, stderr))
-        sys.exit()
-
-
-def save_bugtool():
-    """Saves a bugtool and returns the name"""
-    print "Collecting a bugtool report:"
-    call = ["xen-bugtool", "--yestoall"]
-    info = make_local_call(call)
-    where = info.find('/var/opt/xen/bug-report')
-    return ((info[where:]).split())[0]
-
-
-def compress_output_files(mylist):
-    """Compress all output files to bz2 and return the name"""
-    print "Compressing output files..."""
-    tar = tarfile.open("auto-cert-kit-logs.tar.bz2", "w:bz2")
-    for myfile in mylist:
-        tar.add(myfile)
-    tar.close()
-
-
-def output_test_results(tracker):
-    """Outputs an xml results doc and creates a xen-bugtool,
-    then bzip2 them together"""
-    xml_file_name = ('cert_log_%s.xml' % datetime.datetime.now())
-    myfile = open(xml_file_name, 'w')
-    doc = xml.dom.minidom.Document()
-    top_element = doc.createElement("results")
-    doc.appendChild(top_element)
-    for all_results in tracker:
-        for test_class in all_results:
-            for test_result in test_class:
-                append_result_node(doc, top_element, test_result)
-    myfile.write(doc.toprettyxml())
-    myfile.close()
-    bugtool = save_bugtool()
-    compress_output_files([xml_file_name, bugtool])
-
-
 def create_network(session, name_label, description, other_config):
     """Method for creating a XAPI network"""
     net_ref = session.xenapi.network.create({'name_label': name_label,
@@ -919,17 +818,6 @@ def get_pifs_by_device(session, device, hosts=[]):
     raise TestCaseError("""No Ethernet device named %s 
                         can be found on host(s) %s""" %
                         (device, hosts))
-
-
-def get_network_by_device(session, device):
-    pifs = get_pifs_by_device(session, device)
-    network_refs = []
-    for pif in pifs:
-        ref = session.xenapi.PIF.get_network(pif)
-        if ref not in network_refs:
-            network_refs.append(ref)
-    assert(len(network_refs) == 1)
-    return network_refs.pop()
 
 
 def get_physical_devices_by_network(session, network):
@@ -1029,18 +917,6 @@ def create_vlan(session, pif_ref, network_ref, vlan_id):
     return session.xenapi.VLAN.create(pif_ref, str(vlan_id), network_ref)
 
 
-def get_droid_templates(session, brand=DROID_TEMPLATE_TAG):
-    """Return the reference to the template for the 
-    demo linux VM. This is obtained by searching for 
-    a template with the other_config key 'droid_template_vm'."""
-    vms = session.xenapi.VM.get_all()
-    droid_vms = []
-    for vm in vms:
-        if brand in session.xenapi.VM.get_other_config(vm):
-            droid_vms.append(vm)
-    return droid_vms
-
-
 def brand_vm(session, vm_ref, brand=DROID_VM):
     """Take a VM, or template and brand it with a key in other_config"""
     oc = session.xenapi.VM.get_other_config(vm_ref)
@@ -1100,17 +976,6 @@ def make_vm_noninteractive(session, vm_ref):
     """Set PV args to ensure the Demo VM boots up automatically,
     without requring a user to add a password"""
     session.xenapi.VM.set_PV_args(vm_ref, 'noninteractive')
-
-
-def xenstore_read(path):
-    """Uses the local xenstore utility to read a specified path"""
-    process = subprocess.Popen(['/usr/bin/xenstore-read', path],
-                               stdout=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode == 0:
-        return stdout
-    else:
-        raise TestCaseError(stderr)
 
 
 def should_timeout(start, timeout):
@@ -1285,20 +1150,6 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
             time.sleep(20)
 
     raise Exception("An unkown error has occured!")
-
-
-def add_network_interface(vm_ip, interface_name, interface_ip,
-                          interface_netmask, username="root",
-                          password=DEFAULT_PASSWORD, dhcp=False):
-    """Configures a network interface inside a linux VM"""
-    log.debug("add_network_interface for %s" % vm_ip)
-    if dhcp:
-        cmd = "ifconfig %s up" % interface_name
-    else:
-        cmd = "ifconfig %s %s netmask %s up" % \
-            (interface_name, interface_ip, interface_netmask)
-
-    ssh_command(vm_ip, username, password, cmd, cmd, attempts=10)
 
 
 def plug_pif(session, pif):
@@ -1522,44 +1373,11 @@ def get_module_names(name_filter):
     return modules
 
 
-def change_vm_power_state(session, vm_ref):
-    """Toggles VM powerstate between halted and running"""
-    vm_power_state = session.xenapi.VM.get_power_state(vm_ref)
-    print "Current VM power state: %s" % vm_power_state
-    if vm_power_state == 'Running':
-        log.debug("%s is shutting down" % vm_ref)
-        session.xenapi.VM.clean_shutdown(vm_ref)
-        log.debug("%s shutdown complete" % vm_ref)
-    elif vm_power_state == 'Halted':
-        log.debug("%s is booting" % vm_ref)
-        session.xenapi.VM.start(vm_ref, False, False)
-
-
-def arg_encode(string):
-    """Encode a string for sending over XML-RPC to plugin"""
-    return string.replace('/', '&#47;').replace('.', '&#46;')
-
-
 def droid_template_import(session, host_ref, sr_uuid):
     """Import the droid template into the specified SR"""
     # Note, the filename should be fully specified.
     args = {'sr_uuid': sr_uuid}
     return call_ack_plugin(session, 'droid_template_import', args, host=host_ref)
-
-
-def get_default_sr(session):
-    """Returns the SR reference marked as default in the pool"""
-    pool_ref = session.xenapi.pool.get_all()[0]
-    sr_ref = session.xenapi.pool.get_default_SR(pool_ref)
-    try:
-        # A call to check 'freshness' of default SR reference
-        log.debug("Default SR: %s" % session.xenapi.SR.get_name_label(sr_ref))
-        return sr_ref
-    except XenAPI.Failure, exn:
-        if exn.details[0] == 'HANDLE_INVALID':
-            raise Exception("Pool is not configured to have shared storage!")
-        else:
-            raise exn
 
 
 def get_local_sr(session, host):
@@ -1603,7 +1421,7 @@ def find_storage_for_host(session, host_ref, exclude_types=['iso', 'udev']):
     return rel_srs
 
 
-def import_droid_vm(session, host_ref, creds=None, loc=DROID_VM_LOC):
+def import_droid_vm(session, host_ref, creds=None):
     """Import VM template from Dom0 for use in tests"""
     sr_refs = find_storage_for_host(session, host_ref)
 
@@ -1980,20 +1798,6 @@ def droid_set_static(session, vm_ref, protocol, iface, ip, netmask, gw):
     return call_ack_plugin(session, 'droid_set_static_conf', args)
 
 
-def get_non_management_pifs(session):
-    """Return a list of pif refs for non management devices"""
-    pifs = session.xenapi.PIF.get_all_records()
-    results = []
-    for pif_ref, rec in pifs.iteritems():
-        if not rec['management']:
-            results.append(pif_ref)
-
-    if not results:
-        raise Exception("No management PIFs were found!")
-
-    return results
-
-
 class TimeoutFunction:
     """Wrapper class for providing a timemout for 
     the execution of a function"""
@@ -2003,7 +1807,7 @@ class TimeoutFunction:
         self.function = function
         self.exception = exception
 
-    def handle_timeout(self, signum, frame):
+    def handle_timeout(self, *args, **kwargs):
         raise TimeoutFunctionException(self.exception)
 
     def __call__(self, *args):
@@ -2051,8 +1855,9 @@ def call_ack_plugin(session, method, args={}, host=None):
                                           'autocertkit',
                                           method,
                                           args)
-    log.debug("Plugin Output: %s" % res)
-    return json_loads(res)
+    log.debug("Plugin Output: %s" % (
+        "%s[...check plugin log for more]" % res[:1000] if res and len(res) > 1000 else res))
+    return json_loads(res) if res else None
 
 
 def get_hw_offloads(session, device):
@@ -2115,30 +1920,13 @@ def set_hw_offload(session, device, offload, state):
                             'state': state})
 
 
-def parse_csv_list(string):
-    arr = string.split(',')
-    res = []
-    for item in arr:
-        res.append(item.strip())
-    return res
-
-
-def set_nic_device_status(session, interface, status, creds=None):
+def set_nic_device_status(session, interface, status):
     """Function to set an ifconfig ethX interface up or down"""
     log.debug("Bringing %s network interface %s" % (status, interface))
-    call = ['ifconfig', interface, status]
-    if not creds:
-        res = make_local_call(call)
-        # only if it is dom0/host wait for link state actually changed.
-        wait_for_linkstate(session, interface, status)
-    else:
-        res = ssh_command(creds['host'],
-                          creds['user'],
-                          creds['pass'],
-                          ' '.join(call))
+    call_ack_plugin(session, 'set_nic_device_status',
+                    {'device': interface, 'status': status})
+    wait_for_linkstate(session, interface, status)
     time.sleep(5)
-
-    return res
 
 
 class TestThread(threading.Thread):
@@ -2213,11 +2001,11 @@ def _get_type_and_value(entry):
     return r
 
 
-def get_system_info():
+def get_system_info(session):
     """Returns some information of system and bios."""
 
     rec = {}
-    biosinfo = search_dmidecode("BIOS Information")
+    biosinfo = search_dmidecode(session, "BIOS Information")
     if biosinfo:
         entries = _get_type_and_value(biosinfo[0])
         if 'Vendor' in entries:
@@ -2229,7 +2017,7 @@ def get_system_info():
         if 'BIOS Revision' in entries:
             rec['BIOS_revision'] = entries['BIOS Revision']
 
-    sysinfo = search_dmidecode("System Information")
+    sysinfo = search_dmidecode(session, "System Information")
     if sysinfo:
         entries = _get_type_and_value(sysinfo[0])
         if 'Manufacturer' in entries:
@@ -2245,7 +2033,7 @@ def get_system_info():
         if 'Family' in entries:
             rec['system_family'] = entries['Family']
 
-    chassisinfo = search_dmidecode("Chassis Information")
+    chassisinfo = search_dmidecode(session, "Chassis Information")
     if chassisinfo:
         entries = _get_type_and_value(chassisinfo[0])
         if 'Type' in entries:
@@ -2254,14 +2042,6 @@ def get_system_info():
             rec['chassis_manufacturer'] = entries['Manufacturer']
 
     return rec
-
-
-def get_master_ifaces(session):
-    devices = get_master_network_devices(session)
-    ifaces = []
-    for device in devices:
-        ifaces.append(device['Kernel_name'])
-    return ifaces
 
 
 def set_dict_attributes(node, config):
@@ -2276,14 +2056,6 @@ def get_xml_attributes(node):
     for k, v in node._get_attributes().items():
         attr[k] = v
     return attr
-
-
-def get_text_from_node_list(nlist, tag):
-    for node in nlist:
-        if node.nodeType == node.ELEMENT_NODE and node.tagName == tag:
-            for subnode in node.childNodes:
-                if subnode.nodeType == node.TEXT_NODE:
-                    return subnode.data.strip()
 
 
 def to_bool(string):
@@ -2487,30 +2259,25 @@ def valid_ping_response(ping_response, max_loss=0):
         return False
 
 
-dmidecode_output = None
-
-
 @log_exceptions
-def get_dmidecode_output():
+def get_dmidecode_output(session):
     """ Build dmidecode information data structure from output of dmidecode. """
-    global dmidecode_output
-    if not dmidecode_output:
-        binfo = make_local_call(['dmidecode'])
-        buf = ''
-        dmidecode_output = []
-        for line in binfo.split(os.linesep):
-            if len(line.strip()) == 0:
-                dmidecode_output.append(buf)
-                buf = ''
-            else:
-                buf += line + os.linesep
+    binfo = call_ack_plugin(session, 'get_dmidecode_output')
+    buf = ''
+    dmidecode_output = []
+    for line in binfo.split(os.linesep):
+        if len(line.strip()) == 0:
+            dmidecode_output.append(buf)
+            buf = ''
+        else:
+            buf += line + os.linesep
     return dmidecode_output
 
 
 @log_exceptions
-def search_dmidecode(keyword):
+def search_dmidecode(session, keyword):
     """ Search ttype or busid from ds """
-    ds = get_dmidecode_output()
+    ds = get_dmidecode_output(session)
     found = []
     for info in ds:
         if keyword in info:

@@ -294,7 +294,7 @@ class OperationsTestGenerator(TestGenerator):
         """Retrieve XenServer version info from the pool master"""
         rec = super(OperationsTestGenerator, self).get_device_config()
         rec = utils.combine_recs(rec, utils.get_xs_info(self.session))
-        rec = utils.combine_recs(rec, utils.get_system_info())
+        rec = utils.combine_recs(rec, utils.get_system_info(self.session))
         return rec
 
 ##############################################################################

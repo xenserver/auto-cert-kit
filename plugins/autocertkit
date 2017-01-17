@@ -94,20 +94,21 @@ UNAME = "/bin/uname"
 PGREP = "/usr/bin/pgrep"
 
 # Logging setup
-
+LOG_NAME = "auto-cert-kit-plugin"
 LOG_LOC = '/var/log/auto-cert-kit-plugin.log'
 
-log = None
+
+def configure_logging():
+    global log
+    log = acktools.log.configure_log(LOG_NAME, LOG_LOC, False)
+
+configure_logging()
 
 
-def configure_logging(name):
+def release_logging():
     global log
     if log:
         acktools.log.release_log(log)
-    log = acktools.log.configure_log(name, LOG_LOC, False)
-    return log
-
-configure_logging('autocertkit')
 
 # Exceptions
 
@@ -389,6 +390,19 @@ def get_vm_ips(session, vm_ref):
 
 
 @log_exceptions
+def set_nic_device_status(session, arg):
+    """Set an ifconfig ethX interface up or down."""
+    device = validate_exists(arg, 'device', None, True)
+    status = validate_exists(arg, 'status', None, True)
+    res = make_local_call([IFCONFIG, device, status])
+    if res['returncode'] != 0:
+        msg = "ERR: Failed to set device status. %s" % res['stderr']
+        log.error(msg)
+        return json_dumps(msg)
+    return json_dumps("OK")
+
+
+@log_exceptions
 def get_local_device_linkstate(session, arg):
     """ Return current operstate of network device."""
 
@@ -429,20 +443,16 @@ def save_bugtool():
 
 def run_ack_logrotate(session, args):
     """Run logrotate for ACK logs"""
+    release_logging()
     ack_logrotate_dconf = '/etc/logrotate.d/autocertkit'
-    global log
-
-    # This method should not log before logrotate execution to avoid os file
-    # handle error
     try:
         shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
         call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
         res = make_local_call(call, False)
     except Exception, e:
         return json_dumps(str(e))
-
-    # Restart logging and leave results of logrotate in the log.
-    log = configure_logging('autocertkit')
+    finally:
+        configure_logging()
     if res['returncode'] != 0:
         msg = "ERR: Failed to run logrotate."
         log.error("%s: %s" % (msg, res['stderr']))
@@ -1927,6 +1937,13 @@ def get_ack_version(session, args):
         return json_dumps(ver[0].strip())
     raise Exception("Unable to parse ack version")
 
+
+@log_exceptions
+def get_dmidecode_output(session, args):
+    """Returns output of dmidecode call"""
+    return json_dumps(make_local_call(['dmidecode'])["stdout"])
+
+
 #####################################################
 
 if __name__ == '__main__':
@@ -1952,6 +1969,7 @@ if __name__ == '__main__':
                            'get_local_storage_devices': get_local_storage_devices,
                            'get_iface_stats': get_iface_stats,
                            'get_host_routes': get_host_routes,
+                           'set_nic_device_status': set_nic_device_status,
                            'get_local_device_linkstate': get_local_device_linkstate,
                            'create_output_package': create_output_package,
                            'start_iperf_server': start_iperf_server,
@@ -1964,6 +1982,7 @@ if __name__ == '__main__':
                            'get_local_device_info': get_local_device_info,
                            'inject_ssh_key': inject_ssh_key,
                            'get_kernel_version': get_kernel_version,
+                           'get_dmidecode_output': get_dmidecode_output,
                            'get_ack_version': get_ack_version,
                            'run_ack_logrotate': run_ack_logrotate,
                            'retrieve_crashdumps': retrieve_crashdumps,

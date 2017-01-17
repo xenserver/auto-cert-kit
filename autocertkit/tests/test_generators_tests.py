@@ -5,8 +5,6 @@ import unittest_base
 import sys
 from autocertkit import test_generators, testbase, utils
 
-utils.configure_logging('ack_tests')
-
 
 def expect_system_exit(func, code='0'):
     try:

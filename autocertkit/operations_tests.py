@@ -32,8 +32,6 @@ import testbase
 import time
 from utils import *
 
-log = get_logger('auto-cert-kit')
-
 
 class VMOpsTestClass(testbase.OperationsTestClass):
     """Test class to determine proper operation of the most

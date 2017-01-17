@@ -33,8 +33,6 @@
 import testbase
 from utils import *
 
-log = get_logger('auto-cert-kit')
-
 
 class PerfTestClass(testbase.LocalStorageTestClass):
     """A somewhat generic test class for local storage 
