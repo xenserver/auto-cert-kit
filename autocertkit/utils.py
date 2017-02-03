@@ -65,6 +65,7 @@ LOG_LOC = "/var/log/auto-cert-kit.log"
 
 # Capability Tags
 REQ_CAP = "REQ"
+MULTICAST_CAP = "MULTICAST"
 
 # XAPI States
 XAPI_RUNNING_STATE = "Running"
