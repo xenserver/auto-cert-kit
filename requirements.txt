@@ -1,3 +1,4 @@
+xenapi
 paramiko
 coveralls
 autopep8
