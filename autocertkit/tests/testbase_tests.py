@@ -22,5 +22,6 @@ class TagsTests(unittest_base.DevTestCase):
             assert orig_tags == new_tags, "%s != %s - Tags are being mutilated. (%s)" % (
                 orig_tags, new_tags, test_name)
 
+
 if __name__ == '__main__':
     unittest.main()

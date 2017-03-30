@@ -296,5 +296,6 @@ class SimpleMethodsTests(unittest.TestCase):
         self.assertDictEqual(utils.get_system_info(self.session), CONFIG[
                              "expected"]["get_system_info"][0])
 
+
 if __name__ == '__main__':
     unittest.main()

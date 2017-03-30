@@ -102,6 +102,7 @@ def configure_logging():
     global log
     log = acktools.log.configure_log(LOG_NAME, LOG_LOC, False)
 
+
 configure_logging()
 
 
@@ -686,6 +687,7 @@ def _get_local_storage_disk(session):
         return os.path.basename(os.readlink(disk_path))
     return os.path.basename(disk_path)
 
+
 __scsi_id_regex = re.compile("([\-\d\w\/]+)\-part\d+")
 
 
@@ -716,6 +718,7 @@ def _get_local_storage_disks(session):
                 disks[os.path.basename(iface_path)] = sr
 
     return disks
+
 
 __bus_id_regex = re.compile("[0-9a-fA-F]{2}\:[0-9a-fA-F]{2}\.[0-9a-fA-F]")
 
@@ -1287,6 +1290,7 @@ def _retrieve_crashdumps_from_xapi(session, host):
                     })
 
     return ret
+
 
 CD_PATTERN = re.compile(r'\d{8}\-\d{6}\-.*')
 

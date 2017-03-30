@@ -76,6 +76,7 @@ def configure_logging():
     global log
     log = acktools.log.configure_log(LOG_NAME, LOG_LOC)
 
+
 configure_logging()
 
 
