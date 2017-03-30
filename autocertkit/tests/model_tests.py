@@ -86,5 +86,6 @@ class ReportPrintsTests(unittest_base.DevTestCase):
         assert 'fakeversion' in report.output(), "Failed to compile version."
         assert 'fakebuildnumber' in report.output(), "Failed to compile build number."
 
+
 if __name__ == '__main__':
     unittest.main()

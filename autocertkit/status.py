@@ -103,5 +103,6 @@ def main():
         perc = float(p + f + s) / float(w + p + f + s) * 100
         print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d)" % (perc, p, f, s, w)
 
+
 if __name__ == "__main__":
     main()

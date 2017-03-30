@@ -544,6 +544,7 @@ class Iface(object):
 
 # Logging setup
 
+
 log = None
 
 
@@ -560,6 +561,7 @@ def release_logging():
     global log
     acktools.log.release_log(log)
     log = None
+
 
 if not log:
     log = configure_logging('auto-cert-kit')
