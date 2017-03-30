@@ -197,7 +197,8 @@ def parse_netconf_file(filename):
                                             (MIN_VLAN, MAX_VLAN))
 
             rec[key] = {'network_id': network_id, 'vlan_ids': vlan_ids}
-
+        elif key == "static_management":
+            rec[key] = parse_static_config(value)
         elif key.startswith('static'):
             # Definition of network properties (e.g. dhcp/static)
             arr = key.split('_')

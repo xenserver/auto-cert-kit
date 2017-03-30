@@ -12,6 +12,11 @@ eth3 = 1,[200]
 
 # static_<network _id>_<vlan_id> = <ip_start>,<ip_end>,<netmask>,<gw>
 
+# In case, management network is not having DHCP and management interface
+# is not specified above ( management interface is not being certified),
+# It is mandatory to specify static addressing, i.e.:
+#  static_management = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
+
 # Setting static addressing for VLAN 200 on Network ID 0:
 static_0_200 = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
 
