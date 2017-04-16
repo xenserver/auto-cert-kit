@@ -175,6 +175,10 @@ class TestGenerator(object):
                     reason_node.appendChild(doc.createTextNode('%s is not required for XCP %s.'
                                                                % (test_class_name, xcp_version)))
                     method_node.appendChild(reason_node)
+                    testname_node = doc.createElement('test_name')
+                    testname_node.appendChild(doc.createTextNode('%s.%s' %
+                        (test_class_name.split('.')[1], str(method))))
+                    method_node.appendChild(testname_node)
                 else:
                     result_node.appendChild(doc.createTextNode('NULL'))
 
