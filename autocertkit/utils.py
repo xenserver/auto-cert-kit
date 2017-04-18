@@ -90,6 +90,7 @@ def log_basic_info(session):
     log.info("Auto Cert Kit Version: %s" % get_ack_version(session))
     log.info("Host Software Version: %s" % get_xs_info(session))
     log.info("Kernel Version       : %s" % get_kernel_version(session))
+    log.info("Host Hardware Devices:\n%s" % get_system_info_tabular(session))
 
 
 def init_ack_logging(session, rotate=True):
@@ -1846,7 +1847,7 @@ def json_loads(json_data):
     return [data] if isinstance(data, dict) else data
 
 
-def call_ack_plugin(session, method, args={}, host=None):
+def call_ack_plugin(session, method, args={}, host=None, noJsonHook=False):
     if not host:
         host = get_pool_master(session)
     log.debug("About to call plugin '%s' on host '%s' with args '%s'" %
@@ -1858,7 +1859,7 @@ def call_ack_plugin(session, method, args={}, host=None):
                                           args)
     log.debug("Plugin Output: %s" % (
         "%s[...check plugin log for more]" % res[:1000] if res and len(res) > 1000 else res))
-    return json_loads(res) if res else None
+    return (json.loads(res) if noJsonHook else json_loads(res)) if res else None
 
 
 def get_hw_offloads(session, device):
@@ -1960,10 +1961,26 @@ def check_test_thread_status(threads):
     return False
 
 
+def get_system_info_hwinfo(session):
+    return call_ack_plugin(session, 'get_system_info_hwinfo', noJsonHook=True)
+
+
+def get_system_info_tabular(session):
+    return call_ack_plugin(session, 'get_system_info_tabular')
+
+
 def get_master_network_devices(session):
-    devices = call_ack_plugin(session, 'get_network_devices')
-    log.debug("Network Devices found on machine: '%s'" % devices)
-    return devices
+    nics = call_ack_plugin(session, 'get_network_devices')
+    log.debug("Network Devices found on machine(Plugin): '%s'" % nics)
+    hwinfo_devs = get_system_info_hwinfo(session)
+    if hwinfo_devs:
+        nics_hw = hwinfo_devs['nics']
+        log.debug("Network Devices found on machine(hwinfo): '%s'" % nics_hw)
+        for n in nics:
+            for nh in nics_hw:
+                if n['PCI_name'] == "0000:%s" % nh['device_bus_id']:
+                    n.update(nh)
+    return nics
 
 
 def get_local_storage_info(session):
