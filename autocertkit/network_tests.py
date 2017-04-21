@@ -675,7 +675,8 @@ class IperfTestClass(testbase.NetworkTestClass):
             client = vm1_ref
             server = vm2_ref
         else:
-            raise Exception("Unkown 'direction' key specified. Expected tx/rx")
+            raise Exception(
+                "Unknown 'direction' key specified. Expected tx or rx")
 
         log.debug("Client IPerf VM ref: %s" % client)
         log.debug("Server IPerf VM ref: %s" % server)
@@ -1000,6 +1001,89 @@ class MTUPingTestClass(testbase.NetworkTestClass):
     def test_ping(self, session):
         log.debug("run test...")
         return self._run_test(session)
+
+
+class MulticastTest(IperfTest):
+    """ Subclass that adds multicast specific operations"""
+    MULTICAST_IP = '226.94.1.1'
+    iperf_report_path = '/tmp/iperf.log'
+
+    def run_mulitcast_server(self):
+        """Start the iPerf server listening on a VM"""
+        log.debug('Starting multicast server')
+        self.server_ip = self.get_server_ip('eth0')
+        cmd_str = 'nohup iperf -y csv -s -u -B %s </dev/null &>%s &' \
+            % (self.MULTICAST_IP, self.iperf_report_path)
+        ssh_command(self.server_ip, self.username, self.password,
+                    cmd_str)
+
+    def run_multicast_client(self):
+        """Run test iperf command on droid VM"""
+        log.debug('Starting IPerf client')
+        cmd_str = 'iperf -c %s -u' % self.MULTICAST_IP
+        ssh_command(self.get_client_ip(), self.username, self.password,
+                    cmd_str)
+
+    def validate_multicast(self):
+        cmd_str = 'cat %s' % self.iperf_report_path
+        cmd_result = ssh_command(self.server_ip, self.username,
+                                 self.password, cmd_str)
+        log.debug('Iperf log on multicast server: %s' % cmd_result)
+        if self.MULTICAST_IP not in cmd_result:
+            raise TestCaseError('Error: Multicast test failed. iperf data: %s'
+                                % cmd_result)
+
+        self.iperf_data = self.parse_iperf_line(cmd_result)
+
+    def run(self):
+        """This classes run test function"""
+        self.deploy_iperf()
+        self.run_mulitcast_server()
+        log.debug('IPerf deployed and multicast server started')
+        self.run_multicast_client()
+
+        iperf_data = self.validate_multicast()
+        return iperf_data
+
+
+class MulticastTestClass(IperfTestClass):
+    """ Subclass that runs multicast test"""
+
+    caps = [MULTICAST_CAP]
+    required = False
+
+    def _run_test(self, session, direction):
+
+        # setup required network
+        net_refs = self._setup_network(session)
+
+        # setup VMs for test
+        vm1_ref, vm2_ref = self._setup_vms(session, net_refs)
+
+        # Determine which reference should be the server and
+        # which should be the client.
+        if direction == 'rx':
+            client = vm2_ref
+            server = vm1_ref
+        elif direction == 'tx':
+            client = vm1_ref
+            server = vm2_ref
+        else:
+            raise Exception(
+                "Unknown 'direction' key specified. Expected tx or rx")
+
+        log.debug("Multicast client IPerf VM ref: %s" % client)
+        log.debug("Multicast Server IPerf VM ref: %s" % server)
+
+        log.debug("About to run multicast test...")
+
+        # Run multicast test - if failure, an exception should be raised.
+        iperf_data = MulticastTest(session, client, server,
+                                   self.network_for_test,
+                                   self.get_static_manager(self.network_for_test)).run()
+
+        return {'info': 'Test ran successfully',
+                'data': iperf_data}
 
 
 class GROOffloadTestClass(testbase.NetworkTestClass):

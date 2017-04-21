@@ -512,8 +512,7 @@ class Device(object):
                 else:
                     reqval = "Unsupported"
 
-                stream.write("%s: %s" % (k, reqval))
-            stream.write("\n")
+                stream.write("%s: %s\n" % (k, reqval))
 
         if tests_passed:
             stream.write("\nTests that passed:\n")
