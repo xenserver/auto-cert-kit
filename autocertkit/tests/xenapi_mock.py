@@ -8,7 +8,7 @@ while running unit tests.
 import mock
 import random
 import json
-from XenAPI import XenAPI
+import XenAPI
 from config import CONFIG
 
 
