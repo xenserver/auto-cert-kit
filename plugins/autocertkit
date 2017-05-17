@@ -49,6 +49,7 @@ import base64
 import tarfile
 import datetime
 import json
+import hwinfo.tools.inspector as inspector
 
 from acktools.net import route
 import acktools.log
@@ -1948,6 +1949,22 @@ def get_dmidecode_output(session, args):
     return json_dumps(make_local_call(['dmidecode'])["stdout"])
 
 
+@log_exceptions
+def get_system_info_hwinfo(session, args):
+    """Returns device dict reported by hwinfo"""
+    host = inspector.Host()
+    options = ['bios', 'nic', 'storage', 'gpu', 'cpu']
+    return inspector.export_system_info(host, options)
+
+
+@log_exceptions
+def get_system_info_tabular(session, args):
+    """Get Hardware information reported by hwinfo in tabular form"""
+    host = inspector.Host()
+    options = ['bios', 'nic', 'storage', 'gpu', 'cpu']
+    return json_dumps(inspector.system_info(host, options))
+
+
 #####################################################
 
 if __name__ == '__main__':
@@ -1971,6 +1988,8 @@ if __name__ == '__main__':
                            'retrieve_bonnie_logs': retrieve_bonnie_logs,
                            'get_network_devices': get_network_devices,
                            'get_local_storage_devices': get_local_storage_devices,
+                           'get_system_info_hwinfo': get_system_info_hwinfo,
+                           'get_system_info_tabular': get_system_info_tabular,
                            'get_iface_stats': get_iface_stats,
                            'get_host_routes': get_host_routes,
                            'set_nic_device_status': set_nic_device_status,
