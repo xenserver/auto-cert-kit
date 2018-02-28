@@ -88,12 +88,15 @@ class TestClass(object):
         """Method for running all the tests in a class"""
         self.check_prerequisites()
         self.host_setup()
+
         results = []
+
         tests = self.list_tests()
         if test_name:
             arr = test_name.split('.')
             test_name = arr[len(arr) - 1]
             log.debug("Test Selected = %s" % test_name)
+
         for test in tests:
             if test_name and test_name != test:
                 continue
@@ -109,15 +112,32 @@ class TestClass(object):
 
             rec = {}
             try:
-                log.debug("******** %s.%s ********" %
-                          (self.__class__.__name__, test))
-                res = getattr(self, test)(self.session)
+                log.debug("******** %s.%s ********" % (self.__class__.__name__, test))
 
-                # If test executed without failure it can be either skipped or
-                # passed.
-                if 'skipped' in res and res['skipped']:
-                    rec['result'] = 'skip'
+                res = getattr(self, test)(self.session)
+                """
+                Critical key and value in res:
+                    'status': 'init'    initial status before running
+                              'running' test still running
+                              'done',   test finished
+                    'result': 'skip'    needless to run
+                              'pass'    test OK
+                              'fail'    test failed (with Exception occurs)
+                    'control': any private data of test itself.
+                    'superior': return common info to test runner from test, 
+                                test runner will handle and take general action, then remove it,
+                                so it won't be saved into xml file.
+                                currently it's used for rebooting hosts only.
+                """
+
+                log.debug("test return: %s" % res)
+
+                if 'superior' in res:
+                    rec['status'] = 'running'
+                    rec['result'] = 'NULL'
+                    rec['superior'] = res['superior']
                 else:
+                    rec['status'] = 'done'
                     rec['result'] = 'pass'
 
                 def copy_field(rec, res, field, keep_tag=True):
@@ -126,6 +146,7 @@ class TestClass(object):
                     elif keep_tag:
                         rec[field] = ""
 
+                copy_field(rec, res, 'control', False)
                 copy_field(rec, res, 'info')
                 copy_field(rec, res, 'data')
                 copy_field(rec, res, 'config')
@@ -134,6 +155,7 @@ class TestClass(object):
 
             except Exception, e:
                 traceb = traceback.format_exc()
+                rec['status'] = 'done'
                 rec['result'] = 'fail'
                 rec['traceback'] = traceb
                 rec['exception'] = str(e)
@@ -146,6 +168,7 @@ class TestClass(object):
             except:
                 traceb = traceback.format_exc()
                 exception = True
+                rec['status'] = 'done'
                 rec['result'] = 'fail'
                 rec['trackeback'] = traceb
                 rec['exception'] = "Unexpected error: %s" % sys.exc_info()[0]
@@ -155,12 +178,60 @@ class TestClass(object):
                         "Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
                     sys.exit(0)
 
-            log.debug("Test case %s: %s.%s" %
-                      (rec['result'], self.__class__.__name__, test))
+
+            # cleanup occurs only when current test really done
+            if rec['status'] == 'done':
+                try:
+                    pool_wide_cleanup(self.session)
+                except:
+                    traceb = traceback.format_exc()
+                    log.debug(traceb)
+                    if debug:
+                        log.debug(
+                            "Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
+                        sys.exit(0)
+
+                    log.debug("The general cleanup is failed")
+                    # reset test result
+                    if rec['result'] == 'pass':
+                        rec['result'] = 'fail'
+                        rec['trackeback'] = traceb
+                        rec['exception'] = "Unexpected error: %s" % sys.exc_info()[0]
+
+            log.debug("Test case %s, %s: %s.%s" % (rec['result'], rec['status'], self.__class__.__name__, test))
             rec['test_name'] = "%s.%s" % (self.__class__.__name__, test)
             results.append(rec)
-            pool_wide_cleanup(self.session)
+
         return results
+
+    # set result dict using below functions in TestClass
+    def set_control(self, rec, value):
+        rec['control'] = str(value)
+
+    def set_info(self, rec, info):
+        rec['info'] = info
+
+    def set_data(self, rec, data):
+        rec['data'] = data
+
+    def set_config(self, rec, config):
+        rec['config'] = config
+
+    def set_reason(self, rec, reason):
+        rec['reason'] = reason
+
+    def set_warning(self, rec, warning):
+        rec['warning'] = warning
+
+    def set_test_name(self, rec, test_name):
+        rec['test_name'] = test_name
+
+    def set_superior(self, rec, superior):
+        rec['superior'] = superior
+
+    def unset_superior(self, rec):
+        rec.pop("superior", None)
+
 
     def check_prerequisites(self):
         """Check that the class has met it's prerequisites

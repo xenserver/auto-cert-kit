@@ -50,6 +50,7 @@ file, which at the end of the test file execution, will be
 compiled into a report."""
 
 import sys
+import traceback
 import inspect
 import network_tests
 import cpu_tests
@@ -60,6 +61,7 @@ import test_report
 import time
 import models
 
+import utils
 from utils import *
 
 from xml.dom import minidom
@@ -189,44 +191,55 @@ def run_tests_from_file(test_file):
     if "vpx_dlvm_file" in config.keys():
         utils.vpx_dlvm_file = config["vpx_dlvm_file"]
 
-    log.debug("ACK Model: %s" % ack_model.is_finished())
-    if not ack_model.is_finished():
-        # Ensure that we cleanup before running tests, in case
-        # the system has been left in a failed state.
-        pool_wide_cleanup(session)
+    log.debug("ACK Model, finished: %s" % ack_model.is_finished())
 
     while not ack_model.is_finished():
-        log.debug("Test Run Status: P %d, F %d, S %d, W %d" %
+        log.debug("Test Run Status: P %d, F %d, S %d, W %d, R %d" %
                   (ack_model.get_status()))
 
-        tc_info = get_reboot_flag()
-        test_name = None
-        if tc_info and 'test_method' in tc_info:
-            test_name = tc_info['test_method']
-
-        next_test_class = ack_model.get_next_test_class(tc_info)
-        next_test_method = next_test_class.get_next_test_method(test_name)
+        next_test_class, next_test_method = ack_model.get_next_test()
         if not next_test_method:
             raise Exception("No more test method to run from test class: %s" %
                             next_test_class.get_name())
 
-        # Merge device specific config into the global config dict object
+        class_name = next_test_class.get_name()
+        method_name = next_test_method.get_name()
+
+        # Merge useful info into the global config dict object
         # that will then be passed to the test class.
         config['device_config'] = next_test_class.get_device_config()
+        config['test_method'] = next_test_method
+        config['test_class'] = next_test_class
 
-        log.debug("About to run test: '%s'" % (next_test_class.get_name()))
-        test_inst = get_test_class(next_test_class.get_name())(session, config)
-        result = test_inst.run(
-            to_bool(get_value(config, 'debug')), next_test_method.get_name())
+        log.debug("About to run test: '%s'" % method_name)
+
+        # set to running status, then status.py will know it
+        running_status = {'test_name':method_name, 'status':'running'}
+        next_test_class.update([running_status])
+        next_test_class.save(test_file)
+
+        debug = to_bool(get_value(config, 'debug'))
+        test_inst = get_test_class(class_name)(session, config)
+        results = test_inst.run(debug, method_name)
+
+        result = results[0]
+        reboot = False
+        if 'superior' in result:
+            reboot = True
+            test_inst.unset_superior(result)
 
         # Update the python objects with results
-        next_test_class.update(result)
-
+        next_test_class.update(results)
         # Save the updated test class back to the config file
         next_test_class.save(test_file)
 
-        # Reset reboot flag
-        clear_reboot_flag()
+        if reboot:
+            log.debug("Reboot all hosts")
+            reboot_all_hosts(session)
+            try:
+                sys.exit(REBOOT_ERROR_CODE)
+            except Exception, e:
+                log.debug("ACK exit normally")
 
     log.debug("Logging out of xapi session %s" % session.handle)
     session.xenapi.session.local_logout()

@@ -654,23 +654,20 @@ def clear_reboot_flag(flag=REBOOT_FLAG_FILE):
     if os.path.exists(flag):
         os.remove(flag)
 
-
-def host_reboot(session, running_tc_info=None):
-    log.debug("Attempting to reboot the host")
-    # Cleanup all the running vms
-    pool_wide_cleanup(session)
-
+def reboot_all_hosts(session):
     master = get_pool_master(session)
-
     hosts = session.xenapi.host.get_all()
     for host in hosts:
         session.xenapi.host.disable(host)
         if host != master:
             session.xenapi.host.reboot(host)
-
-    set_reboot_flag(running_tc_info)
-
     session.xenapi.host.reboot(master)
+
+def host_reboot(session):
+    log.debug("Attempting to reboot the host")
+    # Cleanup all the running vms
+    pool_wide_cleanup(session)
+    reboot_all_hosts(session)
     log.debug("Rebooted master")
     sys.exit(REBOOT_ERROR_CODE)
 
