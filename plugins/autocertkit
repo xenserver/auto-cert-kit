@@ -609,6 +609,63 @@ def deploy_iperf(session, args):
     return json_dumps("OK")
 
 
+@log_exceptions
+def deploy_vf_driver(session, args):
+    """Install VF driver on a specified VM"""
+    log.debug("deploy VF driver plugin call")
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+    package  = args['package']
+    driver_name = args['driver_name']
+
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        i = 0
+        limit = 10
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                install_vf_driver(session, vm_ref, username, password, package, driver_name)
+                break
+            except:
+                log.debug("Exception raised attempting to deploy VF driver. Attempt %d" % i)
+                i += 1
+                if i == limit:
+                    raise PluginError("Plugin Error: Cannot deploy VF driver")
+                time.sleep(8)
+
+    log.debug("VF driver installation completed")
+    return json_dumps("OK")
+
+@log_exceptions
+def disable_network_device_naming(session, args):
+    """Disable network device_naming, referrence:
+        https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/networking_guide/ch-consistent_network_device_naming
+        http://www.geekpills.com/operating-system/linux/change-default-network-interface-name-ens-old-eth-rhel7-centos7
+    """
+    log.debug("disable network device naming plugin call")
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        i = 0
+        limit = 10
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                disable_net_dev_naming(session, vm_ref, username, password)
+                break
+            except:
+                log.debug("Exception raised attempting to disable network device naming. Attempt %d" % i)
+                i += 1
+                if i == limit:
+                    raise PluginError("Plugin Error: Cannot disable network device naming")
+                time.sleep(5)
+
+    log.debug("disable network device naming completed")
+    return json_dumps("OK")
+
 def get_pci_id(bus_id):
     """Return the PCI id for a specified bus location"""
     call = ['/sbin/lspci', '-n', '-s', bus_id]
@@ -2060,5 +2117,6 @@ if __name__ == '__main__':
                            'get_ack_version': get_ack_version,
                            'run_ack_logrotate': run_ack_logrotate,
                            'retrieve_crashdumps': retrieve_crashdumps,
-                           'force_crash_host': force_crash_host
+                           'force_crash_host': force_crash_host,
+                           'deploy_vf_driver': deploy_vf_driver
                            })

@@ -140,7 +140,8 @@ def parse_cmd_args():
         for k, v in kvp_rec.iteritems():
             config[k] = v
 
-    file_opts = [("vpx_dlvm_file", "VPX DLVM file")]
+    file_opts = [("vf_driver_pkg", "VF driver rpm package"),
+                 ("vpx_dlvm_file", "VPX DLVM file")]
     for opt,label in file_opts:
         if opt in config.keys():
             assert_file_exists(os.path.join(INSTALL_DIR, config[opt]), label)
