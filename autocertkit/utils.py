@@ -1973,6 +1973,15 @@ def get_system_info_tabular(session):
 def get_master_network_devices(session):
     nics = call_ack_plugin(session, 'get_network_devices')
     log.debug("Network Devices found on machine(Plugin): '%s'" % nics)
+
+    # remove invalid keys of nic which violates xml, referring to
+    # https://stackoverflow.com/questions/19677315/xml-tagname-starting-with-number-is-not-working
+    for n in nics:
+        for k in n.keys():
+            if k and k[0].isdigit():
+                n.pop(k)
+                log.debug("Remove invalid key %s from %s" % (k, n['PCI_name']))
+
     hwinfo_devs = get_system_info_hwinfo(session)
     if hwinfo_devs:
         nics_hw = hwinfo_devs['nics']
