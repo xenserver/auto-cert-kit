@@ -70,6 +70,19 @@ class TestGenerator(object):
         execution."""
         return
 
+    def select_test_by_config(self, test_classes):
+        """Select test classes to run by config"""
+        if "run_classes" not in self.config.keys():
+            return test_classes
+
+        classes = self.config["run_classes"].split()
+        ret = []
+        for cla in classes:
+            for i in test_classes:
+                if cla == i[0]:
+                    ret.append(i)
+        return ret
+
     def filter_test_classes(self, test_classes):
         """optional filter method that could be used to remove particular tests from the
         normal set if required. List consists of (testname, testclass)"""
@@ -228,6 +241,9 @@ class NetworkAdapterTestGenerator(TestGenerator):
         # Handle the case where XenRT wants to not run the bonding test case
         # due to the fact the machines are not configured with two NICs
 
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         def append_filter(testname, dont_run):
             for item in dont_run:
                 if item in testname:
@@ -256,6 +272,9 @@ class ProcessorTestGenerator(TestGenerator):
     TAG = 'CPU'
 
     def filter_test_classes(self, test_classes):
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         if 'CPU' in self.config['exclude']:
             return []
         return test_classes
@@ -277,6 +296,9 @@ class StorageTestGenerator(TestGenerator):
         self.device = device
 
     def filter_test_classes(self, test_classes):
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         if 'LSTOR' in self.config['exclude']:
             return []
         return test_classes
@@ -292,6 +314,9 @@ class OperationsTestGenerator(TestGenerator):
     TAG = 'OP'
 
     def filter_test_classes(self, test_classes):
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         if 'OPS' in self.config['exclude']:
             return []
         if 'CRASH' in self.config['exclude']:
