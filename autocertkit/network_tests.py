@@ -1033,7 +1033,7 @@ class MulticastTest(IperfTest):
             raise TestCaseError('Error: Multicast test failed. iperf data: %s'
                                 % cmd_result)
 
-        self.iperf_data = self.parse_iperf_line(cmd_result)
+        return self.parse_iperf_line(cmd_result)
 
     def run(self):
         """This classes run test function"""
@@ -1042,8 +1042,7 @@ class MulticastTest(IperfTest):
         log.debug('IPerf deployed and multicast server started')
         self.run_multicast_client()
 
-        iperf_data = self.validate_multicast()
-        return iperf_data
+        return self.validate_multicast()
 
 
 class MulticastTestClass(IperfTestClass):
