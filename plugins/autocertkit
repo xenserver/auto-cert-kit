@@ -1279,9 +1279,19 @@ def reset_arp(session, args):
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
 
         # Global ARP Ignore
-        cmd = "%s net.ipv4.conf.all.arp_ignore=1" % SYSCTL
+        cmd = "%s net.ipv4.conf.all.arp_ignore=0" % SYSCTL
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
+
+        '''
+        # Revert arp_ignore to default 0, otherwise DLVM (CentOS 7.2) no interface will reply arp query.
+        # Because verified https://access.redhat.com/solutions/30564, but does not work
+        cmd = "%s net.ipv4.conf.all.arp_filter=1; %s net.ipv4.conf.default.arp_filter=1; " \
+              "%s net.ipv4.conf.all.arp_announce=2; %s net.ipv4.conf.default.arp_announce=2;" \
+              % (SYSCTL, SYSCTL, SYSCTL, SYSCTL)
+        call = [SSH, vm_m_ip, cmd]
+        make_local_call(call)
+        '''
 
         vifs = session.xenapi.VM.get_VIFs(vm_ref)
         for vif in vifs:
