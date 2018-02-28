@@ -2118,5 +2118,6 @@ if __name__ == '__main__':
                            'run_ack_logrotate': run_ack_logrotate,
                            'retrieve_crashdumps': retrieve_crashdumps,
                            'force_crash_host': force_crash_host,
-                           'deploy_vf_driver': deploy_vf_driver
+                           'deploy_vf_driver': deploy_vf_driver,
+                           'disable_network_device_naming': disable_network_device_naming
                            })
