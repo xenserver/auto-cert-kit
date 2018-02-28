@@ -67,6 +67,9 @@ LOG_LOC = "/var/log/auto-cert-kit.log"
 REQ_CAP = "REQ"
 MULTICAST_CAP = "MULTICAST"
 
+# XCP minimum version with SR-IOV support
+XCP_MIN_VER_WITH_SRIOV = "2.6.0"
+
 # XAPI States
 XAPI_RUNNING_STATE = "Running"
 
@@ -1250,6 +1253,7 @@ def pool_wide_cleanup(session, tag=FOR_CLEANUP):
     and remove them as part of a cleanup operation"""
     log.debug("**Performing pool wide cleanup...**")
     pool_wide_vm_cleanup(session, tag)
+    pool_wide_network_sriov_cleanup(session, tag)
     pool_wide_network_cleanup(session, tag)
     pool_wide_host_cleanup(session)
 
@@ -1323,6 +1327,17 @@ def pool_wide_vm_cleanup(session, tag):
 
                 session.xenapi.VM.set_other_config(vm, oc)
 
+
+def pool_wide_network_sriov_cleanup(session, tag):
+    """Searches for network sriov, and destroys"""
+
+    if get_xcp_version(session) < XCP_MIN_VER_WITH_SRIOV:
+        return
+
+    sriov_nets = session.xenapi.network_sriov.get_all()
+    for network in sriov_nets:
+        # no "other_config" field for FOR_CLEANUP, so cleanup all
+        session.xenapi.network_sriov.destroy(network)
 
 def pool_wide_network_cleanup(session, tag):
     """Searches for networks with a cleanup tag, and

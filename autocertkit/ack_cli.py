@@ -427,6 +427,8 @@ def main(config, test_run_file):
     # Start Logger
     utils.init_ack_logging(session)
 
+    utils.log.info("Options: %s" % config)
+
     # Pre checks before running tests
     pre_flight_checks(session, config)
 
@@ -434,14 +436,19 @@ def main(config, test_run_file):
     config['xcp_version'] = utils.get_xcp_version(session)
 
     generate_test_config(session, config, test_run_file)
-    # Logout of XAPI session anyway - the test runner will create a new session
-    # if needed. (We might only be generating).
-    session.logout()
 
     if 'generate' in config:
         # Generate config file only
         utils.log.info("Test file generated")
+        session.logout()
         return "OK"
+
+    # cleanup in case previous run did not complete entirely
+    utils.pool_wide_cleanup(session)
+
+    # Logout of XAPI session anyway - the test runner will create a new session
+    # if needed. (We might only be generating).
+    session.logout()
 
     # Kick off the testrunner
     utils.log.info("Starting Test Runner from ACK CLI.")
