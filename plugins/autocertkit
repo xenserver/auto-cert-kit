@@ -560,6 +560,20 @@ def install_rpm(session, vm_ref, username, password, rpm):
     """install one rpm"""
     install_rpms(session, vm_ref, username, password, [rpm])
 
+def install_vf_driver(session, vm_ref, username, password, package, driver_name):
+    """Install VF driver rpm on a droid vm"""
+    if package:
+        install_rpm(session, vm_ref, username, password, package)
+
+    if driver_name:
+        cmd = "echo %s > /etc/modules-load.d/%s.conf" % (driver_name, driver_name)
+        run_command(session, vm_ref, username, password, cmd)
+
+def disable_net_dev_naming(session, vm_ref, username, password):
+    cmd = '''sed -i 's/\(GRUB_CMDLINE_LINUX=.*\)"/\\1 net.ifnames=0 biosdevname=0"/' /etc/default/grub;''' \
+          '''grub2-mkconfig -o /boot/grub2/grub.cfg;'''
+    run_command(session, vm_ref, username, password, cmd)
+
 def validate_xml_key(key):
     """Check that a key will be acceptable for an XML attribute
     there are some cases, where invalid keys will cause things
