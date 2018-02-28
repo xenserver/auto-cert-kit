@@ -239,40 +239,50 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
     def test_crashdump(self, session):
         """Check crashdump is created properly."""
         log.debug("Running Crashdump test.")
-        if not get_reboot_flag():
-            tc_info = {}
-            tc_info['device'] = self.config['device_config']['udid']
-            tc_info['test_class'] = self.__class__.__module__ + \
-                '.' + self.__class__.__name__
-            tc_info['test_method'] = 'test_crashdump'
-            tc_info['crash_begin_time'] = datetime.now(
-            ).strftime("%Y-%m-%d %H:%M:%S")
-            set_reboot_flag(tc_info)
-            log.debug("The reboot flag's timestamp is set to: '%s'" %
-                      str(get_reboot_flag_timestamp()))
-            # host crash need to be done after flag is created to compare.
+
+        test_class = self.config['test_class']
+        test_method = self.config['test_method']
+        self.control = test_method.get_control()
+        log.debug("control info: %s" % self.control)
+
+        ret = {}
+        if not self.control:
+            crash_beg_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log.debug("prepare to crash dump %s" % crash_beg_time)
+
+            self.control = "crash;%s" % crash_beg_time
+            self.set_control(ret, self.control)
+            self.set_test_name(ret, "%s.%s" % (self.__class__.__name__, CrashDumpTestClass.test_crashdump.__name__))
+            # save test before crash
+            test_class.update([ret])
+            test_class.save('test_run.conf')
+
+            # crash master by default
             time.sleep(5)
             host_crash(self.session)
 
-        # Check tc_info is persistent.
-        tc_info = get_reboot_flag()
-        log.debug("tc_info from reboot flag: %s" % str(tc_info))
-        if 'crash_begin_time' not in tc_info:
-            raise Exception(
-                "Reboot flag is not persistent and does not include crash info. Does host restarted by forced crashdump?")
-        crash_beg_time = datetime(
-            *(time.strptime(tc_info['crash_begin_time'], "%Y-%m-%d %H:%M:%S")[0:6]))
-        log.debug("host crashed at %s" % str(crash_beg_time))
+            # should not reach here
+            log.debug("Current host did not reboot")
 
-        # Check new crashdump was created during host crash.
-        crashdumps_all = retrieve_crashdumps(session)
-        log.debug("available crashdumps: %s" % (str(crashdumps_all)))
-        crashdumps_matching = [
-            cd for cd in crashdumps_all if crash_beg_time < cd['timestamp']]
-        log.debug("matched crashdump(s): %s" % (str(crashdumps_matching)))
-        if not len(crashdumps_matching) == 1:
-            raise Exception("Host didn't create crashdump properly. number of new crashdumps: %d" % len(
-                crashdumps_matching))
+        if self.control.startswith("crash"):
+            crash_beg_time = self.control.split(';')[1]
+            if not crash_beg_time:
+                raise Exception(
+                    "Reboot flag is not persistent and does not include crash info. Does host restarted by forced crashdump?")
 
-        res = {'info': "An additional crashdump was detected."}
-        return res
+            crash_beg_time = datetime(*(time.strptime(crash_beg_time, "%Y-%m-%d %H:%M:%S")[0:6]))
+            log.debug("host crashed at %s" % str(crash_beg_time))
+
+            # Check new crashdump was created during host crash.
+            crashdumps_all = retrieve_crashdumps(session)
+            log.debug("available crashdumps: %s" % (str(crashdumps_all)))
+            crashdumps_matching = [
+                cd for cd in crashdumps_all if crash_beg_time < cd['timestamp']]
+            log.debug("matched crashdump(s): %s" % (str(crashdumps_matching)))
+            if not len(crashdumps_matching) == 1:
+                raise Exception("Host didn't create crashdump properly. number of new crashdumps: %d" % len(
+                    crashdumps_matching))
+
+            self.set_info(ret, 'An additional crashdump was detected.')
+
+        return ret
