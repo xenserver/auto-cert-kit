@@ -1383,7 +1383,7 @@ def get_module_names(name_filter):
 def droid_template_import(session, host_ref, sr_uuid):
     """Import the droid template into the specified SR"""
     # Note, the filename should be fully specified.
-    args = {'sr_uuid': sr_uuid}
+    args = {'sr_uuid': sr_uuid, 'vpx_dlvm_file': vpx_dlvm_file}
     return call_ack_plugin(session, 'droid_template_import', args, host=host_ref)
 
 
@@ -1684,10 +1684,8 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
 
     return vm_ref
 
-
-def deploy_two_droid_vms(session, network_refs, sms=None):
-    """A utility method for setting up two VMs, one on the primary host,
-    and one on a slave host"""
+def import_two_droid_vms(session, network_refs, sms=None):
+    """Import two VMs, one on the primary host, and one on a slave host"""
 
     host_master_ref = get_pool_master(session)
     host_slave_refs = get_pool_slaves(session)
@@ -1726,33 +1724,52 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
     make_vm_noninteractive(session, vm1_ref)
     make_vm_noninteractive(session, vm2_ref)
 
-    log.debug("Setup vms on network")
-    i = 0
+    return (host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
+
+
+def config_network_for_droid_vm(session, vm_ref, network_ref, did, sms=None):
+    """Setup VM network"""
+
+    device = 'eth%d' % did
+
+    log.debug("Setting interfaces up for %s" % device)
+    # Note: only remove all existing networks on first run.
+    setup_vm_on_network(session, vm_ref, network_ref, device, wipe=(did == 0))
+
+    log.debug("Static Manager Recs: %s" % sms)
+    if sms and network_ref in sms.keys() and sms[network_ref]:
+        static_manager = sms[network_ref]
+        ip = static_manager.get_ip()
+        log.debug("IP: %s Netmask: %s Gateway: %s" % (ip.addr, ip.netmask, ip.gateway))
+
+        droid_set_static(session, vm_ref, 'ipv4', device, ip.addr, ip.netmask, ip.gateway)
+
+
+def config_networks_for_droid_vm(session, vm_ref, network_refs, id_start=0, sms=None):
+    """Setup VM networks"""
+
+    log.debug("Setup vm %s on network" % vm_ref)
+
+    i = id_start
     for network_ref in network_refs:
-        log.debug("Setting interfaces up for eth%d" % i)
-        # Note: only remove all existing networks on first run.
-        setup_vm_on_network(session, vm1_ref, network_ref,
-                            'eth%d' % i, wipe=(i == 0))
-        setup_vm_on_network(session, vm2_ref, network_ref,
-                            'eth%d' % i, wipe=(i == 0))
+        config_network_for_droid_vm(session, vm_ref, network_ref, i, sms)
+        i += 1
 
-        log.debug("Static Manager Recs: %s" % sms)
-        if sms and network_ref in sms.keys() and sms[network_ref]:
-            static_manager = sms[network_ref]
-            ip1 = static_manager.get_ip()
-            ip2 = static_manager.get_ip()
-            log.debug("1) IP: %s Netmask: %s Gateway: %s" %
-                      (ip1.addr, ip1.netmask, ip1.gateway))
-            log.debug("2) IP: %s Netmask: %s Gateway: %s" %
-                      (ip2.addr, ip2.netmask, ip2.gateway))
+def shutdown_two_droid_vms(session, vm1_ref, vm2_ref):
+    """Shutdown two VMs"""
 
-            droid_set_static(session, vm1_ref, 'ipv4', 'eth%d' % i,
-                             ip1.addr, ip1.netmask, ip1.gateway)
-            droid_set_static(session, vm2_ref, 'ipv4', 'eth%d' % i,
-                             ip2.addr, ip2.netmask, ip2.gateway)
+    log.debug("Shutdown required VMs")
+    try:
+        run_xapi_async_tasks(session,
+                             [lambda: session.xenapi.Async.VM.shutdown(vm1_ref),
+                              lambda: session.xenapi.Async.VM.shutdown(vm2_ref)],
+                             180)
 
-        # Increment the counter
-        i = i + 1
+    except TimeoutFunctionException, e:
+        log.debug("Timed out while shutdowning VMs: %s" % e)
+
+def start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref):
+    """Start two VMs"""
 
     log.debug("Starting required VMs")
     try:
@@ -1791,6 +1808,47 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
         # Ensure that we make sure the switch accesses IP addresses by
         # their own interfaces (avoid interface forwarding).
         call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref})
+
+def deploy_two_droid_vms(session, network_refs, sms=None):
+    """A utility method for setting up two VMs, one on the primary host, and one on a slave host"""
+
+    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(session, network_refs, sms)
+    config_networks_for_droid_vm(session, vm1_ref, network_refs, 0, sms)
+    config_networks_for_droid_vm(session, vm2_ref, network_refs, 0, sms)
+    start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
+
+    return vm1_ref, vm2_ref
+
+def deploy_two_droid_vms_for_sriov_test(session, vf_driver, network_refs, sms=None):
+    """A utility method for setting up two VMs, one on the primary host for SR-IOV test network,
+    and one on a slave host"""
+
+    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(session, network_refs, sms)
+
+    # config management network
+    config_network_for_droid_vm(session, vm1_ref, network_refs[1][0], 0, sms)
+    config_network_for_droid_vm(session, vm2_ref, network_refs[0][0], 0, sms)
+    start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
+
+    args = {'vm_ref': vm1_ref,
+            'username': 'root',
+            'password': DEFAULT_PASSWORD}
+    call_ack_plugin(session, 'disable_network_device_naming', args)
+
+    # management network is ready then install VF driver on VM, reboot VM again
+    args = {'vm_ref': vm1_ref,
+            'username': 'root',
+            'password': DEFAULT_PASSWORD,
+            'package': vf_driver[1],
+            'driver_name': vf_driver[0]}
+    call_ack_plugin(session, 'deploy_vf_driver', args)
+
+    shutdown_two_droid_vms(session, vm1_ref, vm2_ref)
+
+    # config test networks
+    config_networks_for_droid_vm(session, vm1_ref, network_refs[1][1:], 1, sms)
+    config_networks_for_droid_vm(session, vm2_ref, network_refs[0][1:], 1, sms)
+    start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
 
     return vm1_ref, vm2_ref
 
