@@ -186,6 +186,9 @@ def run_tests_from_file(test_file):
 
     config = ack_model.get_global_config()
 
+    if "vpx_dlvm_file" in config.keys():
+        utils.vpx_dlvm_file = config["vpx_dlvm_file"]
+
     log.debug("ACK Model: %s" % ack_model.is_finished())
     if not ack_model.is_finished():
         # Ensure that we cleanup before running tests, in case

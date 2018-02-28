@@ -76,7 +76,6 @@ import ssh
 
 XE = '/opt/xensource/bin/xe'
 IPERF = '/usr/bin/iperf'
-DROID_VM_LOC = '%s/vpx-dlvm.xva' % INSTALL_DIR
 XS_INVENTORY_PATH = "/etc/xensource-inventory"
 LMBENCH_CONF_LOC = "%s/config/lmbench.conf" % INSTALL_DIR
 LOGROTATE_CONF_LOC = "%s/config/logrotate.conf" % INSTALL_DIR
@@ -1653,8 +1652,10 @@ def droid_set_static_conf(session, args):
 def droid_template_import(session, args):
     """Import a xva using fully specified location"""
     # Need to encode/decode URI as it has unsafe characters for transmission.
-    filename = DROID_VM_LOC
+
     sr_uuid = validate_exists(args, 'sr_uuid')
+    vpx_dlvm_file = validate_exists(args, 'vpx_dlvm_file')
+    filename = "%s/%s" % (INSTALL_DIR, vpx_dlvm_file)
     call = [XE, 'vm-import', 'filename=%s' % filename, 'sr-uuid=%s' % sr_uuid]
     return json_dumps(make_local_call(call)["stdout"])
 

@@ -70,6 +70,9 @@ MULTICAST_CAP = "MULTICAST"
 # XAPI States
 XAPI_RUNNING_STATE = "Running"
 
+# allow to use specific
+vpx_dlvm_file = "vpx-dlvm.xva"
+
 
 # Logger
 def configure_logging():
