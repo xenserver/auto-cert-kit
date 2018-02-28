@@ -185,6 +185,15 @@ class TestGenerator(object):
                                                              (test_class_name.split('.')[1], str(method))))
                 method_node.appendChild(testname_node)
 
+                status_node = doc.createElement('status')
+                if skipthis:
+                    status_node.appendChild(doc.createTextNode('done'))
+                else:
+                    status_node.appendChild(doc.createTextNode('init'))
+                control_node = doc.createElement('control')
+                method_node.appendChild(status_node)
+                method_node.appendChild(control_node)
+
                 class_node.appendChild(method_node)
 
             cts_node.appendChild(class_node)

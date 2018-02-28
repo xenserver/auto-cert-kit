@@ -127,32 +127,49 @@ class DeviceTestClassMethod(object):
             elem_list.append(XMLNode(node))
         self.elems = elem_list
 
-    def _match_result(self, text):
+    def _match_key(self, key, text):
         for elem in self.elems:
-            if elem.name == "result":
+            if elem.name == key:
                 return elem.val == text
         # If we can't find a result, then default value
         # is assumed to be False.
         return False
 
+    def _get_key(self, key):
+        for elem in self.elems:
+            if elem.name == key:
+                return elem.val
+        return None
+
     def get_name(self):
         return self.name
 
+    def get_control(self):
+        return self._get_key('control')
+
     def has_passed(self):
         """ This method has passed. """
-        return self._match_result('pass')
+        return self._match_key('result', 'pass')
 
     def has_failed(self):
         """ This method has failed. """
-        return self._match_result('fail')
+        return self._match_key('result', 'fail')
 
     def has_skipped(self):
         """ This method has not run. """
-        return self._match_result('skip')
+        return self._match_key('result', 'skip')
 
     def is_waiting(self):
         """ This method has not been executed yet. """
-        return self._match_result('NULL')
+        return self._match_key('status', 'init')
+
+    def is_running(self):
+        """ This method is still running. """
+        return self._match_key('status', 'running')
+
+    def is_done(self):
+        """ This method has done. """
+        return self._match_key('status', 'done')
 
     def create_xml_node(self, dom):
         """Write this test method out to an xml node"""
@@ -274,6 +291,21 @@ class DeviceTestClass(object):
                 return False
         return True
 
+    def group_test_method_by_status(self):
+        """Group test method by status"""
+        dones, waitings, runnings = ([], [], [])
+        for test_method in self.test_methods:
+            if test_method.is_done():
+                dones.append(test_method)
+            elif test_method.is_waiting():
+                waitings.append(test_method)
+            elif test_method.is_running():
+                runnings.append(test_method)
+            else:
+                raise Exception("Unknown status of test method %s", test_method.get_name())
+
+        return dones, waitings, runnings
+
     def update(self, results):
         """Take the output of a test run (list of records), and update the results
         of the test methods held within this test class"""
@@ -358,7 +390,7 @@ class Device(object):
             test_class_list.append(DeviceTestClass(self, test_node))
         self.test_classes = test_class_list
 
-    def get_test_results(self, filter_required=None):
+    def get_test_methods(self, filter_required=None):
         """Return a list of test methods"""
         res = []
         for test_class in self.test_classes:
@@ -447,6 +479,21 @@ class Device(object):
                 tcs_to_run.append(test_class)
         return tcs_to_run
 
+    def group_test_classes_by_status(self):
+        """"Group test classes by status"""
+        dones, waitings, runnings = ([], [], [])
+        for test_class in self.test_classes:
+            ds, ws, rs = test_class.group_test_method_by_status()
+            if ds and not ws and not rs:
+                # class in dones means its all methods done
+                dones.append(test_class)
+            if ws:
+                waitings.append(test_class)
+            if rs:
+                runnings.append(test_class)
+
+        return dones, waitings, runnings
+
     def has_passed(self):
         """Return a bool as to whether the device
         can be posted on the HCL."""
@@ -463,16 +510,18 @@ class Device(object):
         """Return number of tests that have passed, failed and are waiting to be
         executed"""
 
-        tests_passed = [tm for tm in self.get_test_results()
+        tests_passed = [tm for tm in self.get_test_methods()
                         if tm.has_passed()]
-        tests_failed = [tm for tm in self.get_test_results()
+        tests_failed = [tm for tm in self.get_test_methods()
                         if tm.has_failed()]
-        tests_skipped = [tm for tm in self.get_test_results()
+        tests_skipped = [tm for tm in self.get_test_methods()
                          if tm.has_skipped()]
-        tests_waiting = [tm for tm in self.get_test_results()
+        tests_waiting = [tm for tm in self.get_test_methods()
                          if tm.is_waiting()]
+        tests_running = [tm for tm in self.get_test_methods()
+                         if tm.is_running()]
 
-        return len(tests_passed), len(tests_failed), len(tests_skipped), len(tests_waiting)
+        return len(tests_passed), len(tests_failed), len(tests_skipped), len(tests_waiting), len(tests_running)
 
     def print_report(self, stream):
         """Write a report for the device specified"""
@@ -484,15 +533,15 @@ class Device(object):
             subsystem = stream.write("%s\n" % subsystem)
         stream.write("#########################\n\n")
 
-        tests_passed = [test_method for test_method in self.get_test_results()
+        tests_passed = [test_method for test_method in self.get_test_methods()
                         if test_method.has_passed()]
-        tests_failed_req = [test_method for test_method in self.get_test_results(False)
+        tests_failed_req = [test_method for test_method in self.get_test_methods(False)
                             if test_method.has_failed()]
-        tests_failed_noreq = [test_method for test_method in self.get_test_results(True)
+        tests_failed_noreq = [test_method for test_method in self.get_test_methods(True)
                               if test_method.has_failed()]
-        tests_skipped_req = [test_method for test_method in self.get_test_results(False)
+        tests_skipped_req = [test_method for test_method in self.get_test_methods(False)
                              if test_method.has_skipped()]
-        tests_skipped_noreq = [test_method for test_method in self.get_test_results(True)
+        tests_skipped_noreq = [test_method for test_method in self.get_test_methods(True)
                                if test_method.has_skipped()]
 
         if not self.has_passed():
@@ -571,18 +620,20 @@ class AutoCertKitRun(object):
         failed = 0
         skipped = 0
         waiting = 0
+        running = 0
         for device in self.devices:
-            p, f, s, w = device.get_status()
+            p, f, s, w, r = device.get_status()
             passed = passed + p
             failed = failed + f
             skipped = skipped + s
             waiting = waiting + w
-        return passed, failed, skipped, waiting
+            running = running + r
+        return passed, failed, skipped, waiting, running
 
     def is_finished(self):
         """Return true if the test run has finished"""
-        _, _, _, w = self.get_status()
-        return not w
+        _, _, _, w, r = self.get_status()
+        return not (w+r)
 
     def get_next_test_class(self, tc_info=None):
         """Return the next test class to run. This allows us
@@ -622,6 +673,28 @@ class AutoCertKitRun(object):
 
         # Return the test class at the top of the list
         return tcs_to_run.pop()[0]
+
+    def get_next_test(self):
+        """Get the next test class and method to run"""
+        tcs_to_run = []
+
+        for device in self.devices:
+            dones, waitings, runnings = device.group_test_classes_by_status()
+            if runnings:
+                test_class = runnings.pop()
+                _, _, running_methods = test_class.group_test_method_by_status()
+                test_method = running_methods.pop()
+                return test_class, test_method
+
+            for tc in waitings:
+                tcs_to_run.append((tc, tc.get_order()))
+
+        tcs_to_run.sort(key=operator.itemgetter(1), reverse=True)
+
+        test_class = tcs_to_run.pop()[0]
+        _, waiting_methods, _ = test_class.group_test_method_by_status()
+        test_method = waiting_methods.pop()
+        return test_class, test_method
 
 
 def create_models(xml_file):
