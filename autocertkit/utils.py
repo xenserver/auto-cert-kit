@@ -66,6 +66,7 @@ LOG_LOC = "/var/log/auto-cert-kit.log"
 # Capability Tags
 REQ_CAP = "REQ"
 MULTICAST_CAP = "MULTICAST"
+SRIOV_CAP = "SR-IOV"
 
 # XCP minimum version with SR-IOV support
 XCP_MIN_VER_WITH_SRIOV = "2.6.0"
@@ -897,6 +898,28 @@ def get_equivalent_devices(session, device):
     log.debug("Equivalent devices for %s: %s" % (device, ifaces))
     return ifaces
 
+def has_sriov_cap(session, device):
+    master_ref = get_pool_master(session)
+    pifs_ref = get_pifs_by_device(session, device, [master_ref])
+    caps = session.xenapi.PIF.get_capabilities(pifs_ref[0])
+    return 'sriov' in caps
+
+def enable_vf(session, device, host, network_label):
+    pifs_ref = get_pifs_by_device(session, device, [host])
+    net_ref = create_network(session, network_label, '', {})
+    sriov_net = session.xenapi.network_sriov.create(pifs_ref[0], net_ref)
+    # no "other_config" field for FOR_CLEANUP
+
+    return (net_ref, sriov_net)
+
+def get_test_sriov_network(session, network_label):
+    networks = session.xenapi.network.get_all()
+    for net in networks:
+        label = session.xenapi.network.get_name_label(net)
+        if label == network_label:
+            return net
+
+    return None
 
 def get_management_network(session):
     networks = session.xenapi.network.get_all()

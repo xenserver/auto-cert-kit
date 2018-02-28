@@ -1109,3 +1109,195 @@ class GROOffloadBridgeTestClass(GROOffloadTestClass):
     GRO is on by default from XS 6.5 """
     network_backend = "bridge"
     order = 5
+
+
+class SRIOVTest(IperfTest):
+    """ Subclass that adds SR-IOV specific operations"""
+    iperf_report_path = '/tmp/iperf.log'
+
+    def run_sriov_iperf_server(self):
+        """Start the IPerf server listening on droid VM"""
+        log.debug('Starting SR-IOV IPerf server')
+
+        self.server_management_ip = self.get_server_ip('eth0')
+        self.server_ip = self.get_server_ip('eth1')
+        log.debug("server_management_ip: %s" % self.server_management_ip)
+        log.debug("server_ip: %s" % self.server_ip)
+
+        cmd_str = 'nohup iperf -y csv -s -u -B %s </dev/null &>%s &' % (self.server_ip, self.iperf_report_path)
+        ssh_command(self.server_management_ip, self.username, self.password, cmd_str)
+
+    def run_sriov_iperf_client(self):
+        """Run test IPerf command on droid VM"""
+        log.debug('Starting SR-IOV IPerf client')
+
+        self.client_management_ip = self.get_client_ip('eth0')
+        self.client_ip = self.get_server_ip('eth1')
+        log.debug("client_management_ip: %s" % self.client_management_ip)
+        log.debug("client_ip: %s" % self.client_ip)
+
+        cmd_str = 'iperf -c %s -u -B %s' % (self.server_ip, self.client_ip)
+        ssh_command(self.client_management_ip, self.username, self.password, cmd_str)
+
+    def validate_sriov_iperf(self):
+        cmd_str = 'cat %s' % self.iperf_report_path
+        cmd_result = ssh_command(self.server_management_ip, self.username, self.password, cmd_str)
+        log.debug('IPerf log on SR-IOV IPerf server: %s' % cmd_result)
+        #cmd_result = "server: 20180201111039,226.94.1.1,5001,10.71.217.113,41244,3,0.0-10.2,1277430,1005224,0.026,16,885,1.808,1"
+
+        if self.server_ip not in cmd_result:
+            raise TestCaseError('Error: SR-IOV IPerf test failed. IPerf data: %s' % cmd_result)
+
+        return self.parse_iperf_line(cmd_result)
+
+    def run(self):
+        """This classes run test function"""
+        self.deploy_iperf()
+        self.run_sriov_iperf_server()
+        self.run_sriov_iperf_client()
+
+        return self.validate_sriov_iperf()
+
+
+class SRIOVTestClass(IperfTestClass):
+    """ Subclass that runs SR-IOV test"""
+    REQUIRED_FOR = ">= %s" % XCP_MIN_VER_WITH_SRIOV
+    caps = [SRIOV_CAP]
+    required = False
+
+    def _run_test(self, session, direction):
+        ret = {}
+
+        '''
+        control definition:
+          - for modprobe type test because reboot required:
+                None:       initial
+                'enabled':  sriov enabled and reboot
+                'disabled': sriov disabled and reboot
+          - for sysfs type test, control is always None
+        '''
+        test_method = self.config['test_method']
+        self.control = test_method.get_control()
+        log.debug("SR-IOV test control info: %s" % self.control)
+
+        # check if SR-IOV capability is supported
+        if not self.control:
+            self._check_sriov_cap(session)
+
+        if not self.control or self.control == "enabled":
+            # setup general networks on slave
+            management_net_ref, comm_net_ref = self._setup_network(session)
+            log.debug("management_net_ref: %s, comm_net_ref: %s" % (management_net_ref, comm_net_ref))
+
+            # setup sriov network on master
+            # enable VF, wherein host may require reboot
+            reboot, test_net_ref, sriov_net_ref = self._enable_vf(session)
+            log.debug("reboot: %s, test_net_ref: %s, sriov_net_ref: %s" % (reboot, test_net_ref, sriov_net_ref))
+            if reboot:
+                self.set_control(ret, "enabled")
+                self.set_superior(ret, 'reboot')
+                return ret
+
+
+            # setup VMs for test, make sure VM stopped when assign VF
+            vm1_ref, vm2_ref = self._setup_vms(session,
+                    [[management_net_ref, comm_net_ref], [management_net_ref, test_net_ref]])
+
+            # Determine which reference should be the server and
+            # which should be the client.
+            if direction == 'rx':
+                server, client = vm1_ref, vm2_ref
+            elif direction == 'tx':
+                server, client = vm2_ref, vm1_ref
+            else:
+                raise Exception("Unknown 'direction' key specified. Expected tx or rx")
+            log.debug("IPerf server VM ref: %s" % server)
+            log.debug("IPerf client VM ref: %s" % client)
+
+
+            log.debug("About to run SR-IOV IPerf test...")
+
+            # Run IPerf test - if failure, an exception should be raised.
+            iperf_data = SRIOVTest(session, client, server, None, None).run()
+            self.set_data(ret, iperf_data)
+
+
+            # disable sriov
+            destroy_vm(session, client)
+            destroy_vm(session, server)
+            log.debug("Disable VF begin")
+            #session.xenapi.network_sriov.destroy(sriov_net_ref)
+            # network_sriov may be synced to slave host, so here destroy all, rather than just sriov_net_ref
+            for i in session.xenapi.network_sriov.get_all():
+                log.debug("Destory network_sriov: %s" % i)
+                session.xenapi.network_sriov.destroy(i)
+
+            if self.control == "enabled":
+                # need to reboot at first
+                self.set_control(ret, "disabled")
+                self.set_superior(ret, 'reboot')
+                return ret
+
+        # verify if sriov is disabled
+        if not self.control or self.control == "disabled":
+            log.debug("Disable VF done!")
+            if session.xenapi.network_sriov.get_all():
+                raise TestCaseError('Error: SR-IOV test failed. Can not disable.')
+            self.set_info(ret, 'Test ran successfully')
+
+        return ret
+
+    def _check_sriov_cap(self, session):
+        device = self.config['device_config']['Kernel_name']
+        has_sriov = has_sriov_cap(session, device)
+        if has_sriov:
+            log.debug("Device %s has SR-IOV capability" % device)
+        else:
+            log.debug("Device %s has no SR-IOV capability" % device)
+            raise TestCaseError('Error: SR-IOV test failed. SR-IOV capability is not available')
+
+    def _enable_vf(self, session):
+        master = get_pool_master(session)
+        device = self.config['device_config']['Kernel_name']
+        network_label = 'test_sriov'
+
+        if not self.control:
+            # have not enabled, try to
+            log.debug("Enable VF begin")
+            net_ref, sriov_net = enable_vf(session, device, master, network_label)
+            reboot = session.xenapi.network_sriov.get_requires_reboot(sriov_net)
+            if reboot:
+                log.debug("Need to reboot host")
+                return (True, net_ref, sriov_net)
+
+        log.debug("Enable VF done!")
+
+        # enabled, continue to verify
+        pifs = get_pifs_by_device(session, device, [master])
+        sriov_nets = session.xenapi.PIF.get_sriov_physical_PIF_of(pifs[0])
+        sriov_net = sriov_nets[0]
+        vf_num = int(session.xenapi.network_sriov.get_remaining_capacity(sriov_net))
+        log.debug("The number of available VF: %d" % vf_num)
+        if vf_num <= 0:
+            raise TestCaseError('Error: SR-IOV test failed. No VF available after enabling')
+
+        net_ref = get_test_sriov_network(session, network_label)
+
+        return (False, net_ref, sriov_net)
+
+    def _setup_vms(self, session, network_refs):
+        log.debug("Setting up VM - VM cross host test")
+
+        # Setup default static manager with the available interfaces
+        sms = {}
+        networks_slave, networks_master = network_refs[0], network_refs[1]
+        for i, network_ref in enumerate(networks_slave):
+            sms[network_ref] = self.get_static_manager(network_ref)
+            sms[networks_master[i]] = sms[network_ref]
+
+        vf_driver_name = get_value(self.config, "vf_driver_name")
+        vf_driver_pkg  = get_value(self.config, "vf_driver_pkg")
+
+        return deploy_two_droid_vms_for_sriov_test(session, (vf_driver_name, vf_driver_pkg), network_refs, sms)
+
+
