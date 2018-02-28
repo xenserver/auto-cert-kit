@@ -105,6 +105,10 @@ def init_ack_logging(session, rotate=True):
     configure_logging()
     log_basic_info(session)
 
+def os_uptime():
+    with open('/proc/uptime', 'r') as f:
+        uptime_seconds = float(f.readline().split()[0])
+        return uptime_seconds
 
 # Exceptions
 class TestCaseError(Exception):
