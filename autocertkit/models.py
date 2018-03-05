@@ -302,7 +302,8 @@ class DeviceTestClass(object):
             elif test_method.is_running():
                 runnings.append(test_method)
             else:
-                raise Exception("Unknown status of test method %s", test_method.get_name())
+                raise Exception(
+                    "Unknown status of test method %s", test_method.get_name())
 
         return dones, waitings, runnings
 

@@ -229,7 +229,8 @@ class SSHCommand(SSHSession):
             elif retval == "string":
                 reply = reply + output
             if not self.nolog and not fh:
-                self.log.debug("reply: %s" % (output[:-1] if output and output[-1]=='\n' else output))
+                self.log.debug("reply: %s" % (
+                    output[:-1] if output and output[-1] == '\n' else output))
         self.exit_status = self.client.recv_exit_status()
 
         # Local clean up.

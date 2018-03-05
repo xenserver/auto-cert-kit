@@ -409,7 +409,8 @@ def print_documentation(object_name):
         arr = (object_name).split('.')
         if test_class_name == object_name:
             # get the class info
-            print "%s: %s" % (utils.bold('Prereqs'), test_class.required_config)
+            print "%s: %s" % (utils.bold('Prereqs'),
+                              test_class.required_config)
             print "%s: %s" % (utils.bold('Collects'), test_class.collects)
             print ""
             print utils.format(test_class.__doc__)

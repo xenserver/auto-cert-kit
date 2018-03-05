@@ -214,7 +214,7 @@ def run_tests_from_file(test_file):
         log.debug("About to run test: '%s'" % method_name)
 
         # set to running status, then status.py will know it
-        running_status = {'test_name':method_name, 'status':'running'}
+        running_status = {'test_name': method_name, 'status': 'running'}
         next_test_class.update([running_status])
         next_test_class.save(test_file)
 

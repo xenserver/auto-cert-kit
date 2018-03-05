@@ -46,6 +46,7 @@ import base64
 import threading
 import re
 import json
+import binascii
 
 from acktools.net import route, generate_mac
 import acktools.log
@@ -77,8 +78,9 @@ XAPI_RUNNING_STATE = "Running"
 # allow to use specific
 vpx_dlvm_file = "vpx-dlvm.xva"
 
+LSPCI = "/usr/sbin/lspci"
 
-# Logger
+
 def configure_logging():
     """Method for configuring Logging"""
     global log
@@ -109,12 +111,13 @@ def init_ack_logging(session, rotate=True):
     configure_logging()
     log_basic_info(session)
 
+
 def os_uptime():
     with open('/proc/uptime', 'r') as f:
         uptime_seconds = float(f.readline().split()[0])
         return uptime_seconds
 
-# Exceptions
+
 class TestCaseError(Exception):
     """A subclassed exception object, which is raised by any
     test failure"""
@@ -662,6 +665,7 @@ def clear_reboot_flag(flag=REBOOT_FLAG_FILE):
     if os.path.exists(flag):
         os.remove(flag)
 
+
 def reboot_all_hosts(session):
     master = get_pool_master(session)
     hosts = session.xenapi.host.get_all()
@@ -670,6 +674,7 @@ def reboot_all_hosts(session):
         if host != master:
             session.xenapi.host.reboot(host)
     session.xenapi.host.reboot(master)
+
 
 def host_reboot(session):
     log.debug("Attempting to reboot the host")
@@ -898,19 +903,22 @@ def get_equivalent_devices(session, device):
     log.debug("Equivalent devices for %s: %s" % (device, ifaces))
     return ifaces
 
+
 def has_sriov_cap(session, device):
     master_ref = get_pool_master(session)
     pifs_ref = get_pifs_by_device(session, device, [master_ref])
     caps = session.xenapi.PIF.get_capabilities(pifs_ref[0])
     return 'sriov' in caps
 
+
 def enable_vf(session, device, host, network_label):
     pifs_ref = get_pifs_by_device(session, device, [host])
     net_ref = create_network(session, network_label, '', {})
-    sriov_net = session.xenapi.network_sriov.create(pifs_ref[0], net_ref)
+    net_sriov_ref = session.xenapi.network_sriov.create(pifs_ref[0], net_ref)
     # no "other_config" field for FOR_CLEANUP
 
-    return (net_ref, sriov_net)
+    return (net_ref, net_sriov_ref)
+
 
 def get_test_sriov_network(session, network_label):
     networks = session.xenapi.network.get_all()
@@ -920,6 +928,21 @@ def get_test_sriov_network(session, network_label):
             return net
 
     return None
+
+
+def is_vf_disabled(session):
+    cmd = b"%s | grep 'Virtual Function' | wc -l" % LSPCI
+    cmd = binascii.hexlify(cmd)
+    sum = 0
+    for host in session.xenapi.host.get_all():
+        res = call_ack_plugin(session, 'shell_run', {'cmd': cmd}, host)
+        res = res.pop()
+        log.debug("Found %s VF on host %s" % (res["stdout"], str(host)))
+        sum += int(res["stdout"]) if int(res["returncode"]) == 0 else 1
+    log.debug("Found total %d VF" % sum)
+
+    return sum == 0
+
 
 def get_management_network(session):
     networks = session.xenapi.network.get_all()
@@ -1362,6 +1385,7 @@ def pool_wide_network_sriov_cleanup(session, tag):
         # no "other_config" field for FOR_CLEANUP, so cleanup all
         session.xenapi.network_sriov.destroy(network)
 
+
 def pool_wide_network_cleanup(session, tag):
     """Searches for networks with a cleanup tag, and
     destroys if found"""
@@ -1722,6 +1746,7 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
 
     return vm_ref
 
+
 def import_two_droid_vms(session, network_refs, sms=None):
     """Import two VMs, one on the primary host, and one on a slave host"""
 
@@ -1778,9 +1803,11 @@ def config_network_for_droid_vm(session, vm_ref, network_ref, did, sms=None):
     if sms and network_ref in sms.keys() and sms[network_ref]:
         static_manager = sms[network_ref]
         ip = static_manager.get_ip()
-        log.debug("IP: %s Netmask: %s Gateway: %s" % (ip.addr, ip.netmask, ip.gateway))
+        log.debug("IP: %s Netmask: %s Gateway: %s" %
+                  (ip.addr, ip.netmask, ip.gateway))
 
-        droid_set_static(session, vm_ref, 'ipv4', device, ip.addr, ip.netmask, ip.gateway)
+        droid_set_static(session, vm_ref, 'ipv4', device,
+                         ip.addr, ip.netmask, ip.gateway)
 
 
 def config_networks_for_droid_vm(session, vm_ref, network_refs, id_start=0, sms=None):
@@ -1792,6 +1819,7 @@ def config_networks_for_droid_vm(session, vm_ref, network_refs, id_start=0, sms=
     for network_ref in network_refs:
         config_network_for_droid_vm(session, vm_ref, network_ref, i, sms)
         i += 1
+
 
 def shutdown_two_droid_vms(session, vm1_ref, vm2_ref):
     """Shutdown two VMs"""
@@ -1805,6 +1833,7 @@ def shutdown_two_droid_vms(session, vm1_ref, vm2_ref):
 
     except TimeoutFunctionException, e:
         log.debug("Timed out while shutdowning VMs: %s" % e)
+
 
 def start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref):
     """Start two VMs"""
@@ -1847,26 +1876,32 @@ def start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_r
         # their own interfaces (avoid interface forwarding).
         call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref})
 
+
 def deploy_two_droid_vms(session, network_refs, sms=None):
     """A utility method for setting up two VMs, one on the primary host, and one on a slave host"""
 
-    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(session, network_refs, sms)
+    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(
+        session, network_refs, sms)
     config_networks_for_droid_vm(session, vm1_ref, network_refs, 0, sms)
     config_networks_for_droid_vm(session, vm2_ref, network_refs, 0, sms)
-    start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
+    start_two_droid_vms(session, host_master_ref,
+                        host_slave_ref, vm1_ref, vm2_ref)
 
     return vm1_ref, vm2_ref
+
 
 def deploy_two_droid_vms_for_sriov_test(session, vf_driver, network_refs, sms=None):
     """A utility method for setting up two VMs, one on the primary host for SR-IOV test network,
     and one on a slave host"""
 
-    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(session, network_refs, sms)
+    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(
+        session, network_refs, sms)
 
     # config management network
     config_network_for_droid_vm(session, vm1_ref, network_refs[1][0], 0, sms)
     config_network_for_droid_vm(session, vm2_ref, network_refs[0][0], 0, sms)
-    start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
+    start_two_droid_vms(session, host_master_ref,
+                        host_slave_ref, vm1_ref, vm2_ref)
 
     args = {'vm_ref': vm1_ref,
             'username': 'root',
@@ -1886,7 +1921,8 @@ def deploy_two_droid_vms_for_sriov_test(session, vf_driver, network_refs, sms=No
     # config test networks
     config_networks_for_droid_vm(session, vm1_ref, network_refs[1][1:], 1, sms)
     config_networks_for_droid_vm(session, vm2_ref, network_refs[0][1:], 1, sms)
-    start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
+    start_two_droid_vms(session, host_master_ref,
+                        host_slave_ref, vm1_ref, vm2_ref)
 
     return vm1_ref, vm2_ref
 

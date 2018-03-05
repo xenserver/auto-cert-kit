@@ -252,7 +252,8 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
 
             self.control = "crash;%s" % crash_beg_time
             self.set_control(ret, self.control)
-            self.set_test_name(ret, "%s.%s" % (self.__class__.__name__, CrashDumpTestClass.test_crashdump.__name__))
+            self.set_test_name(ret, "%s.%s" % (
+                self.__class__.__name__, CrashDumpTestClass.test_crashdump.__name__))
             # save test before crash
             test_class.update([ret])
             test_class.save('test_run.conf')
@@ -270,7 +271,8 @@ class CrashDumpTestClass(testbase.OperationsTestClass):
                 raise Exception(
                     "Reboot flag is not persistent and does not include crash info. Does host restarted by forced crashdump?")
 
-            crash_beg_time = datetime(*(time.strptime(crash_beg_time, "%Y-%m-%d %H:%M:%S")[0:6]))
+            crash_beg_time = datetime(
+                *(time.strptime(crash_beg_time, "%Y-%m-%d %H:%M:%S")[0:6]))
             log.debug("host crashed at %s" % str(crash_beg_time))
 
             # Check new crashdump was created during host crash.

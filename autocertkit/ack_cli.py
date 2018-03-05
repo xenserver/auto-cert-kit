@@ -55,6 +55,7 @@ MIN_VLAN = 0
 MAX_VLAN = 4096
 INSTALL_DIR = '/opt/xensource/packages/files/auto-cert-kit'
 
+
 def get_xapi_session(config):
     # Future improvement, implement remote login. For now, just return local
     return utils.get_local_xapi_session()
@@ -142,7 +143,7 @@ def parse_cmd_args():
 
     file_opts = [("vf_driver_pkg", "VF driver rpm package"),
                  ("vpx_dlvm_file", "VPX DLVM file")]
-    for opt,label in file_opts:
+    for opt, label in file_opts:
         if opt in config.keys():
             assert_file_exists(os.path.join(INSTALL_DIR, config[opt]), label)
 

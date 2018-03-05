@@ -112,7 +112,8 @@ class TestClass(object):
 
             rec = {}
             try:
-                log.debug("******** %s.%s ********" % (self.__class__.__name__, test))
+                log.debug("******** %s.%s ********" % (
+                    self.__class__.__name__, test))
 
                 res = getattr(self, test)(self.session)
                 """
@@ -178,7 +179,6 @@ class TestClass(object):
                         "Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
                     sys.exit(0)
 
-
             # cleanup occurs only when current test really done
             if rec['status'] == 'done':
                 try:
@@ -196,9 +196,11 @@ class TestClass(object):
                     if rec['result'] == 'pass':
                         rec['result'] = 'fail'
                         rec['trackeback'] = traceb
-                        rec['exception'] = "Unexpected error: %s" % sys.exc_info()[0]
+                        rec['exception'] = "Unexpected error: %s" % \
+                                           sys.exc_info()[0]
 
-            log.debug("Test case %s, %s: %s.%s" % (rec['result'], rec['status'], self.__class__.__name__, test))
+            log.debug("Test case %s, %s: %s.%s" %
+                      (rec['result'], rec['status'], self.__class__.__name__, test))
             rec['test_name'] = "%s.%s" % (self.__class__.__name__, test)
             results.append(rec)
 
@@ -231,7 +233,6 @@ class TestClass(object):
 
     def unset_superior(self, rec):
         rec.pop("superior", None)
-
 
     def check_prerequisites(self):
         """Check that the class has met it's prerequisites

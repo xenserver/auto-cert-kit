@@ -50,6 +50,7 @@ import tarfile
 import datetime
 import json
 import hwinfo.tools.inspector as inspector
+import binascii
 
 from acktools.net import route
 import acktools.log
@@ -227,51 +228,50 @@ def get_from_xensource_inventory(key):
 
 ##################################
 
-SSH     = "/usr/bin/ssh"
-CAT     = "/bin/cat"
-ROUTE   = "/sbin/route"
+SSH = "/usr/bin/ssh"
+CAT = "/bin/cat"
+ROUTE = "/sbin/route"
 ETHTOOL = "/sbin/ethtool"
-IPERF   = "/usr/bin/iperf"
+IPERF = "/usr/bin/iperf"
 LMBENCH = "/usr/bin/lmbench"
 
-SSH_PUBLIC_KEY  = '/root/.ssh/id_rsa.pub'
-SSH_HOST_KEYS   = '/root/.ssh/known_hosts'
+SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
+SSH_HOST_KEYS = '/root/.ssh/known_hosts'
 
-IPERF_RPM   = "iperf-2.0.10-1.el7.x86_64.rpm"
+IPERF_RPM = "iperf-2.0.10-1.el7.x86_64.rpm"
 LMBENCH_RPM = "lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm"
-IOZONE_RPM  = "iozone-3.471-1.el7.x86_64.rpm"
-BONNIE_RPM  = "bonnie++-1.96-1.el7.rf.x86_64.rpm"
-PERL_RPMS   = ["perl-5.16.3-292.el7.x86_64.rpm",
-               "perl-Carp-1.26-244.el7.noarch.rpm",
-               "perl-constant-1.27-2.el7.noarch.rpm",
-               "perl-Encode-2.51-7.el7.x86_64.rpm",
-               "perl-Exporter-5.68-3.el7.noarch.rpm",
-               "perl-File-Path-2.09-2.el7.noarch.rpm",
-               "perl-File-Temp-0.23.01-3.el7.noarch.rpm",
-               "perl-Filter-1.49-3.el7.x86_64.rpm",
-               "perl-Getopt-Long-2.40-2.el7.noarch.rpm",
-               "perl-HTTP-Tiny-0.033-3.el7.noarch.rpm",
-               "perl-libs-5.16.3-292.el7.x86_64.rpm",
-               "perl-List-MoreUtils-0.33-9.el7.x86_64.rpm",
-               "perl-macros-5.16.3-292.el7.x86_64.rpm",
-               "perl-parent-0.225-244.el7.noarch.rpm",
-               "perl-PathTools-3.40-5.el7.x86_64.rpm",
-               "perl-Pod-Escapes-1.04-292.el7.noarch.rpm",
-               "perl-podlators-2.5.1-3.el7.noarch.rpm",
-               "perl-Pod-Perldoc-3.20-4.el7.noarch.rpm",
-               "perl-Pod-Simple-3.28-4.el7.noarch.rpm",
-               "perl-Pod-Usage-1.63-3.el7.noarch.rpm",
-               "perl-Readonly-1.03-22.el7.noarch.rpm",
-               "perl-Readonly-XS-1.05-15.el7.x86_64.rpm",
-               "perl-Scalar-List-Utils-1.27-248.el7.x86_64.rpm",
-               "perl-Socket-2.010-4.el7.x86_64.rpm",
-               "perl-Storable-2.45-3.el7.x86_64.rpm",
-               "perl-Text-ParseWords-3.29-4.el7.noarch.rpm",
-               "perl-threads-1.87-4.el7.x86_64.rpm",
-               "perl-threads-shared-1.43-6.el7.x86_64.rpm",
-               "perl-Time-HiRes-1.9725-3.el7.x86_64.rpm",
-               "perl-Time-Local-1.2300-2.el7.noarch.rpm"]
-
+IOZONE_RPM = "iozone-3.471-1.el7.x86_64.rpm"
+BONNIE_RPM = "bonnie++-1.96-1.el7.rf.x86_64.rpm"
+PERL_RPMS = ["perl-5.16.3-292.el7.x86_64.rpm",
+             "perl-Carp-1.26-244.el7.noarch.rpm",
+             "perl-constant-1.27-2.el7.noarch.rpm",
+             "perl-Encode-2.51-7.el7.x86_64.rpm",
+             "perl-Exporter-5.68-3.el7.noarch.rpm",
+             "perl-File-Path-2.09-2.el7.noarch.rpm",
+             "perl-File-Temp-0.23.01-3.el7.noarch.rpm",
+             "perl-Filter-1.49-3.el7.x86_64.rpm",
+             "perl-Getopt-Long-2.40-2.el7.noarch.rpm",
+             "perl-HTTP-Tiny-0.033-3.el7.noarch.rpm",
+             "perl-libs-5.16.3-292.el7.x86_64.rpm",
+             "perl-List-MoreUtils-0.33-9.el7.x86_64.rpm",
+             "perl-macros-5.16.3-292.el7.x86_64.rpm",
+             "perl-parent-0.225-244.el7.noarch.rpm",
+             "perl-PathTools-3.40-5.el7.x86_64.rpm",
+             "perl-Pod-Escapes-1.04-292.el7.noarch.rpm",
+             "perl-podlators-2.5.1-3.el7.noarch.rpm",
+             "perl-Pod-Perldoc-3.20-4.el7.noarch.rpm",
+             "perl-Pod-Simple-3.28-4.el7.noarch.rpm",
+             "perl-Pod-Usage-1.63-3.el7.noarch.rpm",
+             "perl-Readonly-1.03-22.el7.noarch.rpm",
+             "perl-Readonly-XS-1.05-15.el7.x86_64.rpm",
+             "perl-Scalar-List-Utils-1.27-248.el7.x86_64.rpm",
+             "perl-Socket-2.010-4.el7.x86_64.rpm",
+             "perl-Storable-2.45-3.el7.x86_64.rpm",
+             "perl-Text-ParseWords-3.29-4.el7.noarch.rpm",
+             "perl-threads-1.87-4.el7.x86_64.rpm",
+             "perl-threads-shared-1.43-6.el7.x86_64.rpm",
+             "perl-Time-HiRes-1.9725-3.el7.x86_64.rpm",
+             "perl-Time-Local-1.2300-2.el7.noarch.rpm"]
 
 
 OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
@@ -513,15 +513,16 @@ def install_iperf(session, vm_ref, username, password):
     ssh_command(ip_address, username, password, cmd_str)
 
 
-def make_local_call(call, logging=True):
+def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
     """Function wrapper for making a simple call to shell"""
     if logging:
         log.debug("make_local_call: %s" % (" ".join(call)))
-    process = subprocess.Popen(call, stdout=subprocess.PIPE)
+    process = subprocess.Popen(call, stdout=std_out, shell=shell)
     stdout, stderr = process.communicate()
     res = {"returncode": process.returncode, "stdout": str(
         stdout).strip(), "stderr": str(stderr).strip()}
     if logging:
+        log.debug("returncode: %d" % process.returncode)
         log.debug("stdout: %s" % str(stdout))
         log.debug("stderr: %s" % str(stderr))
         if res["returncode"] != 0:
@@ -529,6 +530,7 @@ def make_local_call(call, logging=True):
             log.debug(msg)
 
     return res
+
 
 @log_exceptions
 def upload_file(session, vm_ref, username, password, file):
@@ -541,12 +543,14 @@ def upload_file(session, vm_ref, username, password, file):
     log.debug(call)
     make_local_call(call)
 
+
 @log_exceptions
 def run_command(session, vm_ref, username, password, cmd):
     """run shell command on VM"""
     ip_address = wait_for_ip(session, vm_ref, 'eth0')
     log.debug(cmd)
     ssh_command(ip_address, username, password, cmd)
+
 
 def install_rpms(session, vm_ref, username, password, rpms):
     """install a group of rpm"""
@@ -556,9 +560,11 @@ def install_rpms(session, vm_ref, username, password, rpms):
     cmd = "rpm -i %s --nosignature" % ' '.join(rpm_paths)
     run_command(session, vm_ref, username, password, cmd)
 
+
 def install_rpm(session, vm_ref, username, password, rpm):
     """install one rpm"""
     install_rpms(session, vm_ref, username, password, [rpm])
+
 
 def install_vf_driver(session, vm_ref, username, password, package, driver_name):
     """Install VF driver rpm on a droid vm"""
@@ -566,13 +572,16 @@ def install_vf_driver(session, vm_ref, username, password, package, driver_name)
         install_rpm(session, vm_ref, username, password, package)
 
     if driver_name:
-        cmd = "echo %s > /etc/modules-load.d/%s.conf" % (driver_name, driver_name)
+        cmd = "echo %s > /etc/modules-load.d/%s.conf" % (
+            driver_name, driver_name)
         run_command(session, vm_ref, username, password, cmd)
+
 
 def disable_net_dev_naming(session, vm_ref, username, password):
     cmd = '''sed -i 's/\(GRUB_CMDLINE_LINUX=.*\)"/\\1 net.ifnames=0 biosdevname=0"/' /etc/default/grub;''' \
           '''grub2-mkconfig -o /boot/grub2/grub.cfg;'''
     run_command(session, vm_ref, username, password, cmd)
+
 
 def validate_xml_key(key):
     """Check that a key will be acceptable for an XML attribute
@@ -630,7 +639,7 @@ def deploy_vf_driver(session, args):
     vm_ref = validate_exists(args, 'vm_ref')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
-    package  = args['package']
+    package = args['package']
     driver_name = args['driver_name']
 
     if not session.xenapi.VM.get_is_control_domain(vm_ref):
@@ -639,10 +648,12 @@ def deploy_vf_driver(session, args):
         while i < limit:
             try:
                 install_ssh_key(session, vm_ref, username, password)
-                install_vf_driver(session, vm_ref, username, password, package, driver_name)
+                install_vf_driver(session, vm_ref, username,
+                                  password, package, driver_name)
                 break
             except:
-                log.debug("Exception raised attempting to deploy VF driver. Attempt %d" % i)
+                log.debug(
+                    "Exception raised attempting to deploy VF driver. Attempt %d" % i)
                 i += 1
                 if i == limit:
                     raise PluginError("Plugin Error: Cannot deploy VF driver")
@@ -650,6 +661,7 @@ def deploy_vf_driver(session, args):
 
     log.debug("VF driver installation completed")
     return json_dumps("OK")
+
 
 @log_exceptions
 def disable_network_device_naming(session, args):
@@ -671,14 +683,32 @@ def disable_network_device_naming(session, args):
                 disable_net_dev_naming(session, vm_ref, username, password)
                 break
             except:
-                log.debug("Exception raised attempting to disable network device naming. Attempt %d" % i)
+                log.debug(
+                    "Exception raised attempting to disable network device naming. Attempt %d" % i)
                 i += 1
                 if i == limit:
-                    raise PluginError("Plugin Error: Cannot disable network device naming")
+                    raise PluginError(
+                        "Plugin Error: Cannot disable network device naming")
                 time.sleep(5)
 
     log.debug("disable network device naming completed")
     return json_dumps("OK")
+
+
+@log_exceptions
+def shell_run(session, args):
+    """General interface execute shell command(s) on host"""
+    log.debug("shell run plugin call")
+    cmd = validate_exists(args, 'cmd')
+    cmd = binascii.unhexlify(cmd)
+    try:
+        res = make_local_call([cmd], True, std_out=subprocess.PIPE, shell=True)
+    except Exception, e:
+        log.debug("Exception: %s" % str(e))
+        res = {"returncode": -1, "stdout": "", "stderr": ""}
+
+    return json_dumps([res])
+
 
 def get_pci_id(bus_id):
     """Return the PCI id for a specified bus location"""
@@ -2143,5 +2173,6 @@ if __name__ == '__main__':
                            'retrieve_crashdumps': retrieve_crashdumps,
                            'force_crash_host': force_crash_host,
                            'deploy_vf_driver': deploy_vf_driver,
-                           'disable_network_device_naming': disable_network_device_naming
+                           'disable_network_device_naming': disable_network_device_naming,
+                           'shell_run': shell_run
                            })
