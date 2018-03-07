@@ -79,7 +79,8 @@ XAPI_RUNNING_STATE = "Running"
 # allow to use specific
 vpx_dlvm_file = "vpx-dlvm.xva"
 
-LSPCI = "/usr/sbin/lspci"
+LSPCI = "/sbin/lspci"
+ETHTOOL = "/sbin/ethtool"
 
 
 def configure_logging():
@@ -943,6 +944,22 @@ def is_vf_disabled(session):
     log.debug("Found total %d VF" % sum)
 
     return sum == 0
+
+
+def get_vf_driver_info(session, host, vm_ref, device):
+    cmd = b"%s -i %s" % (ETHTOOL, device)
+    cmd = binascii.hexlify(cmd)
+    res = call_ack_plugin(session, 'shell_run',
+                          {'cmd': cmd, 'vm_ref': vm_ref,
+                           'username': 'root', 'password': DEFAULT_PASSWORD},
+                          host)
+    ret = {}
+    for line in res.pop()['stdout'].split('\n'):
+        if line.startswith(('driver:', 'version:', 'bus-info:')):
+            index = line.find(":")
+            ret[line[:index]] = line[index + 1:].strip()
+
+    return ret
 
 
 def get_management_network(session):

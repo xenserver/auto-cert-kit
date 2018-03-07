@@ -1209,6 +1209,11 @@ class SRIOVTestClass(IperfTestClass):
                                                [[management_net_ref, comm_net_ref],
                                                 [management_net_ref, test_net_ref]])
 
+            vf_driver_info = get_vf_driver_info(session, get_pool_master(session),
+                                                vm1_ref, 'eth1')
+            log.debug("vf driver info: %s" % str(vf_driver_info))
+            self.set_config(ret, vf_driver_info)
+
             # Determine which reference should be the server and
             # which should be the client.
             if direction == 'rx':

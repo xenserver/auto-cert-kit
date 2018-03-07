@@ -237,6 +237,9 @@ def run_tests_from_file(test_file):
             log.debug("Reboot all hosts")
             reboot_all_hosts(session)
             try:
+                # Just wait host reboot and do not exit immediately,
+                # otherwise status.py will get wrong status then
+                time.sleep(300)
                 sys.exit(REBOOT_ERROR_CODE)
             except Exception, e:
                 log.debug("ACK exit normally")

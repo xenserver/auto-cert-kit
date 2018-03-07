@@ -360,7 +360,8 @@ def install_ssh_key(session, vm_ref, username, password):
     cmd_str = "%s; %s" % (" ".join(cmd1), " ".join(cmd2))
 
     log.debug("Install SSH key command string: %s" % cmd_str)
-    ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")["stdout"]
+    ssh_command(vm_ip, username, password, cmd_str,
+                "Installing SSH Key")["stdout"]
 
     # Disable hostkey checking
     call = [SSH, '-o', 'StrictHostKeyChecking=no', vm_ip]
@@ -1551,7 +1552,8 @@ def copy_lmbench_config(session, vm_ref, username, password):
     # Determine where lmbench will be looking for the config
     # file, so that we can copy it to the correct place.
     cmd_str = "/usr/lib/lmbench/scripts/config"
-    config_file_name = ssh_command(ip_address, username, password, cmd_str)["stdout"]
+    config_file_name = ssh_command(
+        ip_address, username, password, cmd_str)["stdout"]
 
     log.debug("Deterined that VM %s needs lmbench config file named: %s" %
               (vm_ref, config_file_name))
