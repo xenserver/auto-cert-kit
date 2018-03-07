@@ -51,6 +51,7 @@ import datetime
 import json
 import hwinfo.tools.inspector as inspector
 import binascii
+import uuid
 
 from acktools.net import route
 import acktools.log
@@ -301,28 +302,43 @@ OFFLOAD_FLAGS_OFFSET = {'sg': 1,
 ############# SSH KEY SETUP ##########################
 @log_exceptions
 def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
-    """execute an SSH command using the parimiko library, in order
-    to specify a password. Return the result to the caller."""
+    """execute an SSH command using the parimiko library, return both
+    exit code, stdout and stderr."""
     if dbg_str:
         log.debug(dbg_str)
 
+    # use uuid as random string
+    flag = "__%s__" % str(uuid.uuid4())
+    of = "/tmp/ack.stdout.%s.txt" % flag
+    ef = "/tmp/ack.stderr.%s.txt" % flag
+
+    # put cmd_str into single quotes and sh to run with redirection, e.g.
+    #   echo "$HOME" | sed 's/\///g'
+    #   sh -c 'echo "$HOME" | sed '\''s/\///g'\''' 1>of 2>ef
+    cmd_s = cmd_str.replace("'", r"'\''")
+    cmd_s = '''sh -c '%s' 1>%s 2>%s''' % (cmd_s, of, ef)
+    # catch exit code, stdout and stderr
+    cmd = '''%s; echo -n "$?%s"; cat %s; echo -n "%s"; cat %s; rm -f %s %s;''' % \
+          (cmd_s, flag, of, flag, ef, of, ef)
+
     for i in range(0, attempts):
-        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
+        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd))
 
         try:
-            cmd = ssh.SSHCommand(ip, cmd_str, log, username, 900, password)
-            return cmd.read("string").strip()
+            sshcmd = ssh.SSHCommand(ip, cmd, log, username, 900, password)
+            output = sshcmd.read("string")
         except Exception, e:
             log.debug("Exception: %s" % str(e))
-            if i + 1 == attempts:
-                # If we have reached our attempts limit, and still have
-                # raised an exception, we should elevate the exception.
-                log.debug("Max attempt reached %d/%d" % (i + 1, attempts))
-                raise e
             # Sleep before next attempt
             time.sleep(20)
+            continue
 
-    raise PluginError("An unkown error has occured!")
+        ret = output.split(flag)
+        if len(ret) == 3:
+            return {"returncode": int(ret[0]), "stdout": ret[1], "stderr": ret[2]}
+
+    log.debug("Max attempt reached %d/%d" % (attempts, attempts))
+    return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
 
 
 def install_ssh_key(session, vm_ref, username, password):
@@ -344,7 +360,7 @@ def install_ssh_key(session, vm_ref, username, password):
     cmd_str = "%s; %s" % (" ".join(cmd1), " ".join(cmd2))
 
     log.debug("Install SSH key command string: %s" % cmd_str)
-    ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")
+    ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")["stdout"]
 
     # Disable hostkey checking
     call = [SSH, '-o', 'StrictHostKeyChecking=no', vm_ip]
@@ -510,7 +526,7 @@ def install_iperf(session, vm_ref, username, password):
     make_local_call(call)
     cmd_str = "rpm -i /root/%s" % IPERF_RPM
     log.debug(cmd_str)
-    ssh_command(ip_address, username, password, cmd_str)
+    ssh_command(ip_address, username, password, cmd_str)["stdout"]
 
 
 def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
@@ -549,7 +565,7 @@ def run_command(session, vm_ref, username, password, cmd):
     """run shell command on VM"""
     ip_address = wait_for_ip(session, vm_ref, 'eth0')
     log.debug(cmd)
-    ssh_command(ip_address, username, password, cmd)
+    return ssh_command(ip_address, username, password, cmd)
 
 
 def install_rpms(session, vm_ref, username, password, rpms):
@@ -695,17 +711,36 @@ def disable_network_device_naming(session, args):
     return json_dumps("OK")
 
 
-@log_exceptions
-def shell_run(session, args):
-    """General interface execute shell command(s) on host"""
-    log.debug("shell run plugin call")
-    cmd = validate_exists(args, 'cmd')
-    cmd = binascii.unhexlify(cmd)
+def shell_run_on_guest(session, vm_ref, username, password, cmd):
+    if session.xenapi.VM.get_is_control_domain(vm_ref):
+        return {"returncode": -1, "stdout": "", "stderr": "DON'T run in control domain"}
+
+    return run_command(session, vm_ref, username, password, cmd)
+
+
+def shell_run_on_host(session, cmd):
     try:
         res = make_local_call([cmd], True, std_out=subprocess.PIPE, shell=True)
     except Exception, e:
         log.debug("Exception: %s" % str(e))
         res = {"returncode": -1, "stdout": "", "stderr": ""}
+    return res
+
+
+@log_exceptions
+def shell_run(session, args):
+    """General interface execute shell command(s) on host and even guest VM"""
+    log.debug("shell run plugin call")
+    vm_ref = validate_exists(args, 'vm_ref', None, False)
+    username = validate_exists(args, 'username', "", False)
+    password = validate_exists(args, 'password', "", False)
+    cmd = validate_exists(args, 'cmd')
+    cmd = binascii.unhexlify(cmd)
+
+    if vm_ref:
+        res = shell_run_on_guest(session, vm_ref, username, password, cmd)
+    else:
+        res = shell_run_on_host(session, cmd)
 
     return json_dumps([res])
 
@@ -1516,7 +1551,7 @@ def copy_lmbench_config(session, vm_ref, username, password):
     # Determine where lmbench will be looking for the config
     # file, so that we can copy it to the correct place.
     cmd_str = "/usr/lib/lmbench/scripts/config"
-    config_file_name = ssh_command(ip_address, username, password, cmd_str)
+    config_file_name = ssh_command(ip_address, username, password, cmd_str)["stdout"]
 
     log.debug("Deterined that VM %s needs lmbench config file named: %s" %
               (vm_ref, config_file_name))
@@ -1572,7 +1607,7 @@ def retrieve_lmbench_logs(session, args):
     results_dir = '/usr/lib/lmbench/results/x86_64-linux-gnu/'
     cmd_str = "ls %s* | wc -l" % results_dir
     log.debug(cmd_str)
-    response = ssh_command(ip_address, username, password, cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)["stdout"]
 
     if int(response) == 0:
         raise Exception(
@@ -1646,7 +1681,7 @@ def retrieve_iozone_logs(session, args):
     # Make sure the logs exists
     cmd_str = "test -e /root/localhost.log"
     log.debug(cmd_str)
-    response = ssh_command(ip_address, username, password, cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)["stdout"]
     if "error" in response:
         raise Exception("Cannot retrieve Iozone log from VM %s" % vm_ref)
 
@@ -1703,7 +1738,7 @@ def retrieve_bonnie_logs(session, args):
     # Make sure the logs exists
     cmd_str = "test -e /root/localhost.log"
     log.debug(cmd_str)
-    response = ssh_command(ip_address, username, password, cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)["stdout"]
     if "error" in response:
         raise Exception("Cannot retrieve Bonnie++ log from VM %s" % vm_ref)
 

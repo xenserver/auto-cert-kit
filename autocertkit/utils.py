@@ -47,6 +47,7 @@ import threading
 import re
 import json
 import binascii
+import uuid
 
 from acktools.net import route, generate_mac
 import acktools.log
@@ -1172,7 +1173,7 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
             (interface, packet_size, count, dst_vm_ip)
     log.debug("Ping: %s" % cmd_str)
     result = ssh_command(vm_ip, username, password,
-                         cmd_str, attempts=10).split('\n')
+                         cmd_str, attempts=10)["stdout"].split('\n')
     log.debug("Results= %s" % result)
     for line in result:
         log.debug("SSH Line: %s" % line)
@@ -1183,29 +1184,45 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
                         % result)
 
 
+@log_exceptions
 def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
-    """execute an SSH command using the parimiko library, in order
-    to specify a password. Return the result to the caller."""
+    """execute an SSH command using the parimiko library, return both
+    exit code, stdout and stderr."""
     if dbg_str:
         log.debug(dbg_str)
 
+    # use uuid as random string
+    flag = "__%s__" % str(uuid.uuid4())
+    of = "/tmp/ack.stdout.%s.txt" % flag
+    ef = "/tmp/ack.stderr.%s.txt" % flag
+
+    # put cmd_str into single quotes and sh to run with redirection, e.g.
+    #   echo "$HOME" | sed 's/\///g'
+    #   sh -c 'echo "$HOME" | sed '\''s/\///g'\''' 1>of 2>ef
+    cmd_s = cmd_str.replace("'", r"'\''")
+    cmd_s = '''sh -c '%s' 1>%s 2>%s''' % (cmd_s, of, ef)
+    # catch exit code, stdout and stderr
+    cmd = '''%s; echo -n "$?%s"; cat %s; echo -n "%s"; cat %s; rm -f %s %s;''' % \
+          (cmd_s, flag, of, flag, ef, of, ef)
+
     for i in range(0, attempts):
-        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
+        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd))
 
         try:
-            cmd = ssh.SSHCommand(ip, cmd_str, log, username, 900, password)
-            return cmd.read("string").strip()
+            sshcmd = ssh.SSHCommand(ip, cmd, log, username, 900, password)
+            output = sshcmd.read("string")
         except Exception, e:
             log.debug("Exception: %s" % str(e))
-            if i + 1 == attempts:
-                # If we have reached our attempts limit, and still have
-                # raised an exception, we should elevate the exception.
-                log.debug("Max attempt reached %d/%d" % (i + 1, attempts))
-                raise e
             # Sleep before next attempt
             time.sleep(20)
+            continue
 
-    raise Exception("An unkown error has occured!")
+        ret = output.split(flag)
+        if len(ret) == 3:
+            return {"returncode": int(ret[0]), "stdout": ret[1], "stderr": ret[2]}
+
+    log.debug("Max attempt reached %d/%d" % (attempts, attempts))
+    return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
 
 
 def plug_pif(session, pif):

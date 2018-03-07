@@ -394,7 +394,7 @@ class IperfTest:
             # Run the client locally
             cmd_str = self.get_iperf_command()
             result = ssh_command(self.get_client_ip(),
-                                 self.username, self.password, cmd_str)
+                                 self.username, self.password, cmd_str)["stdout"]
         return self.parse_iperf_line(result)
 
 
@@ -1027,7 +1027,7 @@ class MulticastTest(IperfTest):
     def validate_multicast(self):
         cmd_str = 'cat %s' % self.iperf_report_path
         cmd_result = ssh_command(self.server_ip, self.username,
-                                 self.password, cmd_str)
+                                 self.password, cmd_str)["stdout"]
         log.debug('Iperf log on multicast server: %s' % cmd_result)
         if self.MULTICAST_IP not in cmd_result:
             raise TestCaseError('Error: Multicast test failed. iperf data: %s'
@@ -1145,7 +1145,7 @@ class SRIOVTest(IperfTest):
     def validate_sriov_iperf(self):
         cmd_str = 'cat %s' % self.iperf_report_path
         cmd_result = ssh_command(
-            self.server_management_ip, self.username, self.password, cmd_str)
+            self.server_management_ip, self.username, self.password, cmd_str)["stdout"]
         log.debug('IPerf log on SR-IOV IPerf server: %s' % cmd_result)
 
         if self.server_ip not in cmd_result:
