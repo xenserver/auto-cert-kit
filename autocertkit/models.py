@@ -293,19 +293,19 @@ class DeviceTestClass(object):
 
     def group_test_method_by_status(self):
         """Group test method by status"""
-        dones, waitings, runnings = ([], [], [])
+        done, waiting, running = ([], [], [])
         for test_method in self.test_methods:
             if test_method.is_done():
-                dones.append(test_method)
+                done.append(test_method)
             elif test_method.is_waiting():
-                waitings.append(test_method)
+                waiting.append(test_method)
             elif test_method.is_running():
-                runnings.append(test_method)
+                running.append(test_method)
             else:
                 raise Exception(
                     "Unknown status of test method %s", test_method.get_name())
 
-        return dones, waitings, runnings
+        return done, waiting, running
 
     def update(self, results):
         """Take the output of a test run (list of records), and update the results
@@ -482,18 +482,18 @@ class Device(object):
 
     def group_test_classes_by_status(self):
         """"Group test classes by status"""
-        dones, waitings, runnings = ([], [], [])
+        done, waiting, running = ([], [], [])
         for test_class in self.test_classes:
             ds, ws, rs = test_class.group_test_method_by_status()
             if ds and not ws and not rs:
                 # class in dones means its all methods done
-                dones.append(test_class)
+                done.append(test_class)
             if ws:
-                waitings.append(test_class)
+                waiting.append(test_class)
             if rs:
-                runnings.append(test_class)
+                running.append(test_class)
 
-        return dones, waitings, runnings
+        return done, waiting, running
 
     def has_passed(self):
         """Return a bool as to whether the device

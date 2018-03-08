@@ -102,6 +102,12 @@ def parse_cmd_args():
     parser.add_option("-n", "--netconf",
                       dest="netconf",
                       help="Specify the network config file.")
+    parser.add_option("-p", "--vf-driver-pkg",
+                      dest="vf_driver_pkg",
+                      help="Specify the VF driver rpm package.")
+    parser.add_option("-q", "--vf-driver-name",
+                      dest="vf_driver_name",
+                      help="Specify the VF driver name.")
     # The option string is an extension, allowing users to specify KVPs
     # e.g. optionstr = "dhcp=True,key1=val1,..."
     parser.add_option("-o", "--option",
@@ -136,11 +142,17 @@ def parse_cmd_args():
     if options.list_tests:
         print_all_test_classes()
 
+    if options.vf_driver_pkg:
+        config['vf_driver_pkg'] = options.vf_driver_pkg
+    if options.vf_driver_name:
+        config['vf_driver_name'] = options.vf_driver_name
+
     if options.optionstr:
         kvp_rec = kvp_string_to_rec(options.optionstr)
         for k, v in kvp_rec.iteritems():
             config[k] = v
 
+    # Check if files exist
     file_opts = [("vf_driver_pkg", "VF driver rpm package"),
                  ("vpx_dlvm_file", "VPX DLVM file")]
     for opt, label in file_opts:

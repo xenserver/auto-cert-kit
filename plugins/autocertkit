@@ -544,7 +544,7 @@ def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
         log.debug("stderr: %s" % str(stderr))
         if res["returncode"] != 0:
             msg = "ERR: Could not make local call %s" % ' '.join(call)
-            log.debug(msg)
+            log.error(msg)
 
     return res
 
