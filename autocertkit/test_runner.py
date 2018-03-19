@@ -224,7 +224,7 @@ def run_tests_from_file(test_file):
 
         result = results[0]
         reboot = False
-        if 'superior' in result:
+        if get_value(result, 'superior') == 'reboot':
             reboot = True
             test_inst.unset_superior(result)
 
@@ -234,15 +234,7 @@ def run_tests_from_file(test_file):
         next_test_class.save(test_file)
 
         if reboot:
-            log.debug("Reboot all hosts")
-            reboot_all_hosts(session)
-            try:
-                # Just wait host reboot and do not exit immediately,
-                # otherwise status.py will get wrong status then
-                time.sleep(300)
-                sys.exit(REBOOT_ERROR_CODE)
-            except Exception, e:
-                log.debug("ACK exit normally")
+            reboot_normally(session)
 
     log.debug("Logging out of xapi session %s" % session.handle)
     session.xenapi.session.local_logout()

@@ -182,7 +182,7 @@ class TestClass(object):
             # cleanup occurs only when current test really done
             if rec['status'] == 'done':
                 try:
-                    pool_wide_cleanup(self.session)
+                    need_reboot = pool_wide_cleanup(self.session)
                 except:
                     traceb = traceback.format_exc()
                     log.debug(traceb)
@@ -198,6 +198,17 @@ class TestClass(object):
                         rec['trackeback'] = traceb
                         rec['exception'] = "Unexpected error: %s" % \
                                            sys.exc_info()[0]
+                else:
+                    # If test done normally then noneed reboot even if cleanup requires, that indicates
+                    # test itself should handle reboot requirement as one test step
+                    # If test is done by exception and cleanup requires reboot then ask runner to reboot
+                    if rec['result'] == 'pass' and need_reboot:
+                        log.debug(
+                            "Warning: test should handle reboot requirement")
+                    elif rec['result'] == 'fail' and need_reboot:
+                        rec['superior'] = 'reboot'
+                        log.debug(
+                            "Ask for hosts reboot because current test did not finish normally")
 
             log.debug("Test case %s, %s: %s.%s" %
                       (rec['result'], rec['status'], self.__class__.__name__, test))

@@ -1163,8 +1163,9 @@ class SRIOVTest(IperfTest):
         return self.validate_sriov_iperf()
 
 
-class SRIOVTestClass(IperfTestClass):
-    """ Subclass that runs SR-IOV test"""
+class InterHostSRIOVTestClass(IperfTestClass):
+    """Iperf test between VF (in VM1 on master) and VIF (in VM2 on slave)"""
+
     REQUIRED_FOR = ">= %s" % XCP_MIN_VER_WITH_SRIOV
     caps = [SRIOV_CAP]
     required = False
@@ -1196,7 +1197,8 @@ class SRIOVTestClass(IperfTestClass):
 
             # setup sriov network on master
             # enable VF, wherein host may require reboot
-            reboot, test_net_ref, net_sriov_ref = self._enable_vf(session)
+            reboot, test_net_ref, net_sriov_ref = self._enable_vf(
+                session, self.control == "enabled")
             log.debug("reboot: %s, test_net_ref: %s, net_sriov_ref: %s" %
                       (reboot, test_net_ref, net_sriov_ref))
             if reboot:
@@ -1205,36 +1207,19 @@ class SRIOVTestClass(IperfTestClass):
                 return ret
 
             # setup VMs for test, make sure VM stopped when assign VF
-            vm1_ref, vm2_ref = self._setup_vms(session,
-                                               [[management_net_ref, comm_net_ref],
-                                                [management_net_ref, test_net_ref]])
+            vm_list = self._setup_vms(session,
+                                      [[management_net_ref, comm_net_ref],
+                                       [management_net_ref, test_net_ref]])
 
-            vf_driver_info = get_vf_driver_info(session, get_pool_master(session),
-                                                vm1_ref, 'eth1')
-            log.debug("vf driver info: %s" % str(vf_driver_info))
-            self.set_config(ret, vf_driver_info)
+            # perform extra operation test
+            self.ops_test(session, vm_list)
 
-            # Determine which reference should be the server and
-            # which should be the client.
-            if direction == 'rx':
-                server, client = vm1_ref, vm2_ref
-            elif direction == 'tx':
-                server, client = vm2_ref, vm1_ref
-            else:
-                raise Exception(
-                    "Unknown 'direction' key specified. Expected tx or rx")
-            log.debug("IPerf server VM ref: %s" % server)
-            log.debug("IPerf client VM ref: %s" % client)
-
-            log.debug("About to run SR-IOV IPerf test...")
-
-            # Run IPerf test - if failure, an exception should be raised.
-            iperf_data = SRIOVTest(session, client, server, None, None).run()
-            self.set_data(ret, iperf_data)
+            # choose 2 VM and perform IPerf test
+            self.iperf_test(session, ret, vm_list[0], vm_list[1], direction)
 
             # disable sriov
-            destroy_vm(session, client)
-            destroy_vm(session, server)
+            for i in vm_list:
+                destroy_vm(session, i)
             log.debug("Disable VF begin")
             # network_sriov may be synced to slave host, so here destroy all, rather than just sriov_net_ref
             for i in session.xenapi.network_sriov.get_all():
@@ -1267,12 +1252,12 @@ class SRIOVTestClass(IperfTestClass):
             raise TestCaseError(
                 'Error: SR-IOV test failed. SR-IOV capability is not available')
 
-    def _enable_vf(self, session):
+    def _enable_vf(self, session, tried=False):
         master = get_pool_master(session)
         device = self.config['device_config']['Kernel_name']
         network_label = 'test_sriov'
 
-        if not self.control:
+        if not tried:
             # have not enabled, try to
             log.debug("Enable VF begin")
             net_ref, net_sriov_ref = enable_vf(
@@ -1291,9 +1276,9 @@ class SRIOVTestClass(IperfTestClass):
         net_sriov_ref = sriov_nets[0]
         vf_num = session.xenapi.network_sriov.get_remaining_capacity(
             net_sriov_ref)
-        vf_num = int(vf_num)
-        log.debug("The number of available VF: %d" % vf_num)
-        if vf_num <= 0:
+        self.vf_num = int(vf_num)
+        log.debug("The number of available VF: %d" % self.vf_num)
+        if self.vf_num <= 0:
             raise TestCaseError(
                 'Error: SR-IOV test failed. No VF available after enabling')
 
@@ -1311,7 +1296,124 @@ class SRIOVTestClass(IperfTestClass):
             sms[network_ref] = self.get_static_manager(network_ref)
             sms[networks_master[i]] = sms[network_ref]
 
-        vf_driver_name = get_value(self.config, "vf_driver_name")
-        vf_driver_pkg = get_value(self.config, "vf_driver_pkg")
+        netconf = self.get_netconf()
+        device = self.config['device_config']['Kernel_name']
+        vf_driver_name = get_value(netconf[device], "vf_driver_name")
+        vf_driver_pkg = get_value(netconf[device], "vf_driver_pkg")
 
-        return deploy_two_droid_vms_for_sriov_test(session, (vf_driver_name, vf_driver_pkg), network_refs, sms)
+        return self.deploy_droid_vms(session, (vf_driver_name, vf_driver_pkg), network_refs, sms)
+
+    def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
+        """Virtual function to create specific VMs"""
+        return deploy_two_droid_vms_for_sriov_inter_host_test(session, vf_driver, network_refs, sms)
+
+    def iperf_test(self, session, result, vm1_ref, vm2_ref, direction):
+        """Virtual function to perform IPerf test"""
+        vf_driver_info = get_vf_driver_info(session, get_pool_master(session),
+                                            vm1_ref, 'eth1')
+        log.debug("vf driver info: %s" % str(vf_driver_info))
+        self.set_config(result, vf_driver_info)
+
+        # Determine which reference should be the server and
+        # which should be the client.
+        if direction == 'rx':
+            server, client = vm1_ref, vm2_ref
+        elif direction == 'tx':
+            server, client = vm2_ref, vm1_ref
+        else:
+            raise Exception(
+                "Unknown 'direction' key specified. Expected tx or rx")
+        log.debug("IPerf server VM ref: %s" % server)
+        log.debug("IPerf client VM ref: %s" % client)
+
+        log.debug("About to run SR-IOV IPerf test...")
+
+        # Run IPerf test - if failure, an exception should be raised.
+        iperf_data = SRIOVTest(session, client, server, None, None).run()
+        self.set_data(result, iperf_data)
+
+    def ops_test(self, session, vms):
+        pass
+
+
+class IntraHostSRIOVTestClass1(InterHostSRIOVTestClass):
+    """Iperf test between VF (in VM1 on master) and VIF (in VM2 on master)"""
+
+    def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
+        return deploy_two_droid_vms_for_sriov_intra_host_test1(session, vf_driver, network_refs, sms)
+
+
+class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
+    """Iperf test between VF (in VM1 on master) and VF (in VM2 on master)"""
+
+    def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
+        vm_list, _, _ = deploy_droid_vms_for_sriov_intra_host_test2(
+            session, vf_driver, network_refs, sms, vm_count=2, vf_count=2)
+        return vm_list
+
+
+class IntraHostSRIOVTestClass3(InterHostSRIOVTestClass):
+    """Assign maximum number of VFs to VMs, 6 per VM at most;
+    Do 10 iterations of parallel VM reboots with VF verifying;
+    Iperf test between VF (in VM1 on master) and VF (in VM2 on master)"""
+
+    def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
+        # Max number of NIC per VM is limited to 7 on iCenter, and one of is default eth0 (vif) for management
+        max_vf_per_vm = 6
+        vm_num = int(math.ceil(float(self.vf_num) / max_vf_per_vm))
+        log.debug("Total VF number: %d, needs %d VMs to assign" %
+                  (self.vf_num, vm_num))
+
+        vm_list, self.vif_list, self.vif_group = deploy_droid_vms_for_sriov_intra_host_test2(
+            session, vf_driver, network_refs, sms, vm_count=vm_num, vf_count=self.vf_num)
+        return vm_list
+
+    def ops_test(self, session, vms):
+        master_ref = get_pool_master(session)
+
+        def verify_vif_status(vifs, status):
+            for vif in vifs:
+                if session.xenapi.VIF.get_currently_attached(vif) != status:
+                    log.debug(
+                        "Error: vif %s currently-attached is not %s" % (vif, status))
+                    raise TestCaseError(
+                        'Error: SR-IOV test failed. VF currently-attached is incorrect')
+
+        def verify_vif_config(vif_group):
+            for vm_ref, vifs in vif_group.iteritems():
+                devices = get_vm_interface(session, master_ref, vm_ref)
+                log.debug("VM %s contains interface %s" % (vm_ref, devices))
+
+                # get all MAC
+                all_mac = []
+                for _, values in devices.iteritems():
+                    all_mac.append(values[0])
+
+                for vif in vifs:
+                    vif_rec = session.xenapi.VIF.get_record(vif)
+                    log.debug("VIF %s device: %s, MAC: %s" %
+                              (vif, vif_rec['device'], vif_rec['MAC']))
+
+                    # check MAC
+                    if vif_rec['MAC'] not in all_mac:
+                        log.debug(
+                            "Error: MAC %s does not match any interface" % vif_rec['MAC'])
+                        raise TestCaseError(
+                            'Error: SR-IOV test failed. VF MAC does not match any interface')
+
+        test_times = 10
+        for i in range(test_times):
+            log.debug("Starting test run %d of %d" % (i, test_times))
+
+            log.debug("Shutting down VMs: %s" % vms)
+            task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.shutdown(x))
+                         for vm_ref in vms]
+            run_xapi_async_tasks(session, task_list)
+            verify_vif_status(self.vif_list, False)
+
+            log.debug("Booting VMs: %s" % vms)
+            task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.start_on(
+                         x, master_ref, False, False)) for vm_ref in vms]
+            run_xapi_async_tasks(session, task_list)
+            verify_vif_status(self.vif_list, True)
+            verify_vif_config(self.vif_group)

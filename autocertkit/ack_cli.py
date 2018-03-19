@@ -102,12 +102,6 @@ def parse_cmd_args():
     parser.add_option("-n", "--netconf",
                       dest="netconf",
                       help="Specify the network config file.")
-    parser.add_option("-p", "--vf-driver-pkg",
-                      dest="vf_driver_pkg",
-                      help="Specify the VF driver rpm package.")
-    parser.add_option("-q", "--vf-driver-name",
-                      dest="vf_driver_name",
-                      help="Specify the VF driver name.")
     # The option string is an extension, allowing users to specify KVPs
     # e.g. optionstr = "dhcp=True,key1=val1,..."
     parser.add_option("-o", "--option",
@@ -142,22 +136,24 @@ def parse_cmd_args():
     if options.list_tests:
         print_all_test_classes()
 
-    if options.vf_driver_pkg:
-        config['vf_driver_pkg'] = options.vf_driver_pkg
-    if options.vf_driver_name:
-        config['vf_driver_name'] = options.vf_driver_name
-
     if options.optionstr:
         kvp_rec = kvp_string_to_rec(options.optionstr)
         for k, v in kvp_rec.iteritems():
             config[k] = v
 
     # Check if files exist
-    file_opts = [("vf_driver_pkg", "VF driver rpm package"),
-                 ("vpx_dlvm_file", "VPX DLVM file")]
+    file_opts = [("vpx_dlvm_file", "VPX DLVM file")]
     for opt, label in file_opts:
         if opt in config.keys():
             assert_file_exists(os.path.join(INSTALL_DIR, config[opt]), label)
+
+    for key, value in config['netconf'].iteritems():
+        if not key.startswith('eth'):
+            continue
+        vf_driver_pkg = value['vf_driver_pkg']
+        if vf_driver_pkg:
+            assert_file_exists(os.path.join(
+                INSTALL_DIR, vf_driver_pkg), "VF driver rpm package")
 
     return config
 
@@ -188,34 +184,49 @@ def parse_netconf_file(filename):
         key, value = [items.strip() for items in arr.split('=')]
 
         if key.startswith('eth'):
-            # Each line is in the format:
-            # ethX = 3,[235,236,237]
-            csv = [v.strip() for v in value.split(',')]
-
             # Ethernet Interface
             utils.log.debug("Ethernet Interface: '%s'" % key)
+
+            # Each line is in the format:
+            # ethX = 3,[235,236,237],igbvf,igbvf-2.3.9.6-1.x86_64.rpm # comment
+
+            # remove comment
+            value = value.split('#')[0].strip()
+
+            # preprocess vlan id field
+            try:
+                # Extract bracketed substring of vlan ids
+                vlan_str = value[value.index('['):value.index(']')+1]
+            except ValueError:
+                raise utils.InvalidArgument('VLAN IDs', value, 'No found')
+            vlan_str_new = vlan_str.replace(',', ';')
+            value = value.replace(vlan_str, vlan_str_new[1:-1])
+
+            # now value: 3,235;236;237,igbvf,igbvf-2.3.9.6-1.x86_64.rpm
+            csv = [v.strip() for v in value.split(',')]
+            if len(csv) != 4:
+                raise utils.InvalidArgument(
+                    """Lack of argument "%s", should be in format: <network_id>,[<vlan_ids>],<vf_driver_name>,<vf_driver_pkg>"""
+                    % value)
 
             # Network ID is a label of the physical network the adapter has been connected to
             # and should be uniform across all adapters.
             utils.log.debug("Network IDs: '%s'" % csv[0])
             network_id = int(csv[0])
 
-            # Parse VLAN IDs
-            try:
-                # Extract bracketed substring
-                vlan_str = arr[arr.index('[') + 1:arr.index(']')]
-                # Convert values to integers
-                vlan_ids = [int(x) for x in vlan_str.split(',')]
-                # Ensure that the specified VLAN is valid
-                for vlan_id in vlan_ids:
-                    if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
-                        raise utils.InvalidArgument('VLAN ID for %s' % arr[0], vlan_id, '%d < x < %d' %
-                                                    (MIN_VLAN, MAX_VLAN))
-            except ValueError:
-                raise utils.InvalidArgument('VLAN IDs', vlan_str, '%d < x < %d: x = INT' %
-                                            (MIN_VLAN, MAX_VLAN))
+            # Convert values to integers
+            vlan_ids = [int(x) for x in csv[1].split(';')]
+            # Ensure that the specified VLAN is valid
+            for vlan_id in vlan_ids:
+                if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
+                    raise utils.InvalidArgument('VLAN ID for %s' % key, vlan_id, '%d < x < %d' %
+                                                (MIN_VLAN, MAX_VLAN))
 
-            rec[key] = {'network_id': network_id, 'vlan_ids': vlan_ids}
+            # VF driver info for SR-IOV test, and maybe with comment
+            vf_driver_name, vf_driver_pkg = csv[2], csv[3]
+
+            rec[key] = {'network_id': network_id, 'vlan_ids': vlan_ids,
+                        'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg}
         elif key == "static_management":
             rec[key] = parse_static_config(value)
         elif key.startswith('static'):
@@ -457,7 +468,8 @@ def main(config, test_run_file):
         return "OK"
 
     # cleanup in case previous run did not complete entirely
-    utils.pool_wide_cleanup(session)
+    if utils.pool_wide_cleanup(session):
+        utils.reboot_normally(session)
 
     # Logout of XAPI session anyway - the test runner will create a new session
     # if needed. (We might only be generating).
