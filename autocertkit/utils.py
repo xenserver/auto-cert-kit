@@ -71,7 +71,7 @@ MULTICAST_CAP = "MULTICAST"
 SRIOV_CAP = "SR-IOV"
 
 # XCP minimum version with SR-IOV support
-XCP_MIN_VER_WITH_SRIOV = "2.6.0"
+XCP_MIN_VER_WITH_SRIOV = "2.5.50"  # target 2.6.0, waiting K release branched
 
 # XAPI States
 XAPI_RUNNING_STATE = "Running"
@@ -967,10 +967,12 @@ def get_vf_driver_info(session, host, vm_ref, device):
                            'username': 'root', 'password': DEFAULT_PASSWORD},
                           host)
     ret = {}
+    filter_re = re.compile(r"(?P<key>driver|version|bus-info): (?P<value>.*)")
     for line in res.pop()['stdout'].split('\n'):
-        if line.startswith(('driver:', 'version:', 'bus-info:')):
-            index = line.find(":")
-            ret[line[:index]] = line[index + 1:].strip()
+        # line sample: "driver: e1000e"
+        match = filter_re.match(line)
+        if match:
+            ret[match.group("key")] = match.group("value")
 
     return ret
 
@@ -1911,7 +1913,7 @@ def shutdown_droid_vms(session, vms, async=True):
     if async:
         try:
             run_xapi_async_tasks(session,
-                                 [lambda: session.xenapi.Async.VM.shutdown(vm_ref)
+                                 [lambda x=vm_ref: session.xenapi.Async.VM.shutdown(x)
                                   for vm_ref in vms],
                                  180)
 
@@ -1931,7 +1933,7 @@ def start_droid_vms(session, vms, async=True):
             # Temporary setting time out to 3 mins to work around CA-146164.
             # The fix requires hotfixes, hence keeping this work-around.
             run_xapi_async_tasks(session,
-                                 [lambda: session.xenapi.Async.VM.start_on(vm_ref, host_ref, False, False)
+                                 [lambda x=vm_ref, y=host_ref: session.xenapi.Async.VM.start_on(x, y, False, False)
                                   for host_ref, vm_ref in vms],
                                  180)
 
@@ -2046,22 +2048,22 @@ def deploy_two_droid_vms_for_sriov_inter_host_test(session, vf_driver, network_r
     config_network_for_droid_vm(session, vm1_ref, network_refs[1][0], 0, sms)
     config_network_for_droid_vm(session, vm2_ref, network_refs[0][0], 0, sms)
     start_droid_vms(session, [(host_master_ref, vm1_ref),
-                              (host_slave_ref, vm2_ref)], False)
+                              (host_slave_ref, vm2_ref)])
 
     setup_vm_for_sriov(session, vm1_ref, vf_driver)
 
-    shutdown_droid_vms(session, [vm1_ref, vm2_ref], False)
+    shutdown_droid_vms(session, [vm1_ref, vm2_ref])
 
     # config test networks
     config_networks_for_droid_vm(session, vm1_ref, network_refs[1][1:], 1, sms)
     config_networks_for_droid_vm(session, vm2_ref, network_refs[0][1:], 1, sms)
     start_droid_vms(session, [(host_master_ref, vm1_ref),
-                              (host_slave_ref, vm2_ref)], False)
+                              (host_slave_ref, vm2_ref)])
 
     return vm1_ref, vm2_ref
 
 
-def deploy_two_droid_vms_for_sriov_intra_host_test1(session, vf_driver, network_refs, sms=None):
+def deploy_two_droid_vms_for_sriov_intra_host_test_vf_to_vif(session, vf_driver, network_refs, sms=None):
     """A utility method for setting up two VMs on primary host, one with VF, the other with VIF"""
 
     host_master_ref = get_pool_master(session)
@@ -2071,11 +2073,11 @@ def deploy_two_droid_vms_for_sriov_intra_host_test1(session, vf_driver, network_
     # config management network
     config_network_for_droid_vm(session, vm_vf_ref, network_refs[1][0], 0, sms)
     start_droid_vms(session, [(host_master_ref, vm_vf_ref),
-                              (host_master_ref, vm_vif_ref)], False)
+                              (host_master_ref, vm_vif_ref)])
 
     setup_vm_for_sriov(session, vm_vf_ref, vf_driver)
 
-    shutdown_droid_vms(session, [vm_vf_ref, vm_vif_ref], False)
+    shutdown_droid_vms(session, [vm_vf_ref, vm_vif_ref])
 
     # config test networks
     config_networks_for_droid_vm(
@@ -2083,12 +2085,12 @@ def deploy_two_droid_vms_for_sriov_intra_host_test1(session, vf_driver, network_
     config_networks_for_droid_vm(
         session, vm_vif_ref, network_refs[0][1:], 1, sms)
     start_droid_vms(session, [(host_master_ref, vm_vf_ref),
-                              (host_master_ref, vm_vif_ref)], False)
+                              (host_master_ref, vm_vif_ref)])
 
     return vm_vf_ref, vm_vif_ref
 
 
-def deploy_droid_vms_for_sriov_intra_host_test2(session, vf_driver, network_refs, sms=None, vm_count=1, vf_count=1):
+def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, network_refs, sms=None, vm_count=1, vf_count=1):
     """A utility method for setting up count VMs on primary host, with VFs evenly"""
     vf_num_list = [0] * vm_count
     for i in range(vf_count):
@@ -2105,7 +2107,7 @@ def deploy_droid_vms_for_sriov_intra_host_test2(session, vf_driver, network_refs
         # config management network
         config_network_for_droid_vm(
             session, vm_ref, network_refs[1][0], 0, sms)
-        start_droid_vms(session, [(host_master_ref, vm_ref)], False)
+        start_droid_vms(session, [(host_master_ref, vm_ref)])
 
         setup_vm_for_sriov(session, vm_ref, vf_driver)
 
@@ -2113,7 +2115,7 @@ def deploy_droid_vms_for_sriov_intra_host_test2(session, vf_driver, network_refs
         for j in range(1, vf_num_list[i] + 1):
             droid_add_ifcfg(session, host_master_ref, vm_ref, "eth%d" % j)
 
-        shutdown_droid_vms(session, [vm_ref], False)
+        shutdown_droid_vms(session, [vm_ref])
 
         # config test networks
         vifs_of_vm = []
@@ -2122,13 +2124,45 @@ def deploy_droid_vms_for_sriov_intra_host_test2(session, vf_driver, network_refs
                 session, vm_ref, network_refs[1][1:], j, sms)
             vifs_of_vm += vifs
 
-        start_droid_vms(session, [(host_master_ref, vm_ref)], False)
+        start_droid_vms(session, [(host_master_ref, vm_ref)])
 
         vm_list.append(vm_ref)
         vif_list += vifs_of_vm
         vif_group[vm_ref] = vifs_of_vm
 
     return vm_list, vif_list, vif_group
+
+
+def verify_vif_status(session, vifs, status):
+    for vif in vifs:
+        if session.xenapi.VIF.get_currently_attached(vif) != status:
+            log.debug(
+                "Error: vif %s currently-attached is not %s" % (vif, status))
+            raise TestCaseError(
+                'Error: SR-IOV test failed. VF currently-attached is incorrect')
+
+
+def verify_vif_config(session, host, vif_group):
+    for vm_ref, vifs in vif_group.iteritems():
+        devices = get_vm_interface(session, host, vm_ref)
+        log.debug("VM %s contains interface %s" % (vm_ref, devices))
+
+        # get all MAC
+        all_mac = []
+        for _, values in devices.iteritems():
+            all_mac.append(values[0])
+
+        for vif in vifs:
+            vif_rec = session.xenapi.VIF.get_record(vif)
+            log.debug("VIF %s device: %s, MAC: %s" %
+                      (vif, vif_rec['device'], vif_rec['MAC']))
+
+            # check MAC
+            if vif_rec['MAC'] not in all_mac:
+                log.debug(
+                    "Error: MAC %s does not match any interface" % vif_rec['MAC'])
+                raise TestCaseError(
+                    'Error: SR-IOV test failed. VF MAC does not match any interface')
 
 
 def droid_add_ifcfg(session, host, vm_ref, iface):
@@ -2274,9 +2308,11 @@ def get_vm_interface(session, host, vm_ref):
                           {'cmd': cmd, 'vm_ref': vm_ref,
                            'username': 'root', 'password': DEFAULT_PASSWORD},
                           host)
+    mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")
     for line in res.pop()['stdout'].strip().split('\n'):
-        tmp = line.split(': ')
-        ret[tmp[0]] = [tmp[1]]
+        match = mac_re.match(line)
+        if match:
+            ret[match.group('device')] = [match.group('mac')]
 
     # cmd output: "eth0 10.62.114.80/21"
     cmd = b"""ip -o -f inet addr | awk '{if($2 ~ /^eth/) print $2,$4}'"""
@@ -2286,10 +2322,11 @@ def get_vm_interface(session, host, vm_ref):
                           {'cmd': cmd, 'vm_ref': vm_ref,
                            'username': 'root', 'password': DEFAULT_PASSWORD},
                           host)
+    ip_re = re.compile(r"(?P<device>.*) (?P<ip>.*)")
     for line in res.pop()['stdout'].strip().split('\n'):
-        tmp = line.split()
-        ip = tmp[1].split('/')[0]
-        ret[tmp[0]].append(ip)
+        match = ip_re.match(line)
+        if match:
+            ret[match.group('device')].append(match.group('ip'))
 
     return ret
 

@@ -1340,14 +1340,14 @@ class IntraHostSRIOVTestClass1(InterHostSRIOVTestClass):
     """Iperf test between VF (in VM1 on master) and VIF (in VM2 on master)"""
 
     def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
-        return deploy_two_droid_vms_for_sriov_intra_host_test1(session, vf_driver, network_refs, sms)
+        return deploy_two_droid_vms_for_sriov_intra_host_test_vf_to_vif(session, vf_driver, network_refs, sms)
 
 
 class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
     """Iperf test between VF (in VM1 on master) and VF (in VM2 on master)"""
 
     def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
-        vm_list, _, _ = deploy_droid_vms_for_sriov_intra_host_test2(
+        vm_list, _, _ = deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(
             session, vf_driver, network_refs, sms, vm_count=2, vf_count=2)
         return vm_list
 
@@ -1364,42 +1364,12 @@ class IntraHostSRIOVTestClass3(InterHostSRIOVTestClass):
         log.debug("Total VF number: %d, needs %d VMs to assign" %
                   (self.vf_num, vm_num))
 
-        vm_list, self.vif_list, self.vif_group = deploy_droid_vms_for_sriov_intra_host_test2(
+        vm_list, self.vif_list, self.vif_group = deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(
             session, vf_driver, network_refs, sms, vm_count=vm_num, vf_count=self.vf_num)
         return vm_list
 
     def ops_test(self, session, vms):
         master_ref = get_pool_master(session)
-
-        def verify_vif_status(vifs, status):
-            for vif in vifs:
-                if session.xenapi.VIF.get_currently_attached(vif) != status:
-                    log.debug(
-                        "Error: vif %s currently-attached is not %s" % (vif, status))
-                    raise TestCaseError(
-                        'Error: SR-IOV test failed. VF currently-attached is incorrect')
-
-        def verify_vif_config(vif_group):
-            for vm_ref, vifs in vif_group.iteritems():
-                devices = get_vm_interface(session, master_ref, vm_ref)
-                log.debug("VM %s contains interface %s" % (vm_ref, devices))
-
-                # get all MAC
-                all_mac = []
-                for _, values in devices.iteritems():
-                    all_mac.append(values[0])
-
-                for vif in vifs:
-                    vif_rec = session.xenapi.VIF.get_record(vif)
-                    log.debug("VIF %s device: %s, MAC: %s" %
-                              (vif, vif_rec['device'], vif_rec['MAC']))
-
-                    # check MAC
-                    if vif_rec['MAC'] not in all_mac:
-                        log.debug(
-                            "Error: MAC %s does not match any interface" % vif_rec['MAC'])
-                        raise TestCaseError(
-                            'Error: SR-IOV test failed. VF MAC does not match any interface')
 
         test_times = 10
         for i in range(test_times):
@@ -1409,11 +1379,11 @@ class IntraHostSRIOVTestClass3(InterHostSRIOVTestClass):
             task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.shutdown(x))
                          for vm_ref in vms]
             run_xapi_async_tasks(session, task_list)
-            verify_vif_status(self.vif_list, False)
+            verify_vif_status(session, self.vif_list, False)
 
             log.debug("Booting VMs: %s" % vms)
             task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.start_on(
                          x, master_ref, False, False)) for vm_ref in vms]
             run_xapi_async_tasks(session, task_list)
-            verify_vif_status(self.vif_list, True)
-            verify_vif_config(self.vif_group)
+            verify_vif_status(session, self.vif_list, True)
+            verify_vif_config(session, master_ref, self.vif_group)

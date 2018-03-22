@@ -79,6 +79,7 @@ class TestGenerator(object):
         ret = []
         for cla in classes:
             for i in test_classes:
+                # i is tuple of ("class name", class obj)
                 if cla == i[0]:
                     ret.append(i)
         return ret

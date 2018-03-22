@@ -148,12 +148,11 @@ def parse_cmd_args():
             assert_file_exists(os.path.join(INSTALL_DIR, config[opt]), label)
 
     for key, value in config['netconf'].iteritems():
-        if not key.startswith('eth'):
-            continue
-        vf_driver_pkg = value['vf_driver_pkg']
-        if vf_driver_pkg:
-            assert_file_exists(os.path.join(
-                INSTALL_DIR, vf_driver_pkg), "VF driver rpm package")
+        if key.startswith('eth'):
+            vf_driver_pkg = value['vf_driver_pkg']
+            if vf_driver_pkg:
+                assert_file_exists(os.path.join(
+                    INSTALL_DIR, vf_driver_pkg), "VF driver rpm package")
 
     return config
 
@@ -198,7 +197,7 @@ def parse_netconf_file(filename):
                 # Extract bracketed substring of vlan ids
                 vlan_str = value[value.index('['):value.index(']')+1]
             except ValueError:
-                raise utils.InvalidArgument('VLAN IDs', value, 'No found')
+                raise utils.InvalidArgument('VLAN IDs', value, 'Not found')
             vlan_str_new = vlan_str.replace(',', ';')
             value = value.replace(vlan_str, vlan_str_new[1:-1])
 
