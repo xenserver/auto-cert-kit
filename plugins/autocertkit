@@ -50,6 +50,8 @@ import tarfile
 import datetime
 import json
 import hwinfo.tools.inspector as inspector
+import binascii
+import uuid
 
 from acktools.net import route
 import acktools.log
@@ -76,7 +78,6 @@ import ssh
 
 XE = '/opt/xensource/bin/xe'
 IPERF = '/usr/bin/iperf'
-DROID_VM_LOC = '%s/vpx-dlvm.xva' % INSTALL_DIR
 XS_INVENTORY_PATH = "/etc/xensource-inventory"
 LMBENCH_CONF_LOC = "%s/config/lmbench.conf" % INSTALL_DIR
 LOGROTATE_CONF_LOC = "%s/config/logrotate.conf" % INSTALL_DIR
@@ -228,19 +229,51 @@ def get_from_xensource_inventory(key):
 
 ##################################
 
-ETHTOOL = "/sbin/ethtool"
-IPERF = "/usr/bin/iperf"
-LMBENCH = "/usr/bin/lmbench"
-SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
-SSH_HOST_KEYS = '/root/.ssh/known_hosts'
-IPERF_RPM = "iperf-2.0.4-1.el5.rf.i386.rpm"
-LMBENCH_RPM = "lmbench-3.0-0.a7.1.el5.rf.i386.rpm"
-IOZONE_RPM = "iozone-3.394-1.el5.rf.i386.rpm"
-BONNIE_RPM = "bonnie++-1.94-1.el5.rf.i386.rpm"
-MAKE_RPM = "make-3.81-3.el5.i386.rpm"
 SSH = "/usr/bin/ssh"
 CAT = "/bin/cat"
 ROUTE = "/sbin/route"
+ETHTOOL = "/sbin/ethtool"
+IPERF = "/usr/bin/iperf"
+LMBENCH = "/usr/bin/lmbench"
+
+SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
+SSH_HOST_KEYS = '/root/.ssh/known_hosts'
+
+IPERF_RPM = "iperf-2.0.10-1.el7.x86_64.rpm"
+LMBENCH_RPM = "lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm"
+IOZONE_RPM = "iozone-3.471-1.el7.x86_64.rpm"
+BONNIE_RPM = "bonnie++-1.96-1.el7.rf.x86_64.rpm"
+PERL_RPMS = ["perl-5.16.3-292.el7.x86_64.rpm",
+             "perl-Carp-1.26-244.el7.noarch.rpm",
+             "perl-constant-1.27-2.el7.noarch.rpm",
+             "perl-Encode-2.51-7.el7.x86_64.rpm",
+             "perl-Exporter-5.68-3.el7.noarch.rpm",
+             "perl-File-Path-2.09-2.el7.noarch.rpm",
+             "perl-File-Temp-0.23.01-3.el7.noarch.rpm",
+             "perl-Filter-1.49-3.el7.x86_64.rpm",
+             "perl-Getopt-Long-2.40-2.el7.noarch.rpm",
+             "perl-HTTP-Tiny-0.033-3.el7.noarch.rpm",
+             "perl-libs-5.16.3-292.el7.x86_64.rpm",
+             "perl-List-MoreUtils-0.33-9.el7.x86_64.rpm",
+             "perl-macros-5.16.3-292.el7.x86_64.rpm",
+             "perl-parent-0.225-244.el7.noarch.rpm",
+             "perl-PathTools-3.40-5.el7.x86_64.rpm",
+             "perl-Pod-Escapes-1.04-292.el7.noarch.rpm",
+             "perl-podlators-2.5.1-3.el7.noarch.rpm",
+             "perl-Pod-Perldoc-3.20-4.el7.noarch.rpm",
+             "perl-Pod-Simple-3.28-4.el7.noarch.rpm",
+             "perl-Pod-Usage-1.63-3.el7.noarch.rpm",
+             "perl-Readonly-1.03-22.el7.noarch.rpm",
+             "perl-Readonly-XS-1.05-15.el7.x86_64.rpm",
+             "perl-Scalar-List-Utils-1.27-248.el7.x86_64.rpm",
+             "perl-Socket-2.010-4.el7.x86_64.rpm",
+             "perl-Storable-2.45-3.el7.x86_64.rpm",
+             "perl-Text-ParseWords-3.29-4.el7.noarch.rpm",
+             "perl-threads-1.87-4.el7.x86_64.rpm",
+             "perl-threads-shared-1.43-6.el7.x86_64.rpm",
+             "perl-Time-HiRes-1.9725-3.el7.x86_64.rpm",
+             "perl-Time-Local-1.2300-2.el7.noarch.rpm"]
+
 
 OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
                  'scatter-gather': 'sg',
@@ -269,28 +302,43 @@ OFFLOAD_FLAGS_OFFSET = {'sg': 1,
 ############# SSH KEY SETUP ##########################
 @log_exceptions
 def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
-    """execute an SSH command using the parimiko library, in order
-    to specify a password. Return the result to the caller."""
+    """execute an SSH command using the parimiko library, return both
+    exit code, stdout and stderr."""
     if dbg_str:
         log.debug(dbg_str)
 
+    # use uuid as random string
+    flag = "__%s__" % str(uuid.uuid4())
+    of = "/tmp/ack.stdout.%s.txt" % flag
+    ef = "/tmp/ack.stderr.%s.txt" % flag
+
+    # put cmd_str into single quotes and sh to run with redirection, e.g.
+    #   echo "$HOME" | sed 's/\///g'
+    #   sh -c 'echo "$HOME" | sed '\''s/\///g'\''' 1>of 2>ef
+    cmd_s = cmd_str.replace("'", r"'\''")
+    cmd_s = '''sh -c '%s' 1>%s 2>%s''' % (cmd_s, of, ef)
+    # catch exit code, stdout and stderr
+    cmd = '''%s; echo -n "$?%s"; cat %s; echo -n "%s"; cat %s; rm -f %s %s;''' % \
+          (cmd_s, flag, of, flag, ef, of, ef)
+
     for i in range(0, attempts):
-        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
+        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd))
 
         try:
-            cmd = ssh.SSHCommand(ip, cmd_str, log, username, 900, password)
-            return cmd.read("string").strip()
+            sshcmd = ssh.SSHCommand(ip, cmd, log, username, 900, password)
+            output = sshcmd.read("string")
         except Exception, e:
             log.debug("Exception: %s" % str(e))
-            if i + 1 == attempts:
-                # If we have reached our attempts limit, and still have
-                # raised an exception, we should elevate the exception.
-                log.debug("Max attempt reached %d/%d" % (i + 1, attempts))
-                raise e
             # Sleep before next attempt
             time.sleep(20)
+            continue
 
-    raise PluginError("An unkown error has occured!")
+        ret = output.split(flag)
+        if len(ret) == 3:
+            return {"returncode": int(ret[0]), "stdout": ret[1], "stderr": ret[2]}
+
+    log.debug("Max attempt reached %d/%d" % (attempts, attempts))
+    return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
 
 
 def install_ssh_key(session, vm_ref, username, password):
@@ -312,7 +360,8 @@ def install_ssh_key(session, vm_ref, username, password):
     cmd_str = "%s; %s" % (" ".join(cmd1), " ".join(cmd2))
 
     log.debug("Install SSH key command string: %s" % cmd_str)
-    ssh_command(vm_ip, username, password, cmd_str, "Installing SSH Key")
+    ssh_command(vm_ip, username, password, cmd_str,
+                "Installing SSH Key")["stdout"]
 
     # Disable hostkey checking
     call = [SSH, '-o', 'StrictHostKeyChecking=no', vm_ip]
@@ -478,24 +527,77 @@ def install_iperf(session, vm_ref, username, password):
     make_local_call(call)
     cmd_str = "rpm -i /root/%s" % IPERF_RPM
     log.debug(cmd_str)
-    ssh_command(ip_address, username, password, cmd_str)
+    ssh_command(ip_address, username, password, cmd_str)["stdout"]
 
 
-def make_local_call(call, logging=True):
+def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
     """Function wrapper for making a simple call to shell"""
     if logging:
         log.debug("make_local_call: %s" % (" ".join(call)))
-    process = subprocess.Popen(call, stdout=subprocess.PIPE)
+    process = subprocess.Popen(call, stdout=std_out, shell=shell)
     stdout, stderr = process.communicate()
     res = {"returncode": process.returncode, "stdout": str(
         stdout).strip(), "stderr": str(stderr).strip()}
-    if res["returncode"] != 0:
-        msg = "ERR: Could not make local call %s" % ' '.join(call)
-        if logging:
+    if logging:
+        log.debug("returncode: %d" % process.returncode)
+        log.debug("stdout: %s" % str(stdout))
+        log.debug("stderr: %s" % str(stderr))
+        if res["returncode"] != 0:
+            msg = "ERR: Could not make local call %s" % ' '.join(call)
             log.error(msg)
-            log.debug("stdout: %s" % str(stdout))
-            log.debug("stderr: %s" % str(stderr))
+
     return res
+
+
+@log_exceptions
+def upload_file(session, vm_ref, username, password, file):
+    """upload one file to VM"""
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    call = ['/usr/bin/scp',
+            "-o", "StrictHostKeyChecking=no",
+            "/opt/xensource/packages/files/auto-cert-kit/%s" % file,
+            'root@%s:' % ip_address]
+    log.debug(call)
+    make_local_call(call)
+
+
+@log_exceptions
+def run_command(session, vm_ref, username, password, cmd):
+    """run shell command on VM"""
+    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    log.debug(cmd)
+    return ssh_command(ip_address, username, password, cmd)
+
+
+def install_rpms(session, vm_ref, username, password, rpms):
+    """install a group of rpm"""
+    for rpm in rpms:
+        upload_file(session, vm_ref, username, password, rpm)
+    rpm_paths = ["/root/%s" % i for i in rpms]
+    cmd = "rpm -i %s --nosignature" % ' '.join(rpm_paths)
+    run_command(session, vm_ref, username, password, cmd)
+
+
+def install_rpm(session, vm_ref, username, password, rpm):
+    """install one rpm"""
+    install_rpms(session, vm_ref, username, password, [rpm])
+
+
+def install_vf_driver(session, vm_ref, username, password, package, driver_name):
+    """Install VF driver rpm on a droid vm"""
+    if package:
+        install_rpm(session, vm_ref, username, password, package)
+
+    if driver_name:
+        cmd = "echo %s > /etc/modules-load.d/%s.conf" % (
+            driver_name, driver_name)
+        run_command(session, vm_ref, username, password, cmd)
+
+
+def disable_net_dev_naming(session, vm_ref, username, password):
+    cmd = '''sed -i 's/\(GRUB_CMDLINE_LINUX=.*\)"/\\1 net.ifnames=0 biosdevname=0"/' /etc/default/grub;''' \
+          '''grub2-mkconfig -o /boot/grub2/grub.cfg;'''
+    run_command(session, vm_ref, username, password, cmd)
 
 
 def validate_xml_key(key):
@@ -545,6 +647,103 @@ def deploy_iperf(session, args):
 
     log.debug("iPerf installation completed")
     return json_dumps("OK")
+
+
+@log_exceptions
+def deploy_vf_driver(session, args):
+    """Install VF driver on a specified VM"""
+    log.debug("deploy VF driver plugin call")
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+    package = args['package']
+    driver_name = args['driver_name']
+
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        i = 0
+        limit = 10
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                install_vf_driver(session, vm_ref, username,
+                                  password, package, driver_name)
+                break
+            except:
+                log.debug(
+                    "Exception raised attempting to deploy VF driver. Attempt %d" % i)
+                i += 1
+                if i == limit:
+                    raise PluginError("Plugin Error: Cannot deploy VF driver")
+                time.sleep(8)
+
+    log.debug("VF driver installation completed")
+    return json_dumps("OK")
+
+
+@log_exceptions
+def disable_network_device_naming(session, args):
+    """Disable network device_naming, referrence:
+        https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/networking_guide/ch-consistent_network_device_naming
+        http://www.geekpills.com/operating-system/linux/change-default-network-interface-name-ens-old-eth-rhel7-centos7
+    """
+    log.debug("disable network device naming plugin call")
+    vm_ref = validate_exists(args, 'vm_ref')
+    username = validate_exists(args, 'username')
+    password = validate_exists(args, 'password')
+
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        i = 0
+        limit = 10
+        while i < limit:
+            try:
+                install_ssh_key(session, vm_ref, username, password)
+                disable_net_dev_naming(session, vm_ref, username, password)
+                break
+            except:
+                log.debug(
+                    "Exception raised attempting to disable network device naming. Attempt %d" % i)
+                i += 1
+                if i == limit:
+                    raise PluginError(
+                        "Plugin Error: Cannot disable network device naming")
+                time.sleep(5)
+
+    log.debug("disable network device naming completed")
+    return json_dumps("OK")
+
+
+def shell_run_on_guest(session, vm_ref, username, password, cmd):
+    if session.xenapi.VM.get_is_control_domain(vm_ref):
+        return {"returncode": -1, "stdout": "", "stderr": "DON'T run in control domain"}
+
+    return run_command(session, vm_ref, username, password, cmd)
+
+
+def shell_run_on_host(session, cmd):
+    try:
+        res = make_local_call([cmd], True, std_out=subprocess.PIPE, shell=True)
+    except Exception, e:
+        log.debug("Exception: %s" % str(e))
+        res = {"returncode": -1, "stdout": "", "stderr": ""}
+    return res
+
+
+@log_exceptions
+def shell_run(session, args):
+    """General interface execute shell command(s) on host and even guest VM"""
+    log.debug("shell run plugin call")
+    vm_ref = validate_exists(args, 'vm_ref', None, False)
+    username = validate_exists(args, 'username', "", False)
+    password = validate_exists(args, 'password', "", False)
+    cmd = validate_exists(args, 'cmd')
+    cmd = binascii.unhexlify(cmd)
+
+    if vm_ref:
+        res = shell_run_on_guest(session, vm_ref, username, password, cmd)
+    else:
+        res = shell_run_on_host(session, cmd)
+
+    return json_dumps([res])
 
 
 def get_pci_id(bus_id):
@@ -1160,9 +1359,19 @@ def reset_arp(session, args):
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
 
         # Global ARP Ignore
-        cmd = "%s net.ipv4.conf.all.arp_ignore=1" % SYSCTL
+        cmd = "%s net.ipv4.conf.all.arp_ignore=0" % SYSCTL
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
+
+        '''
+        # Revert arp_ignore to default 0, otherwise DLVM (CentOS 7.2) no interface will reply arp query.
+        # Because verified https://access.redhat.com/solutions/30564, but does not work
+        cmd = "%s net.ipv4.conf.all.arp_filter=1; %s net.ipv4.conf.default.arp_filter=1; " \
+              "%s net.ipv4.conf.all.arp_announce=2; %s net.ipv4.conf.default.arp_announce=2;" \
+              % (SYSCTL, SYSCTL, SYSCTL, SYSCTL)
+        call = [SSH, vm_m_ip, cmd]
+        make_local_call(call)
+        '''
 
         vifs = session.xenapi.VM.get_VIFs(vm_ref)
         for vif in vifs:
@@ -1331,21 +1540,6 @@ def retrieve_crashdumps(session, args):
     return json_dumps(_retrieve_crashdumps(session, args['host']))
 
 
-############### RPM Install #########################
-
-@log_exceptions
-def install_rpm(session, rpm_name, vm_ref, username, password):
-    """Install a predefined RPM"""
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
-    call = ['/usr/bin/scp', "-o", "StrictHostKeyChecking=no",
-            "/opt/xensource/packages/files/auto-cert-kit/%s" % rpm_name, 'root@%s:' % ip_address]
-    log.debug(call)
-    make_local_call(call)
-    cmd_str = "rpm -i /root/%s --nosignature" % rpm_name
-    log.debug(cmd_str)
-    ssh_command(ip_address, username, password, cmd_str)
-
-
 ############### LMbench Setup #########################
 @log_exceptions
 def copy_lmbench_config(session, vm_ref, username, password):
@@ -1358,7 +1552,8 @@ def copy_lmbench_config(session, vm_ref, username, password):
     # Determine where lmbench will be looking for the config
     # file, so that we can copy it to the correct place.
     cmd_str = "/usr/lib/lmbench/scripts/config"
-    config_file_name = ssh_command(ip_address, username, password, cmd_str)
+    config_file_name = ssh_command(
+        ip_address, username, password, cmd_str)["stdout"]
 
     log.debug("Deterined that VM %s needs lmbench config file named: %s" %
               (vm_ref, config_file_name))
@@ -1366,7 +1561,7 @@ def copy_lmbench_config(session, vm_ref, username, password):
     call = ['/usr/bin/scp',
             "-o", "StrictHostKeyChecking=no",
             LMBENCH_CONF_LOC,
-            'root@%s:/usr/lib/lmbench/bin/i686-pc-linux-gnu/%s' % (ip_address, config_file_name)]
+            'root@%s:/usr/lib/lmbench/bin/x86_64-linux-gnu/%s' % (ip_address, config_file_name)]
     log.debug(call)
     return make_local_call(call)["stdout"]
 
@@ -1386,8 +1581,8 @@ def deploy_lmbench(session, args):
         while i < limit:
             try:
                 install_ssh_key(session, vm_ref, username, password)
-                install_rpm(session, MAKE_RPM, vm_ref, username, password)
-                install_rpm(session, LMBENCH_RPM, vm_ref, username, password)
+                install_rpms(session, vm_ref, username, password, PERL_RPMS)
+                install_rpm(session, vm_ref, username, password, LMBENCH_RPM)
                 copy_lmbench_config(session, vm_ref, username, password)
                 break
             except:
@@ -1411,10 +1606,10 @@ def retrieve_lmbench_logs(session, args):
     ip_address = wait_for_ip(session, vm_ref, 'eth0')
 
     # Make sure the logs exists
-    results_dir = '/usr/lib/lmbench/results/i686-pc-linux-gnu/'
+    results_dir = '/usr/lib/lmbench/results/x86_64-linux-gnu/'
     cmd_str = "ls %s* | wc -l" % results_dir
     log.debug(cmd_str)
-    response = ssh_command(ip_address, username, password, cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)["stdout"]
 
     if int(response) == 0:
         raise Exception(
@@ -1431,7 +1626,7 @@ def retrieve_lmbench_logs(session, args):
 
     # SCP the logs to the master host
     call = ["/usr/bin/scp", "-o", "StrictHostKeyChecking=no",
-            "root@%s:/usr/lib/lmbench/results/i686-pc-linux-gnu/*" % ip_address,
+            "root@%s:/usr/lib/lmbench/results/x86_64-linux-gnu/*" % ip_address,
             vm_lmbench_results_dir]
 
     log.debug(call)
@@ -1462,7 +1657,8 @@ def deploy_iozone(session, args):
         while i < limit:
             try:
                 install_ssh_key(session, vm_ref, username, password)
-                install_rpm(session, IOZONE_RPM, vm_ref, username, password)
+                install_rpms(session, vm_ref, username, password, PERL_RPMS)
+                install_rpm(session, vm_ref, username, password, IOZONE_RPM)
                 break
             except:
                 log.debug(
@@ -1487,7 +1683,7 @@ def retrieve_iozone_logs(session, args):
     # Make sure the logs exists
     cmd_str = "test -e /root/localhost.log"
     log.debug(cmd_str)
-    response = ssh_command(ip_address, username, password, cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)["stdout"]
     if "error" in response:
         raise Exception("Cannot retrieve Iozone log from VM %s" % vm_ref)
 
@@ -1515,7 +1711,8 @@ def deploy_bonnie(session, args):
         while i < limit:
             try:
                 install_ssh_key(session, vm_ref, username, password)
-                install_rpm(session, BONNIE_RPM, vm_ref, username, password)
+                install_rpms(session, vm_ref, username, password, PERL_RPMS)
+                install_rpm(session, vm_ref, username, password, BONNIE_RPM)
                 vm_ip = wait_for_ip(session, vm_ref, 'eth0')
                 ssh_command(vm_ip, username, password,
                             'mkdir -m a=rwx /root/bonnie; useradd citrix; chown citrix /root/bonnie')
@@ -1543,7 +1740,7 @@ def retrieve_bonnie_logs(session, args):
     # Make sure the logs exists
     cmd_str = "test -e /root/localhost.log"
     log.debug(cmd_str)
-    response = ssh_command(ip_address, username, password, cmd_str)
+    response = ssh_command(ip_address, username, password, cmd_str)["stdout"]
     if "error" in response:
         raise Exception("Cannot retrieve Bonnie++ log from VM %s" % vm_ref)
 
@@ -1603,8 +1800,10 @@ def droid_set_static_conf(session, args):
 def droid_template_import(session, args):
     """Import a xva using fully specified location"""
     # Need to encode/decode URI as it has unsafe characters for transmission.
-    filename = DROID_VM_LOC
+
     sr_uuid = validate_exists(args, 'sr_uuid')
+    vpx_dlvm_file = validate_exists(args, 'vpx_dlvm_file')
+    filename = "%s/%s" % (INSTALL_DIR, vpx_dlvm_file)
     call = [XE, 'vm-import', 'filename=%s' % filename, 'sr-uuid=%s' % sr_uuid]
     return json_dumps(make_local_call(call)["stdout"])
 
@@ -2009,5 +2208,8 @@ if __name__ == '__main__':
                            'get_ack_version': get_ack_version,
                            'run_ack_logrotate': run_ack_logrotate,
                            'retrieve_crashdumps': retrieve_crashdumps,
-                           'force_crash_host': force_crash_host
+                           'force_crash_host': force_crash_host,
+                           'deploy_vf_driver': deploy_vf_driver,
+                           'disable_network_device_naming': disable_network_device_naming,
+                           'shell_run': shell_run
                            })

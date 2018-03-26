@@ -46,6 +46,8 @@ import base64
 import threading
 import re
 import json
+import binascii
+import uuid
 
 from acktools.net import route, generate_mac
 import acktools.log
@@ -66,12 +68,21 @@ LOG_LOC = "/var/log/auto-cert-kit.log"
 # Capability Tags
 REQ_CAP = "REQ"
 MULTICAST_CAP = "MULTICAST"
+SRIOV_CAP = "SR-IOV"
+
+# XCP minimum version with SR-IOV support
+XCP_MIN_VER_WITH_SRIOV = "2.5.50"  # target 2.6.0, waiting K release branched
 
 # XAPI States
 XAPI_RUNNING_STATE = "Running"
 
+# allow to use specific
+vpx_dlvm_file = "vpx-dlvm.xva"
 
-# Logger
+LSPCI = "/sbin/lspci"
+ETHTOOL = "/sbin/ethtool"
+
+
 def configure_logging():
     """Method for configuring Logging"""
     global log
@@ -103,7 +114,12 @@ def init_ack_logging(session, rotate=True):
     log_basic_info(session)
 
 
-# Exceptions
+def os_uptime():
+    with open('/proc/uptime', 'r') as f:
+        uptime_seconds = float(f.readline().split()[0])
+        return uptime_seconds
+
+
 class TestCaseError(Exception):
     """A subclassed exception object, which is raised by any
     test failure"""
@@ -652,22 +668,33 @@ def clear_reboot_flag(flag=REBOOT_FLAG_FILE):
         os.remove(flag)
 
 
-def host_reboot(session, running_tc_info=None):
-    log.debug("Attempting to reboot the host")
-    # Cleanup all the running vms
-    pool_wide_cleanup(session)
-
+def reboot_all_hosts(session):
     master = get_pool_master(session)
-
     hosts = session.xenapi.host.get_all()
     for host in hosts:
         session.xenapi.host.disable(host)
         if host != master:
             session.xenapi.host.reboot(host)
-
-    set_reboot_flag(running_tc_info)
-
     session.xenapi.host.reboot(master)
+
+
+def reboot_normally(session):
+    log.debug("Reboot all hosts normally")
+    reboot_all_hosts(session)
+    try:
+        # Just wait host reboot and do not exit immediately,
+        # otherwise status.py will get wrong status then
+        time.sleep(300)
+        sys.exit(REBOOT_ERROR_CODE)
+    except Exception, e:
+        log.debug("ACK exit normally")
+
+
+def host_reboot(session):
+    log.debug("Attempting to reboot the host")
+    # Cleanup all the running vms
+    pool_wide_cleanup(session)
+    reboot_all_hosts(session)
     log.debug("Rebooted master")
     sys.exit(REBOOT_ERROR_CODE)
 
@@ -889,6 +916,65 @@ def get_equivalent_devices(session, device):
               for dev in devices if device['PCI_id'] == dev['PCI_id']]
     log.debug("Equivalent devices for %s: %s" % (device, ifaces))
     return ifaces
+
+
+def has_sriov_cap(session, device):
+    master_ref = get_pool_master(session)
+    pifs_ref = get_pifs_by_device(session, device, [master_ref])
+    caps = session.xenapi.PIF.get_capabilities(pifs_ref[0])
+    return 'sriov' in caps
+
+
+def enable_vf(session, device, host, network_label):
+    pifs_ref = get_pifs_by_device(session, device, [host])
+    net_ref = create_network(session, network_label, '', {})
+    net_sriov_ref = session.xenapi.network_sriov.create(pifs_ref[0], net_ref)
+    # no "other_config" field for FOR_CLEANUP
+
+    return (net_ref, net_sriov_ref)
+
+
+def get_test_sriov_network(session, network_label):
+    networks = session.xenapi.network.get_all()
+    for net in networks:
+        label = session.xenapi.network.get_name_label(net)
+        if label == network_label:
+            return net
+
+    return None
+
+
+def is_vf_disabled(session):
+    cmd = b"%s | grep 'Virtual Function' | wc -l" % LSPCI
+    cmd = binascii.hexlify(cmd)
+    sum = 0
+    for host in session.xenapi.host.get_all():
+        res = call_ack_plugin(session, 'shell_run', {'cmd': cmd}, host)
+        res = res.pop()
+        log.debug("Found %s VF on host %s" % (res["stdout"], str(host)))
+        sum += int(res["stdout"]) if int(res["returncode"]) == 0 else 1
+    log.debug("Found total %d VF" % sum)
+
+    return sum == 0
+
+
+def get_vf_driver_info(session, host, vm_ref, device):
+    cmd = b"%s -i %s" % (ETHTOOL, device)
+    log.debug("get_vf_driver_info: %s" % cmd)
+    cmd = binascii.hexlify(cmd)
+    res = call_ack_plugin(session, 'shell_run',
+                          {'cmd': cmd, 'vm_ref': vm_ref,
+                           'username': 'root', 'password': DEFAULT_PASSWORD},
+                          host)
+    ret = {}
+    filter_re = re.compile(r"(?P<key>driver|version|bus-info): (?P<value>.*)")
+    for line in res.pop()['stdout'].split('\n'):
+        # line sample: "driver: e1000e"
+        match = filter_re.match(line)
+        if match:
+            ret[match.group("key")] = match.group("value")
+
+    return ret
 
 
 def get_management_network(session):
@@ -1119,7 +1205,7 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
             (interface, packet_size, count, dst_vm_ip)
     log.debug("Ping: %s" % cmd_str)
     result = ssh_command(vm_ip, username, password,
-                         cmd_str, attempts=10).split('\n')
+                         cmd_str, attempts=10)["stdout"].split('\n')
     log.debug("Results= %s" % result)
     for line in result:
         log.debug("SSH Line: %s" % line)
@@ -1130,29 +1216,45 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
                         % result)
 
 
+@log_exceptions
 def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
-    """execute an SSH command using the parimiko library, in order
-    to specify a password. Return the result to the caller."""
+    """execute an SSH command using the parimiko library, return both
+    exit code, stdout and stderr."""
     if dbg_str:
         log.debug(dbg_str)
 
+    # use uuid as random string
+    flag = "__%s__" % str(uuid.uuid4())
+    of = "/tmp/ack.stdout.%s.txt" % flag
+    ef = "/tmp/ack.stderr.%s.txt" % flag
+
+    # put cmd_str into single quotes and sh to run with redirection, e.g.
+    #   echo "$HOME" | sed 's/\///g'
+    #   sh -c 'echo "$HOME" | sed '\''s/\///g'\''' 1>of 2>ef
+    cmd_s = cmd_str.replace("'", r"'\''")
+    cmd_s = '''sh -c '%s' 1>%s 2>%s''' % (cmd_s, of, ef)
+    # catch exit code, stdout and stderr
+    cmd = '''%s; echo -n "$?%s"; cat %s; echo -n "%s"; cat %s; rm -f %s %s;''' % \
+          (cmd_s, flag, of, flag, ef, of, ef)
+
     for i in range(0, attempts):
-        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
+        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd))
 
         try:
-            cmd = ssh.SSHCommand(ip, cmd_str, log, username, 900, password)
-            return cmd.read("string").strip()
+            sshcmd = ssh.SSHCommand(ip, cmd, log, username, 900, password)
+            output = sshcmd.read("string")
         except Exception, e:
             log.debug("Exception: %s" % str(e))
-            if i + 1 == attempts:
-                # If we have reached our attempts limit, and still have
-                # raised an exception, we should elevate the exception.
-                log.debug("Max attempt reached %d/%d" % (i + 1, attempts))
-                raise e
             # Sleep before next attempt
             time.sleep(20)
+            continue
 
-    raise Exception("An unkown error has occured!")
+        ret = output.split(flag)
+        if len(ret) == 3:
+            return {"returncode": int(ret[0]), "stdout": ret[1], "stderr": ret[2]}
+
+    log.debug("Max attempt reached %d/%d" % (attempts, attempts))
+    return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
 
 
 def plug_pif(session, pif):
@@ -1246,8 +1348,11 @@ def pool_wide_cleanup(session, tag=FOR_CLEANUP):
     and remove them as part of a cleanup operation"""
     log.debug("**Performing pool wide cleanup...**")
     pool_wide_vm_cleanup(session, tag)
+    need_reboot = pool_wide_network_sriov_cleanup(session, tag)
     pool_wide_network_cleanup(session, tag)
     pool_wide_host_cleanup(session)
+
+    return need_reboot
 
 
 def host_cleanup(session, host):
@@ -1320,6 +1425,21 @@ def pool_wide_vm_cleanup(session, tag):
                 session.xenapi.VM.set_other_config(vm, oc)
 
 
+def pool_wide_network_sriov_cleanup(session, tag):
+    """Searches for network sriov, and destroys"""
+
+    if get_xcp_version(session) < XCP_MIN_VER_WITH_SRIOV:
+        return False
+
+    sriov_nets = session.xenapi.network_sriov.get_all()
+    for network in sriov_nets:
+        # no "other_config" field for FOR_CLEANUP, so cleanup all
+        session.xenapi.network_sriov.destroy(network)
+
+    need_reboot = not is_vf_disabled(session)
+    return need_reboot
+
+
 def pool_wide_network_cleanup(session, tag):
     """Searches for networks with a cleanup tag, and
     destroys if found"""
@@ -1379,7 +1499,7 @@ def get_module_names(name_filter):
 def droid_template_import(session, host_ref, sr_uuid):
     """Import the droid template into the specified SR"""
     # Note, the filename should be fully specified.
-    args = {'sr_uuid': sr_uuid}
+    args = {'sr_uuid': sr_uuid, 'vpx_dlvm_file': vpx_dlvm_file}
     return call_ack_plugin(session, 'droid_template_import', args, host=host_ref)
 
 
@@ -1681,9 +1801,31 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
     return vm_ref
 
 
-def deploy_two_droid_vms(session, network_refs, sms=None):
-    """A utility method for setting up two VMs, one on the primary host,
-    and one on a slave host"""
+def import_droid_vm_on_host(session, host, label):
+    """Import one VM on host"""
+    log.debug("Creating required VMs")
+
+    # Get template references
+    dmt_ref = prepare_droid_vm(session, host)
+
+    results = run_xapi_async_tasks(session,
+                                   [lambda: session.xenapi.Async.VM.clone(dmt_ref,
+                                                                          label)])
+    if len(results) != 1:
+        raise Exception("Expect to clone 1 vms - only got %d results"
+                        % len(results))
+
+    vm_ref = results[0]
+
+    brand_vm(session, vm_ref, FOR_CLEANUP)
+    session.xenapi.VM.set_is_a_template(vm_ref, False)
+    make_vm_noninteractive(session, vm_ref)
+
+    return vm_ref
+
+
+def import_two_droid_vms(session, network_refs, sms=None):
+    """Import two VMs, one on the primary host, and one on a slave host"""
 
     host_master_ref = get_pool_master(session)
     host_slave_refs = get_pool_slaves(session)
@@ -1722,33 +1864,111 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
     make_vm_noninteractive(session, vm1_ref)
     make_vm_noninteractive(session, vm2_ref)
 
-    log.debug("Setup vms on network")
-    i = 0
+    return (host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
+
+
+def config_network_for_droid_vm(session, vm_ref, network_ref, did, sms=None):
+    """Setup VM network"""
+
+    device = 'eth%d' % did
+
+    log.debug("Setting interfaces up for %s" % device)
+    # Note: only remove all existing networks on first run.
+    vif_ref = setup_vm_on_network(
+        session, vm_ref, network_ref, device, wipe=(did == 0))
+
+    log.debug("Static Manager Recs: %s" % sms)
+    if sms and network_ref in sms.keys() and sms[network_ref]:
+        static_manager = sms[network_ref]
+        ip = static_manager.get_ip()
+        log.debug("IP: %s Netmask: %s Gateway: %s" %
+                  (ip.addr, ip.netmask, ip.gateway))
+
+        droid_set_static(session, vm_ref, 'ipv4', device,
+                         ip.addr, ip.netmask, ip.gateway)
+
+    return vif_ref
+
+
+def config_networks_for_droid_vm(session, vm_ref, network_refs, id_start=0, sms=None):
+    """Setup VM networks"""
+
+    log.debug("Setup vm %s on network" % vm_ref)
+
+    vif_list = []
+    i = id_start
     for network_ref in network_refs:
-        log.debug("Setting interfaces up for eth%d" % i)
-        # Note: only remove all existing networks on first run.
-        setup_vm_on_network(session, vm1_ref, network_ref,
-                            'eth%d' % i, wipe=(i == 0))
-        setup_vm_on_network(session, vm2_ref, network_ref,
-                            'eth%d' % i, wipe=(i == 0))
+        vif_ref = config_network_for_droid_vm(
+            session, vm_ref, network_ref, i, sms)
+        vif_list.append(vif_ref)
+        i += 1
 
-        log.debug("Static Manager Recs: %s" % sms)
-        if sms and network_ref in sms.keys() and sms[network_ref]:
-            static_manager = sms[network_ref]
-            ip1 = static_manager.get_ip()
-            ip2 = static_manager.get_ip()
-            log.debug("1) IP: %s Netmask: %s Gateway: %s" %
-                      (ip1.addr, ip1.netmask, ip1.gateway))
-            log.debug("2) IP: %s Netmask: %s Gateway: %s" %
-                      (ip2.addr, ip2.netmask, ip2.gateway))
+    return vif_list
 
-            droid_set_static(session, vm1_ref, 'ipv4', 'eth%d' % i,
-                             ip1.addr, ip1.netmask, ip1.gateway)
-            droid_set_static(session, vm2_ref, 'ipv4', 'eth%d' % i,
-                             ip2.addr, ip2.netmask, ip2.gateway)
 
-        # Increment the counter
-        i = i + 1
+def shutdown_droid_vms(session, vms, async=True):
+    """Shutdown two VMs"""
+
+    log.debug("Shutdown required VMs")
+    if async:
+        try:
+            run_xapi_async_tasks(session,
+                                 [lambda x=vm_ref: session.xenapi.Async.VM.shutdown(x)
+                                  for vm_ref in vms],
+                                 180)
+
+        except TimeoutFunctionException, e:
+            log.debug("Timed out while shutdowning VMs: %s" % e)
+    else:
+        for i in vms:
+            session.xenapi.VM.shutdown(i)
+
+
+def start_droid_vms(session, vms, async=True):
+    """Start two VMs"""
+
+    log.debug("Starting required VMs")
+    if async:
+        try:
+            # Temporary setting time out to 3 mins to work around CA-146164.
+            # The fix requires hotfixes, hence keeping this work-around.
+            run_xapi_async_tasks(session,
+                                 [lambda x=vm_ref, y=host_ref: session.xenapi.Async.VM.start_on(x, y, False, False)
+                                  for host_ref, vm_ref in vms],
+                                 180)
+
+        except TimeoutFunctionException, e:
+            # Temporary ignore time out to start VM.
+            # If VM failed to start, test will fail while checking IPs.
+            log.debug("Timed out while starting VMs: %s" % e)
+            log.debug(
+                "Async call timed out but VM may started properly. tests go on.")
+    else:
+        for host_ref, vm_ref in vms:
+            session.xenapi.VM.start_on(vm_ref, host_ref, False, False)
+
+    # Temp fix for establishing that a VM has fully booted before
+    # continuing with executing commands against it.
+    log.debug("Wait for IPs...")
+    for _, vm_ref in vms:
+        wait_for_all_ips(session, vm_ref)
+    log.debug("IP's retrieved...")
+
+    # Make plugin calls
+    for _, vm_ref in vms:
+        # Install SSH Keys for Plugin operations
+        call_ack_plugin(session, 'inject_ssh_key',
+                        {'vm_ref': vm_ref,
+                                 'username': 'root',
+                                 'password': DEFAULT_PASSWORD})
+
+        # Ensure that we make sure the switch accesses IP addresses by
+        # their own interfaces (avoid interface forwarding).
+        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref})
+
+
+def start_two_droid_vms(session, host_master_ref, host_slave_ref, vm1_ref, vm2_ref):
+    """Start two VMs"""
 
     log.debug("Starting required VMs")
     try:
@@ -1788,7 +2008,175 @@ def deploy_two_droid_vms(session, network_refs, sms=None):
         # their own interfaces (avoid interface forwarding).
         call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref})
 
+
+def deploy_two_droid_vms(session, network_refs, sms=None):
+    """A utility method for setting up two VMs, one on the primary host, and one on a slave host"""
+
+    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(
+        session, network_refs, sms)
+    config_networks_for_droid_vm(session, vm1_ref, network_refs, 0, sms)
+    config_networks_for_droid_vm(session, vm2_ref, network_refs, 0, sms)
+    start_two_droid_vms(session, host_master_ref,
+                        host_slave_ref, vm1_ref, vm2_ref)
+
     return vm1_ref, vm2_ref
+
+
+def setup_vm_for_sriov(session, vm_ref, vf_driver):
+    args = {'vm_ref': vm_ref,
+            'username': 'root',
+            'password': DEFAULT_PASSWORD}
+    call_ack_plugin(session, 'disable_network_device_naming', args)
+
+    # management network is ready then install VF driver on VM, reboot VM again
+    args = {'vm_ref': vm_ref,
+            'username': 'root',
+            'password': DEFAULT_PASSWORD,
+            'package': vf_driver[1],
+            'driver_name': vf_driver[0]}
+    call_ack_plugin(session, 'deploy_vf_driver', args)
+
+
+def deploy_two_droid_vms_for_sriov_inter_host_test(session, vf_driver, network_refs, sms=None):
+    """A utility method for setting up two VMs, one on the primary host for SR-IOV test network,
+    and one on a slave host"""
+
+    host_master_ref, host_slave_ref, vm1_ref, vm2_ref = import_two_droid_vms(
+        session, network_refs, sms)
+
+    # config management network
+    config_network_for_droid_vm(session, vm1_ref, network_refs[1][0], 0, sms)
+    config_network_for_droid_vm(session, vm2_ref, network_refs[0][0], 0, sms)
+    start_droid_vms(session, [(host_master_ref, vm1_ref),
+                              (host_slave_ref, vm2_ref)])
+
+    setup_vm_for_sriov(session, vm1_ref, vf_driver)
+
+    shutdown_droid_vms(session, [vm1_ref, vm2_ref])
+
+    # config test networks
+    config_networks_for_droid_vm(session, vm1_ref, network_refs[1][1:], 1, sms)
+    config_networks_for_droid_vm(session, vm2_ref, network_refs[0][1:], 1, sms)
+    start_droid_vms(session, [(host_master_ref, vm1_ref),
+                              (host_slave_ref, vm2_ref)])
+
+    return vm1_ref, vm2_ref
+
+
+def deploy_two_droid_vms_for_sriov_intra_host_test_vf_to_vif(session, vf_driver, network_refs, sms=None):
+    """A utility method for setting up two VMs on primary host, one with VF, the other with VIF"""
+
+    host_master_ref = get_pool_master(session)
+    vm_vf_ref = import_droid_vm_on_host(session, host_master_ref, 'droid_vf')
+    vm_vif_ref = import_droid_vm_on_host(session, host_master_ref, 'droid_vif')
+
+    # config management network
+    config_network_for_droid_vm(session, vm_vf_ref, network_refs[1][0], 0, sms)
+    start_droid_vms(session, [(host_master_ref, vm_vf_ref),
+                              (host_master_ref, vm_vif_ref)])
+
+    setup_vm_for_sriov(session, vm_vf_ref, vf_driver)
+
+    shutdown_droid_vms(session, [vm_vf_ref, vm_vif_ref])
+
+    # config test networks
+    config_networks_for_droid_vm(
+        session, vm_vf_ref, network_refs[1][1:], 1, sms)
+    config_networks_for_droid_vm(
+        session, vm_vif_ref, network_refs[0][1:], 1, sms)
+    start_droid_vms(session, [(host_master_ref, vm_vf_ref),
+                              (host_master_ref, vm_vif_ref)])
+
+    return vm_vf_ref, vm_vif_ref
+
+
+def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, network_refs, sms=None, vm_count=1, vf_count=1):
+    """A utility method for setting up count VMs on primary host, with VFs evenly"""
+    vf_num_list = [0] * vm_count
+    for i in range(vf_count):
+        vf_num_list[i % vm_count] += 1
+
+    host_master_ref = get_pool_master(session)
+    vm_list = []
+    vif_list = []
+    vif_group = {}
+    for i in range(vm_count):
+        vm_ref = import_droid_vm_on_host(
+            session, host_master_ref, 'droid_%d_vf' % i)
+
+        # config management network
+        config_network_for_droid_vm(
+            session, vm_ref, network_refs[1][0], 0, sms)
+        start_droid_vms(session, [(host_master_ref, vm_ref)])
+
+        setup_vm_for_sriov(session, vm_ref, vf_driver)
+
+        # create default interface files
+        for j in range(1, vf_num_list[i] + 1):
+            droid_add_ifcfg(session, host_master_ref, vm_ref, "eth%d" % j)
+
+        shutdown_droid_vms(session, [vm_ref])
+
+        # config test networks
+        vifs_of_vm = []
+        for j in range(1, vf_num_list[i] + 1):
+            vifs = config_networks_for_droid_vm(
+                session, vm_ref, network_refs[1][1:], j, sms)
+            vifs_of_vm += vifs
+
+        start_droid_vms(session, [(host_master_ref, vm_ref)])
+
+        vm_list.append(vm_ref)
+        vif_list += vifs_of_vm
+        vif_group[vm_ref] = vifs_of_vm
+
+    return vm_list, vif_list, vif_group
+
+
+def verify_vif_status(session, vifs, status):
+    for vif in vifs:
+        if session.xenapi.VIF.get_currently_attached(vif) != status:
+            log.debug(
+                "Error: vif %s currently-attached is not %s" % (vif, status))
+            raise TestCaseError(
+                'Error: SR-IOV test failed. VF currently-attached is incorrect')
+
+
+def verify_vif_config(session, host, vif_group):
+    for vm_ref, vifs in vif_group.iteritems():
+        devices = get_vm_interface(session, host, vm_ref)
+        log.debug("VM %s contains interface %s" % (vm_ref, devices))
+
+        # get all MAC
+        all_mac = []
+        for _, values in devices.iteritems():
+            all_mac.append(values[0])
+
+        for vif in vifs:
+            vif_rec = session.xenapi.VIF.get_record(vif)
+            log.debug("VIF %s device: %s, MAC: %s" %
+                      (vif, vif_rec['device'], vif_rec['MAC']))
+
+            # check MAC
+            if vif_rec['MAC'] not in all_mac:
+                log.debug(
+                    "Error: MAC %s does not match any interface" % vif_rec['MAC'])
+                raise TestCaseError(
+                    'Error: SR-IOV test failed. VF MAC does not match any interface')
+
+
+def droid_add_ifcfg(session, host, vm_ref, iface):
+    cmd = b'''echo "DEVICE=%s\nBOOTPROTO=dhcp\nONBOOT=yes" > "%s/ifcfg-%s"''' \
+          % (iface, "/etc/sysconfig/network-scripts", iface)
+    cmd = binascii.hexlify(cmd)
+    args = {'vm_ref': vm_ref,
+            'username': 'root',
+            'password': DEFAULT_PASSWORD,
+            'cmd': cmd}
+    res = call_ack_plugin(session, 'shell_run', args, host)
+    res = res.pop()
+    if int(res["returncode"]) != 0:
+        log.debug("Failed to add ifcfg file")
 
 
 def droid_set_static(session, vm_ref, protocol, iface, ip, netmask, gw):
@@ -1906,6 +2294,43 @@ def get_vm_device_mac(session, vm_ref, device):
                         (device, vm_ref))
 
 
+def get_vm_interface(session, host, vm_ref):
+    """use ip command to get all interface (eth) information"""
+
+    # e.g. ret["eth0"] = {"ec:f4:bb:ce:91:9c", "10.62.114.80"}
+    ret = {}
+
+    # cmd output: "eth0: ec:f4:bb:ce:91:9c"
+    cmd = b"""ip -o link | awk '{if($2 ~ /^eth/) print $2,$(NF-2)}'"""
+    log.debug("get_vm_interface: %s" % cmd)
+    cmd = binascii.hexlify(cmd)
+    res = call_ack_plugin(session, 'shell_run',
+                          {'cmd': cmd, 'vm_ref': vm_ref,
+                           'username': 'root', 'password': DEFAULT_PASSWORD},
+                          host)
+    mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")
+    for line in res.pop()['stdout'].strip().split('\n'):
+        match = mac_re.match(line)
+        if match:
+            ret[match.group('device')] = [match.group('mac')]
+
+    # cmd output: "eth0 10.62.114.80/21"
+    cmd = b"""ip -o -f inet addr | awk '{if($2 ~ /^eth/) print $2,$4}'"""
+    log.debug("get_vm_interface: %s" % cmd)
+    cmd = binascii.hexlify(cmd)
+    res = call_ack_plugin(session, 'shell_run',
+                          {'cmd': cmd, 'vm_ref': vm_ref,
+                           'username': 'root', 'password': DEFAULT_PASSWORD},
+                          host)
+    ip_re = re.compile(r"(?P<device>.*) (?P<ip>.*)")
+    for line in res.pop()['stdout'].strip().split('\n'):
+        match = ip_re.match(line)
+        if match:
+            ret[match.group('device')].append(match.group('ip'))
+
+    return ret
+
+
 def get_iface_statistics(session, vm_ref, iface):
     res = call_ack_plugin(session, 'get_iface_stats',
                           {'iface': iface,
@@ -1973,6 +2398,15 @@ def get_system_info_tabular(session):
 def get_master_network_devices(session):
     nics = call_ack_plugin(session, 'get_network_devices')
     log.debug("Network Devices found on machine(Plugin): '%s'" % nics)
+
+    # remove invalid keys of nic which violates xml, referring to
+    # https://stackoverflow.com/questions/19677315/xml-tagname-starting-with-number-is-not-working
+    for n in nics:
+        for k in n.keys():
+            if k and k[0].isdigit():
+                n.pop(k)
+                log.debug("Remove invalid key %s from %s" % (k, n['PCI_name']))
+
     hwinfo_devs = get_system_info_hwinfo(session)
     if hwinfo_devs:
         nics_hw = hwinfo_devs['nics']

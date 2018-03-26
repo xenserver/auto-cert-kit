@@ -1,8 +1,8 @@
-#Interface = Network ID,VLANs
-eth0 = 0,[200,204,240]
-eth1 = 1,[200,124]
-eth2 = 0,[204,240]
-eth3 = 1,[200]
+#Interface = Network ID,VLANs,VF Driver Name,VF Driver Package
+eth0 = 0,[200,204,240],vf_driver_name,vf_driver_pkg.rpm
+eth1 = 1,[200,124],vf_driver_name,
+eth2 = 0,[204,240],,vf_driver_pkg.rpm
+eth3 = 1,[200],,
 
 # For static addressing, each network/vlan combination needs to be
 # explicitly stated, otherwise we assume DHCP is available. The syntax can

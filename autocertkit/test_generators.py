@@ -70,6 +70,20 @@ class TestGenerator(object):
         execution."""
         return
 
+    def select_test_by_config(self, test_classes):
+        """Select test classes to run by config"""
+        if "run_classes" not in self.config.keys():
+            return test_classes
+
+        classes = self.config["run_classes"].split()
+        ret = []
+        for cla in classes:
+            for i in test_classes:
+                # i is tuple of ("class name", class obj)
+                if cla == i[0]:
+                    ret.append(i)
+        return ret
+
     def filter_test_classes(self, test_classes):
         """optional filter method that could be used to remove particular tests from the
         normal set if required. List consists of (testname, testclass)"""
@@ -185,6 +199,15 @@ class TestGenerator(object):
                                                              (test_class_name.split('.')[1], str(method))))
                 method_node.appendChild(testname_node)
 
+                status_node = doc.createElement('status')
+                if skipthis:
+                    status_node.appendChild(doc.createTextNode('done'))
+                else:
+                    status_node.appendChild(doc.createTextNode('init'))
+                control_node = doc.createElement('control')
+                method_node.appendChild(status_node)
+                method_node.appendChild(control_node)
+
                 class_node.appendChild(method_node)
 
             cts_node.appendChild(class_node)
@@ -219,6 +242,9 @@ class NetworkAdapterTestGenerator(TestGenerator):
         # Handle the case where XenRT wants to not run the bonding test case
         # due to the fact the machines are not configured with two NICs
 
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         def append_filter(testname, dont_run):
             for item in dont_run:
                 if item in testname:
@@ -247,6 +273,9 @@ class ProcessorTestGenerator(TestGenerator):
     TAG = 'CPU'
 
     def filter_test_classes(self, test_classes):
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         if 'CPU' in self.config['exclude']:
             return []
         return test_classes
@@ -268,6 +297,9 @@ class StorageTestGenerator(TestGenerator):
         self.device = device
 
     def filter_test_classes(self, test_classes):
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         if 'LSTOR' in self.config['exclude']:
             return []
         return test_classes
@@ -283,6 +315,9 @@ class OperationsTestGenerator(TestGenerator):
     TAG = 'OP'
 
     def filter_test_classes(self, test_classes):
+        if "run_classes" in self.config.keys():
+            return self.select_test_by_config(test_classes)
+
         if 'OPS' in self.config['exclude']:
             return []
         if 'CRASH' in self.config['exclude']:
@@ -375,7 +410,8 @@ def print_documentation(object_name):
         arr = (object_name).split('.')
         if test_class_name == object_name:
             # get the class info
-            print "%s: %s" % (utils.bold('Prereqs'), test_class.required_config)
+            print "%s: %s" % (utils.bold('Prereqs'),
+                              test_class.required_config)
             print "%s: %s" % (utils.bold('Collects'), test_class.collects)
             print ""
             print utils.format(test_class.__doc__)

@@ -53,6 +53,7 @@ from exceptions import *
 
 MIN_VLAN = 0
 MAX_VLAN = 4096
+INSTALL_DIR = '/opt/xensource/packages/files/auto-cert-kit'
 
 
 def get_xapi_session(config):
@@ -140,6 +141,19 @@ def parse_cmd_args():
         for k, v in kvp_rec.iteritems():
             config[k] = v
 
+    # Check if files exist
+    file_opts = [("vpx_dlvm_file", "VPX DLVM file")]
+    for opt, label in file_opts:
+        if opt in config.keys():
+            assert_file_exists(os.path.join(INSTALL_DIR, config[opt]), label)
+
+    for key, value in config['netconf'].iteritems():
+        if key.startswith('eth'):
+            vf_driver_pkg = value['vf_driver_pkg']
+            if vf_driver_pkg:
+                assert_file_exists(os.path.join(
+                    INSTALL_DIR, vf_driver_pkg), "VF driver rpm package")
+
     return config
 
 
@@ -169,34 +183,49 @@ def parse_netconf_file(filename):
         key, value = [items.strip() for items in arr.split('=')]
 
         if key.startswith('eth'):
-            # Each line is in the format:
-            # ethX = 3,[235,236,237]
-            csv = [v.strip() for v in value.split(',')]
-
             # Ethernet Interface
             utils.log.debug("Ethernet Interface: '%s'" % key)
+
+            # Each line is in the format:
+            # ethX = 3,[235,236,237],igbvf,igbvf-2.3.9.6-1.x86_64.rpm # comment
+
+            # remove comment
+            value = value.split('#')[0].strip()
+
+            # preprocess vlan id field
+            try:
+                # Extract bracketed substring of vlan ids
+                vlan_str = value[value.index('['):value.index(']')+1]
+            except ValueError:
+                raise utils.InvalidArgument('VLAN IDs', value, 'Not found')
+            vlan_str_new = vlan_str.replace(',', ';')
+            value = value.replace(vlan_str, vlan_str_new[1:-1])
+
+            # now value: 3,235;236;237,igbvf,igbvf-2.3.9.6-1.x86_64.rpm
+            csv = [v.strip() for v in value.split(',')]
+            if len(csv) != 4:
+                raise utils.InvalidArgument(
+                    """Lack of argument "%s", should be in format: <network_id>,[<vlan_ids>],<vf_driver_name>,<vf_driver_pkg>"""
+                    % value)
 
             # Network ID is a label of the physical network the adapter has been connected to
             # and should be uniform across all adapters.
             utils.log.debug("Network IDs: '%s'" % csv[0])
             network_id = int(csv[0])
 
-            # Parse VLAN IDs
-            try:
-                # Extract bracketed substring
-                vlan_str = arr[arr.index('[') + 1:arr.index(']')]
-                # Convert values to integers
-                vlan_ids = [int(x) for x in vlan_str.split(',')]
-                # Ensure that the specified VLAN is valid
-                for vlan_id in vlan_ids:
-                    if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
-                        raise utils.InvalidArgument('VLAN ID for %s' % arr[0], vlan_id, '%d < x < %d' %
-                                                    (MIN_VLAN, MAX_VLAN))
-            except ValueError:
-                raise utils.InvalidArgument('VLAN IDs', vlan_str, '%d < x < %d: x = INT' %
-                                            (MIN_VLAN, MAX_VLAN))
+            # Convert values to integers
+            vlan_ids = [int(x) for x in csv[1].split(';')]
+            # Ensure that the specified VLAN is valid
+            for vlan_id in vlan_ids:
+                if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
+                    raise utils.InvalidArgument('VLAN ID for %s' % key, vlan_id, '%d < x < %d' %
+                                                (MIN_VLAN, MAX_VLAN))
 
-            rec[key] = {'network_id': network_id, 'vlan_ids': vlan_ids}
+            # VF driver info for SR-IOV test, and maybe with comment
+            vf_driver_name, vf_driver_pkg = csv[2], csv[3]
+
+            rec[key] = {'network_id': network_id, 'vlan_ids': vlan_ids,
+                        'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg}
         elif key == "static_management":
             rec[key] = parse_static_config(value)
         elif key.startswith('static'):
@@ -421,6 +450,8 @@ def main(config, test_run_file):
     # Start Logger
     utils.init_ack_logging(session)
 
+    utils.log.info("Options: %s" % config)
+
     # Pre checks before running tests
     pre_flight_checks(session, config)
 
@@ -428,14 +459,20 @@ def main(config, test_run_file):
     config['xcp_version'] = utils.get_xcp_version(session)
 
     generate_test_config(session, config, test_run_file)
-    # Logout of XAPI session anyway - the test runner will create a new session
-    # if needed. (We might only be generating).
-    session.logout()
 
     if 'generate' in config:
         # Generate config file only
         utils.log.info("Test file generated")
+        session.logout()
         return "OK"
+
+    # cleanup in case previous run did not complete entirely
+    if utils.pool_wide_cleanup(session):
+        utils.reboot_normally(session)
+
+    # Logout of XAPI session anyway - the test runner will create a new session
+    # if needed. (We might only be generating).
+    session.logout()
 
     # Kick off the testrunner
     utils.log.info("Starting Test Runner from ACK CLI.")
