@@ -32,11 +32,12 @@
 
 
 """CLI for generating auto cert kit configuration file"""
-#@PRODUCT_VERSION@
-#@BUILD_NUMBER@
+# @PRODUCT_VERSION@
+# @BUILD_NUMBER@
 import utils
 import sys
 import os
+import ConfigParser
 
 import testbase
 import inspect
@@ -170,79 +171,87 @@ def kvp_string_to_rec(string):
 
 
 def parse_netconf_file(filename):
+    """Parse network config file in ini format
+    E.g.
+        [eth0]
+        network_id = 0
+        vlan_ids = 200,204,240
+        vf_driver_name = igbvf
+        vf_driver_pkg = igbvf-2.3.9.6-1.x86_64.rpm
 
-    arrs = utils.read_valid_lines(filename)
-    utils.log.debug("netconf_file: '%s'" % arrs)
+        [static_0_200]
+        ip_start = 192.168.0.2
+        ip_end = 192.168.0.10
+        netmask = 255.255.255.0
+        gw = 192.168.0.1
+
+        [static_management]
+        # similar to static_0_200
+    """
+    utils.log.debug("Parse network config file: %s" % filename)
+
+    cp = ConfigParser.ConfigParser()
+    cp.read(filename)
     rec = {}
-    for arr in arrs:
-
-        if arr.count('=') != 1:
-            raise Exception(
-                "Error: format of netconf file should be 'key = value'")
-
-        key, value = [items.strip() for items in arr.split('=')]
-
-        if key.startswith('eth'):
+    for section in cp.sections():
+        if section.startswith('eth'):
             # Ethernet Interface
-            utils.log.debug("Ethernet Interface: '%s'" % key)
-
-            # Each line is in the format:
-            # ethX = 3,[235,236,237],igbvf,igbvf-2.3.9.6-1.x86_64.rpm # comment
-
-            # remove comment
-            value = value.split('#')[0].strip()
-
-            # preprocess vlan id field
-            try:
-                # Extract bracketed substring of vlan ids
-                vlan_str = value[value.index('['):value.index(']')+1]
-            except ValueError:
-                raise utils.InvalidArgument('VLAN IDs', value, 'Not found')
-            vlan_str_new = vlan_str.replace(',', ';')
-            value = value.replace(vlan_str, vlan_str_new[1:-1])
-
-            # now value: 3,235;236;237,igbvf,igbvf-2.3.9.6-1.x86_64.rpm
-            csv = [v.strip() for v in value.split(',')]
-            if len(csv) != 4:
-                raise utils.InvalidArgument(
-                    """Lack of argument "%s", should be in format: <network_id>,[<vlan_ids>],<vf_driver_name>,<vf_driver_pkg>"""
-                    % value)
+            utils.log.debug("Ethernet Interface: '%s'" % section)
 
             # Network ID is a label of the physical network the adapter has been connected to
             # and should be uniform across all adapters.
-            utils.log.debug("Network IDs: '%s'" % csv[0])
-            network_id = int(csv[0])
+            network_id = cp.get(section, 'network_id')
+            utils.log.debug("Network IDs: '%s'" % network_id)
+            try:
+                network_id = int(network_id)
+            except:
+                raise utils.InvalidArgument('Network IDs for %s' % section, network_id,
+                                            'should be integer')
 
-            # Convert values to integers
-            vlan_ids = [int(x) for x in csv[1].split(';')]
+            # Parse VLAN IDs
+            vlan_ids = ""
+            if cp.has_option(section, 'vlan_ids'):
+                vlan_ids = cp.get(section, 'vlan_ids')
+            utils.log.debug("VLAN IDs: '%s'" % vlan_ids)
+            try:
+                vlan_ids = [int(id.strip()) for id in vlan_ids.split(',')]
+            except:
+                raise utils.InvalidArgument('VLAN IDs for %s' % section, vlan_ids,
+                                            'should be integer with comma as delimiter if multiple')
             # Ensure that the specified VLAN is valid
             for vlan_id in vlan_ids:
                 if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
-                    raise utils.InvalidArgument('VLAN ID for %s' % key, vlan_id, '%d < x < %d' %
+                    raise utils.InvalidArgument('VLAN ID for %s' % section, vlan_id, '%d < x < %d' %
                                                 (MIN_VLAN, MAX_VLAN))
 
             # VF driver info for SR-IOV test, and maybe with comment
-            vf_driver_name, vf_driver_pkg = csv[2], csv[3]
+            vf_driver_name = ""
+            if cp.has_option(section, 'vf_driver_name'):
+                vf_driver_name = cp.get(section, 'vf_driver_name')
+            vf_driver_pkg = ""
+            if cp.has_option(section, 'vf_driver_pkg'):
+                vf_driver_pkg = cp.get(section, 'vf_driver_pkg')
+            utils.log.debug("VF Driver Name: '%s'" % vf_driver_name)
+            utils.log.debug("VF Driver Pkg: '%s'" % vf_driver_pkg)
 
-            rec[key] = {'network_id': network_id, 'vlan_ids': vlan_ids,
-                        'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg}
-        elif key == "static_management":
-            rec[key] = parse_static_config(value)
-        elif key.startswith('static'):
+            rec[section] = {'network_id': network_id, 'vlan_ids': vlan_ids,
+                            'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg}
+        elif section == "static_management":
+            rec[section] = parse_static_config(cp, section)
+        elif section.startswith('static'):
             # Definition of network properties (e.g. dhcp/static)
-            arr = key.split('_')
+            arr = section.split('_')
             if len(arr) != 3:
-                raise Exception("Error: invalid argument %s" % arr)
+                raise utils.InvalidArgument('static addressing section', section,
+                                            'should be in format of "static_<network_id>_<vlan_id>"')
             net = arr[1]
             vlan = arr[2]
-            if unicode(net.strip()).isdecimal() and unicode(vlan.strip()).isdecimal():
-                rec[key] = parse_static_config(value)
-            else:
-                raise Exception(
-                    "Error: unable to determine network and/or vlan from '%s'" % key)
-
+            if not unicode(net.strip()).isdecimal() or not unicode(vlan.strip()).isdecimal():
+                raise utils.InvalidArgument('static addressing section', section,
+                                            'should be valid network and/or vlan to determine')
+            rec[section] = parse_static_config(cp, section)
         else:
-            raise Exception("Error: unable to parse line: '%s'" % arr)
+            raise Exception("Error: Unknown section: '%s'" % section)
 
     return rec
 
@@ -259,24 +268,16 @@ def validate_param(value, possibles, arg_name):
         raise utils.InvalidArgument(arg_name, value, possibles)
 
 
-def parse_static_config(string):
-    """Parse a string specifying static networking config for droid VMs to use.
-    The format should be ip_start,ip_end,netmask,gateway."""
-    arr = string.split(',')
-
-    if len(arr) != 4:
-        raise Exception(
-            "The static config string supplied was invalid. It should be of the form: ip_start,ip_end,netmask,gateway. Actually '%s'" % string)
-
+def parse_static_config(configParser, section):
+    """Parse a ini section specifying static networking config for droid VMs to use."""
+    utils.log.debug("Read section '%s'" % section)
     config = {}
-
-    def copy(label, pos):
-        config[label] = arr[pos].strip()
-
-    copy('ip_start', 0)
-    copy('ip_end', 1)
-    copy('netmask', 2)
-    copy('gw', 3)
+    for option in ['ip_start', 'ip_end', 'netmask', 'gw']:
+        config[option] = configParser.get(section, option)
+        utils.log.debug("Get option %s = '%s'" % (option, config[option]))
+        if not config[option]:
+            raise utils.InvalidArgument(
+                option, config[option], "Should not be empty!")
 
     return config
 
