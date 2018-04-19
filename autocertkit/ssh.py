@@ -164,9 +164,8 @@ class SSHCommand(SSHSession):
                  timeout=300,
                  password=None,
                  nowarn=False,
-                 newlineok=False,
                  nolog=False,
-                 ignoreExitCode=False):
+                 combineStderr=False):
         self.log = log
         if not nolog:
             log.debug("ssh %s@%s %s" % (username, ip, command))
@@ -179,71 +178,67 @@ class SSHCommand(SSHSession):
                             nowarn=nowarn)
         self.command = command
         self.nolog = nolog
-        self.ignoreExitCode = ignoreExitCode
-        if string.find(command, "\n") > -1 and not newlineok:
-            log.debug("Command with newline: '%s'" % (command))
+
         try:
             self.client = self.open_session()
             self.client.settimeout(timeout)
-            self.client.set_combine_stderr(True)
+            self.client.set_combine_stderr(combineStderr)
             self.client.exec_command(command)
             self.client.shutdown(1)
-            self.fh = self.client.makefile()
+            self.hStdout = self.client.makefile()
+            self.hStderr = None if combineStderr else self.client.makefile_stderr()
         except Exception, e:
             self.reply = "SSH connection failed",
             self.toreply = 1
             self.close()
 
-    def read(self, retval="code", fh=None):
+    def read_file(self, inf, outf=None, label="stdout"):
+        reply = ""
+        while True:
+            try:
+                if outf:
+                    output = inf.read(4096)
+                else:
+                    output = inf.readline()
+            except socket.timeout:
+                if not self.nolog:
+                    self.log.error("Error: SSH read time out!")
+                return reply
+
+            if len(output) == 0:
+                break
+            if outf:
+                outf.write(output)
+            else:
+                reply += output
+
+            if not self.nolog:
+                self.log.debug("%s: %s" %
+                               (label, (output[:-1] if output and output[-1] == '\n' else output)))
+        return reply
+
+    def read(self, outFile=None, errFile=None):
         """Process the output and result of the command.
-
-        @param retval: Whether to return the result code (default) or 
-            stdout as a string.
-
-            string  :   Return a stdout as a string.
-            code    :   Return the result code. (Default). 
-
-            If "string" is used then a failure results in an exception.
-
+        @:param outFile/errFile: Whether to write stdout/stderr to the file
+            None (Default) : just return stdout/stderr content
+            Not None : write stdout/stderr content to the file, which is used for large content
+        @:return dict including exit status, stdout and stderr
         """
 
         if self.toreply:
-            if retval == "string":
-                raise Exception(self.reply)
-            return self.reply
-        reply = ""
+            raise Exception(self.reply)
 
-        while True:
-            try:
-                if fh:
-                    output = self.fh.read(4096)
-                else:
-                    output = self.fh.readline()
-            except socket.timeout:
-                self.close()
-                return "SSH timed out"
-            if len(output) == 0:
-                break
-            if fh:
-                fh.write(output)
-            elif retval == "string":
-                reply = reply + output
-            if not self.nolog and not fh:
-                self.log.debug("reply: %s" % (
-                    output[:-1] if output and output[-1] == '\n' else output))
         self.exit_status = self.client.recv_exit_status()
+        if not self.nolog:
+            self.log.debug("returncode: %d" % self.exit_status)
+        self.stdout = self.read_file(self.hStdout, outFile)
+        self.stderr = self.read_file(self.hStderr, errFile, label="stderr") \
+            if self.hStderr else ""
 
         # Local clean up.
         self.close()
 
-        if retval == "code":
-            return self.exit_status
-        if self.exit_status == -1:
-            return "SSH channel closed unexpectedly"
-        elif (not self.exit_status == 0) and (not self.ignoreExitCode):
-            return "SSH command exited with error (%s)" % (self.command)
-
-        return reply
+        return {"returncode": self.exit_status, "stdout": self.stdout, "stderr": self.stderr}
 
     def __del__(self):
         SSHSession.__del__(self)
