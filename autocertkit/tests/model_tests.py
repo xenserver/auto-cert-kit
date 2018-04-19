@@ -29,8 +29,8 @@ class ReportPrintsTests(unittest_base.DevTestCase):
               'driver': 'fake',
               'PCI_description': 'fakedesc',
               'modelname': 'fake AMD model',
-              'version': 'fakeversion',
-              'build': 'fakebuildnumber'
+              'product_version': 'fakeversion',
+              'build_number': 'fakebuildnumber'
               }
     config = {'exclude': ['LSTOR', 'OVS', 'BRIDGE', 'OPS', 'CPU']}
 

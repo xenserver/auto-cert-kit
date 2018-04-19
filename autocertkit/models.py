@@ -413,7 +413,7 @@ class Device(object):
                 PCI_id = self.config['vendor'] + ":" + self.config["device"]
                 return PCI_id
             if self.tag == "OP":
-                XS_id = "XenServer %s" % self.config['version']
+                XS_id = "XenServer %s" % self.config['product_version']
                 return XS_id
         except Exception, e:
             log.error("Exception occurred getting ID: '%s'" % str(e))
@@ -440,7 +440,7 @@ class Device(object):
                     LS_info += "\n\t%s" % self.config['PCI_description']
                 return LS_info
             if self.tag == "OP":
-                build_id = "build %s" % self.config['build']
+                build_id = "build %s" % self.config['build_number']
                 return build_id
         except Exception, e:
             log.error("Exception occurred getting Description: '%s'" % str(e))
