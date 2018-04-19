@@ -1327,6 +1327,19 @@ def reset_arp(session, args):
         make_local_call(call)
         '''
 
+        # In previous DLVM (CentOS 5), rp_filter is 0. If don't set in new DLVM, then Multicast test
+        # will be failed using interfaces in same one subnet
+        # Change global setting
+        cmd = "%s net.ipv4.conf.all.rp_filter=0; %s net.ipv4.conf.default.rp_filter=0" \
+              % (SYSCTL, SYSCTL)
+        call = [SSH, vm_m_ip, cmd]
+        make_local_call(call)
+        # Change current existing interface
+        cmd = """for i in $(ip -o link | awk '{if($2 ~ "eth.+:") print $2}' | sed 's/:$//'); """ \
+              """do %s net.ipv4.conf.$i.rp_filter=0; done""" % SYSCTL
+        call = [SSH, vm_m_ip, cmd]
+        make_local_call(call)
+
         vifs = session.xenapi.VM.get_VIFs(vm_ref)
         for vif in vifs:
             device_id = session.xenapi.VIF.get_device(vif)
