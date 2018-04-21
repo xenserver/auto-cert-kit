@@ -1217,41 +1217,25 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
 
 
 @log_exceptions
-def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10):
+def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, timeout=900):
     """execute an SSH command using the parimiko library, return both
     exit code, stdout and stderr."""
     if dbg_str:
         log.debug(dbg_str)
 
-    # use uuid as random string
-    flag = "__%s__" % str(uuid.uuid4())
-    of = "/tmp/ack.stdout.%s.txt" % flag
-    ef = "/tmp/ack.stderr.%s.txt" % flag
-
-    # put cmd_str into single quotes and sh to run with redirection, e.g.
-    #   echo "$HOME" | sed 's/\///g'
-    #   sh -c 'echo "$HOME" | sed '\''s/\///g'\''' 1>of 2>ef
-    cmd_s = cmd_str.replace("'", r"'\''")
-    cmd_s = '''sh -c '%s' 1>%s 2>%s''' % (cmd_s, of, ef)
-    # catch exit code, stdout and stderr
-    cmd = '''%s; echo -n "$?%s"; cat %s; echo -n "%s"; cat %s; rm -f %s %s;''' % \
-          (cmd_s, flag, of, flag, ef, of, ef)
-
     for i in range(0, attempts):
-        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd))
+        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
 
         try:
-            sshcmd = ssh.SSHCommand(ip, cmd, log, username, 900, password)
-            output = sshcmd.read("string")
+            sshcmd = ssh.SSHCommand(
+                ip, cmd_str, log, username, timeout, password)
+            result = sshcmd.read()
         except Exception, e:
             log.debug("Exception: %s" % str(e))
             # Sleep before next attempt
             time.sleep(20)
-            continue
-
-        ret = output.split(flag)
-        if len(ret) == 3:
-            return {"returncode": int(ret[0]), "stdout": ret[1], "stderr": ret[2]}
+        else:
+            return result
 
     log.debug("Max attempt reached %d/%d" % (attempts, attempts))
     return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
