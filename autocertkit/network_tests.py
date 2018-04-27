@@ -35,6 +35,7 @@ from utils import *
 import os.path
 import sys
 import math
+import traceback
 
 
 class FixedOffloadException(Exception):
@@ -51,6 +52,12 @@ class IperfTest:
                       'buffer_length': '256K',
                       'thread_count': '1'}
 
+    default_iface_config = {'iface_m': 'eth0',
+                            'ip_m': '',
+                            'iface_t': '',
+                            'ip_t': '',
+                            'mac_t': ''}
+
     def __init__(self, session,
                  client_vm_ref,
                  server_vm_ref,
@@ -58,7 +65,10 @@ class IperfTest:
                  static_manager,
                  username='root',
                  password=DEFAULT_PASSWORD,
-                 config=None):
+                 config=None,
+                 vm_info=None,
+                 multicast_ip="",
+                 max_retry_on_failure=3):
 
         self.session = session
         self.server = server_vm_ref
@@ -67,6 +77,15 @@ class IperfTest:
         self.static_manager = static_manager
         self.username = username
         self.password = password
+        self.multicast_ip = multicast_ip
+        self.max_retry_on_failure = max_retry_on_failure
+
+        # Interface and IP etc on server/client to (t)est and (m)anagement
+        if vm_info:
+            self.vm_info = vm_info
+        else:
+            self.vm_info = {self.server: self.default_iface_config.copy(),
+                            self.client: self.default_iface_config.copy()}
 
         if not config:
             self.config = self.default_config
@@ -80,6 +99,23 @@ class IperfTest:
 
         # Validate the references and setup run method
         # self.validate_refs()
+
+    def init_vm_info(self):
+        for vm_ref in [self.server, self.client]:
+            if not self.vm_info[vm_ref]['ip_m']:
+                self.vm_info[vm_ref]['ip_m'] = self.get_iface_ip(
+                    vm_ref, self.vm_info[vm_ref]['iface_m'])
+
+            if not self.vm_info[vm_ref]['iface_t']:
+                self.vm_info[vm_ref]['iface_t'] = self.get_device_name(vm_ref)
+            if not self.vm_info[vm_ref]['ip_t']:
+                self.vm_info[vm_ref]['ip_t'] = self.get_iface_ip(
+                    vm_ref, self.vm_info[vm_ref]['iface_t'])
+            if not self.vm_info[vm_ref]['mac_t']:
+                self.vm_info[vm_ref]['mac_t'] = get_vm_device_mac(
+                    self.session, vm_ref, self.vm_info[vm_ref]['iface_t'])
+
+            log.debug("vm_info for %s: %s" % (vm_ref, self.vm_info[vm_ref]))
 
     def validate_refs(self):
         """Check that the specified references are valid,
@@ -130,78 +166,109 @@ class IperfTest:
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',
                          {'vm_ref': self.client,
-                          'dest_ip': self.get_server_ip(self.get_device_name(self.server)),
-                          'dest_mac': get_vm_device_mac(self.session,
-                                                        self.server,
-                                                        self.get_device_name(
-                                                            self.server),
-                                                        ),
-                          'device': self.get_device_name(self.client)}
+                          'dest_ip': self.vm_info[self.server]['ip_t'],
+                          'dest_mac': self.vm_info[self.server]['mac_t'],
+                          'device': self.vm_info[self.client]['iface_t'],
+                          'src': self.vm_info[self.client]['ip_t']}
                          )
 
         self.plugin_call('add_route',
                          {'vm_ref': self.server,
-                          'dest_ip': self.get_client_ip(self.get_device_name(self.client)),
-                          'dest_mac': get_vm_device_mac(self.session,
-                                                        self.client,
-                                                        self.get_device_name(
-                                                            self.client),
-                                                        ),
-                          'device': self.get_device_name(self.server)}
+                          'dest_ip': self.vm_info[self.client]['ip_t'],
+                          'dest_mac': self.vm_info[self.client]['mac_t'],
+                          'device': self.vm_info[self.server]['iface_t'],
+                          'src': self.vm_info[self.server]['ip_t']}
                          )
+
+        if self.multicast_ip:
+            self.plugin_call('add_route',
+                             {'vm_ref': self.client,
+                              'dest_ip': self.multicast_ip,
+                              'mask': '240.0.0.0',
+                              'device': self.vm_info[self.client]['iface_t'],
+                              'src': self.vm_info[self.client]['ip_t']}
+                             )
+
+            self.plugin_call('add_route',
+                             {'vm_ref': self.server,
+                              'dest_ip': self.multicast_ip,
+                              'mask': '240.0.0.0',
+                              'device': self.vm_info[self.server]['iface_t'],
+                              'src': self.vm_info[self.server]['ip_t']}
+                             )
 
     def run(self):
         """This classes run test function"""
-        self.deploy_iperf()
+
+        # Make sure test network ip be ready
         self.configure_server_ip()
         self.configure_client_ip()
 
-        self.run_iperf_server()
-        log.debug("IPerf deployed and server started")
+        self.init_vm_info()
 
         # Configure routes
         self.configure_routes()
 
-        # Capture interface statistics pre test run
-        self.record_stats()
+        ping_with_retry(self.session, self.client, self.vm_info[self.server]['ip_t'],
+                        self.vm_info[self.client]['iface_t'])
 
-        iperf_test_inst = TimeoutFunction(self.run_iperf_client,
-                                          self.timeout,
-                                          'iPerf test timed out %d' % self.timeout)
+        self.deploy_iperf()
 
-        # Run the iperf tests
-        iperf_data = iperf_test_inst()
+        self.run_iperf_server()
+        log.debug("IPerf deployed and server started")
 
-        # Capture interface statistcs post test run
-        bytes_transferred = int(iperf_data['transfer'])
-        self.validate_stats(bytes_transferred)
+        attempt_count = 0
+        fail_data = {}
+        while attempt_count < self.max_retry_on_failure:
+            attempt_count += 1
+            try:
+                log.debug("Test attempt count %d" % attempt_count)
+
+                # Capture interface statistics pre test run
+                self.record_stats()
+
+                iperf_test_inst = TimeoutFunction(self.run_iperf_client,
+                                                  self.timeout,
+                                                  'iPerf test timed out %d' % self.timeout)
+
+                # Run the iperf tests
+                iperf_data = iperf_test_inst()
+
+                # Wait for seconds to let all packs reach iperf server
+                time.sleep(3)
+
+                # Capture interface statistcs post test run
+                bytes_transferred = int(iperf_data['transfer'])
+                self.validate_stats(bytes_transferred)
+            except Exception, e:
+                traceb = traceback.format_exc()
+                log.warning(traceb)
+                fail_data["failed_attempt_%d" % (attempt_count)] = str(e)
+                time.sleep(10)
+            else:
+                break
+        else:
+            raise Exception("Iperf multiple attempts failed: %s" % fail_data)
 
         return iperf_data
 
     ############# Utility Functions used by Class ###############
-    def get_server_ip(self, iface=None):
+    def get_iface_ip(self, vm_ref, iface=None):
         # By default return the interface the server will be listening on
 
         if not iface:
             iface = self.get_device_name(self.server)
 
-        if self.session.xenapi.VM.get_is_control_domain(self.server):
+        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
             # Handle Dom0 Case
-            host_ref = self.session.xenapi.VM.get_resident_on(self.server)
+            host_ref = self.session.xenapi.VM.get_resident_on(vm_ref)
             ip = call_ack_plugin(self.session, 'get_local_device_ip',
                                  {'device': iface}, host_ref)
             return ip
 
         else:
             # Handle DroidVM Case
-            return wait_for_ip(self.session, self.server, iface)
-
-    def get_client_ip(self, iface='eth0'):
-        ip = wait_for_ip(self.session, self.client, iface)
-        log.debug("Client (%s) IP for '%s' is '%s'" % (self.client,
-                                                       iface,
-                                                       ip))
-        return ip
+            return wait_for_ip(self.session, vm_ref, iface)
 
     def deploy_iperf(self):
         """deploy iPerf on both client and server"""
@@ -259,25 +326,35 @@ class IperfTest:
         return device_name
 
     def get_iface_stats(self, vm_ref):
-        device_name = self.get_device_name(vm_ref)
-
         # Make plugin call to get statistics
-        return get_iface_statistics(self.session, vm_ref, device_name)
+        return get_iface_statistics(self.session, vm_ref, self.vm_info[vm_ref]['iface_t'])
 
     def configure_server_ip(self):
-        log.debug("configure_server_ip")
-        return self.configure_vm_ip(self.server)
+        if self.vm_info[self.server]['ip_t']:
+            log.debug("server test ip is ready %s" %
+                      self.vm_info[self.server]['ip_t'])
+        else:
+            log.debug("configure server test ip")
+            return self.configure_vm_ip(self.server)
 
     def configure_client_ip(self):
-        log.debug("configure_client_ip")
-        return self.configure_vm_ip(self.client)
+        if self.vm_info[self.client]['ip_t']:
+            log.debug("client test ip is ready %s" %
+                      self.vm_info[self.client]['ip_t'])
+        else:
+            log.debug("configure client test ip")
+            return self.configure_vm_ip(self.client)
 
     def configure_vm_ip(self, vm_ref):
         """Make sure that the client has an IP, which may not be the case
         if we are dealing with Dom0 to Dom0 tests."""
         if self.session.xenapi.VM.get_is_control_domain(vm_ref):
             log.debug("Client VM is Dom0... setup IP on bridge")
-            args = {'device': self.get_device_name(vm_ref)}
+            device = self.vm_info[vm_ref]['iface_t']
+            if not device:
+                device = self.get_device_name(vm_ref)
+                self.vm_info[vm_ref]['iface_t'] = device
+            args = {'device': device}
 
             if self.static_manager:
                 args['mode'] = 'static'
@@ -301,8 +378,10 @@ class IperfTest:
         if self.session.xenapi.VM.get_is_control_domain(self.server):
             host_ref = self.session.xenapi.VM.get_resident_on(self.server)
             log.debug("Host ref = %s" % host_ref)
-
-            args = {'device': self.get_device_name(self.server)}
+            device = self.vm_info[self.server]['iface_t']
+            if not device:
+                device = self.get_device_name(self.server)
+            args = {'device': device}
 
             if self.static_manager:
                 args['mode'] = 'static'
@@ -317,9 +396,16 @@ class IperfTest:
                             args,
                             host=host_ref)
         else:
-            m_ip_address = self.get_server_ip('eth0')
-            test_ip = self.get_server_ip()
-            cmd_str = "iperf -s -D -B %s < /dev/null >&/dev/null" % test_ip
+            m_ip_address = self.vm_info[self.server]['ip_m']
+            if self.multicast_ip:
+                test_ip = self.multicast_ip
+                protocol = '-u'
+            else:
+                test_ip = self.vm_info[self.server]['ip_t']
+                protocol = ''
+
+            cmd_str = "iperf -s -D %s -B %s < /dev/null >&/dev/null" \
+                      % (protocol, test_ip)
             ssh_command(m_ip_address, self.username, self.password, cmd_str)
 
     def parse_iperf_line(self, data):
@@ -349,7 +435,7 @@ class IperfTest:
         """Make a plugin call to autocertkit"""
         return call_ack_plugin(self.session, method, args, self.host)
 
-    def get_iperf_command(self):
+    def get_iperf_client_cmd(self):
         params = []
 
         def copy(param, arg_str):
@@ -361,8 +447,16 @@ class IperfTest:
         copy('format', '-f %s')
         copy('thread_count', '-P %s')
 
-        cmd_str = "iperf -y csv %s -m -c %s" % (
-            " ".join(params), self.get_server_ip())
+        if self.multicast_ip:
+            test_ip = self.multicast_ip
+            protocol = '-u'
+        else:
+            test_ip = self.vm_info[self.server]['ip_t']
+            protocol = ''
+
+        cmd_str = "iperf -y csv %s %s -m -B %s -c %s" % \
+                  (protocol, " ".join(params),
+                   self.vm_info[self.client]['ip_t'], test_ip)
         return cmd_str
 
     def run_iperf_client(self):
@@ -386,14 +480,14 @@ class IperfTest:
             copy('format')
             copy('buffer_length')
             copy('thread_count')
-            args['dst'] = self.get_server_ip()
+            args['dst'] = self.vm_info[self.server]['ip_t']
             args['vm_ref'] = self.client
 
             result = self.plugin_call('iperf_test', args)
         else:
             # Run the client locally
-            cmd_str = self.get_iperf_command()
-            result = ssh_command(self.get_client_ip(),
+            cmd_str = self.get_iperf_client_cmd()
+            result = ssh_command(self.vm_info[self.client]['ip_m'],
                                  self.username, self.password, cmd_str)["stdout"]
         return self.parse_iperf_line(result)
 
@@ -603,10 +697,10 @@ class IperfTestClass(testbase.NetworkTestClass):
     network_for_test = None
     num_ips_required = 2
     mode = "vm-vm"
+    MULTICAST_IP = ""
 
-    def __init__(self, session, config, max_retry_on_failure=3):
+    def __init__(self, session, config):
         super(IperfTestClass, self).__init__(session=session, config=config)
-        self.max_retry_on_failure = max_retry_on_failure
 
     def _setup_network(self, session):
         """Utility method for returning the network reference to be used by VMs"""
@@ -681,33 +775,17 @@ class IperfTestClass(testbase.NetworkTestClass):
         log.debug("Client IPerf VM ref: %s" % client)
         log.debug("Server IPerf VM ref: %s" % server)
 
-        attempt_count = 0
-        fail_data = {}
-        while attempt_count < self.max_retry_on_failure:
-            attempt_count += 1
-            try:
-                log.debug("About to run iperf test...")
-                # Run an iperf test - if failure, an exception should be
-                # raised.
-                iperf_data = IperfTest(session, client, server,
-                                       self.network_for_test,
-                                       self.get_static_manager(
-                                           self.network_for_test),
-                                       config=self.IPERF_ARGS).run()
-            except Exception, e:
-                log.warning(str(e))
-                fail_data["failed_attempt_%d" % (attempt_count)] = str(e)
-            else:
-                break
-        else:
-            raise Exception("Iperf multiple attempts failed: %s" % fail_data)
+        log.debug("About to run iperf test...")
+        iperf_data = IperfTest(session, client, server,
+                               self.network_for_test,
+                               self.get_static_manager(
+                                   self.network_for_test),
+                               config=self.IPERF_ARGS,
+                               multicast_ip=self.MULTICAST_IP).run()
 
-        res = {'info': 'Test ran successfully',
-               'data': iperf_data,
-               'config': self.IPERF_ARGS}
-        if fail_data:
-            res.update({'warning': fail_data})
-        return res
+        return {'info': 'Test ran successfully',
+                'data': iperf_data,
+                'config': self.IPERF_ARGS}
 
     def test_tx_throughput(self, session):
         """Generic throughput Iperf test"""
@@ -1003,86 +1081,16 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         return self._run_test(session)
 
 
-class MulticastTest(IperfTest):
-    """ Subclass that adds multicast specific operations"""
-    MULTICAST_IP = '226.94.1.1'
-    iperf_report_path = '/tmp/iperf.log'
-
-    def run_mulitcast_server(self):
-        """Start the iPerf server listening on a VM"""
-        log.debug('Starting multicast server')
-        self.server_ip = self.get_server_ip('eth0')
-        cmd_str = 'nohup iperf -y csv -s -u -B %s </dev/null &>%s &' \
-            % (self.MULTICAST_IP, self.iperf_report_path)
-        ssh_command(self.server_ip, self.username, self.password,
-                    cmd_str)
-
-    def run_multicast_client(self):
-        """Run test iperf command on droid VM"""
-        log.debug('Starting IPerf client')
-        cmd_str = 'iperf -c %s -u' % self.MULTICAST_IP
-        ssh_command(self.get_client_ip(), self.username, self.password,
-                    cmd_str)
-
-    def validate_multicast(self):
-        cmd_str = 'cat %s' % self.iperf_report_path
-        cmd_result = ssh_command(self.server_ip, self.username,
-                                 self.password, cmd_str)["stdout"]
-        log.debug('Iperf log on multicast server: %s' % cmd_result)
-        if self.MULTICAST_IP not in cmd_result:
-            raise TestCaseError('Error: Multicast test failed. iperf data: %s'
-                                % cmd_result)
-
-        return self.parse_iperf_line(cmd_result)
-
-    def run(self):
-        """This classes run test function"""
-        self.deploy_iperf()
-        self.run_mulitcast_server()
-        log.debug('IPerf deployed and multicast server started')
-        self.run_multicast_client()
-
-        return self.validate_multicast()
-
-
 class MulticastTestClass(IperfTestClass):
     """ Subclass that runs multicast test"""
 
     caps = [MULTICAST_CAP]
     required = False
 
-    def _run_test(self, session, direction):
+    IPERF_ARGS = {'format': 'm',
+                  'thread_count': '4'}
 
-        # setup required network
-        net_refs = self._setup_network(session)
-
-        # setup VMs for test
-        vm1_ref, vm2_ref = self._setup_vms(session, net_refs)
-
-        # Determine which reference should be the server and
-        # which should be the client.
-        if direction == 'rx':
-            client = vm2_ref
-            server = vm1_ref
-        elif direction == 'tx':
-            client = vm1_ref
-            server = vm2_ref
-        else:
-            raise Exception(
-                "Unknown 'direction' key specified. Expected tx or rx")
-
-        log.debug("Multicast client IPerf VM ref: %s" % client)
-        log.debug("Multicast Server IPerf VM ref: %s" % server)
-
-        log.debug("About to run multicast test...")
-
-        # Run multicast test - if failure, an exception should be raised.
-        iperf_data = MulticastTest(session, client, server,
-                                   self.network_for_test,
-                                   self.get_static_manager(self.network_for_test)).run()
-
-        return {'info': 'Test ran successfully',
-                'data': iperf_data}
+    MULTICAST_IP = '226.94.1.1'
 
 
 class GROOffloadTestClass(testbase.NetworkTestClass):
@@ -1111,64 +1119,15 @@ class GROOffloadBridgeTestClass(GROOffloadTestClass):
     order = 5
 
 
-class SRIOVTest(IperfTest):
-    """ Subclass that adds SR-IOV specific operations"""
-    iperf_report_path = '/tmp/iperf.log'
-
-    def run_sriov_iperf_server(self):
-        """Start the IPerf server listening on droid VM"""
-        log.debug('Starting SR-IOV IPerf server')
-
-        self.server_management_ip = self.get_server_ip('eth0')
-        self.server_ip = self.get_server_ip('eth1')
-        log.debug("server_management_ip: %s" % self.server_management_ip)
-        log.debug("server_ip: %s" % self.server_ip)
-
-        cmd_str = 'nohup iperf -y csv -s -u -B %s </dev/null &>%s &' % (
-            self.server_ip, self.iperf_report_path)
-        ssh_command(self.server_management_ip,
-                    self.username, self.password, cmd_str)
-
-    def run_sriov_iperf_client(self):
-        """Run test IPerf command on droid VM"""
-        log.debug('Starting SR-IOV IPerf client')
-
-        self.client_management_ip = self.get_client_ip('eth0')
-        self.client_ip = self.get_server_ip('eth1')
-        log.debug("client_management_ip: %s" % self.client_management_ip)
-        log.debug("client_ip: %s" % self.client_ip)
-
-        cmd_str = 'iperf -c %s -u -B %s' % (self.server_ip, self.client_ip)
-        ssh_command(self.client_management_ip,
-                    self.username, self.password, cmd_str)
-
-    def validate_sriov_iperf(self):
-        cmd_str = 'cat %s' % self.iperf_report_path
-        cmd_result = ssh_command(
-            self.server_management_ip, self.username, self.password, cmd_str)["stdout"]
-        log.debug('IPerf log on SR-IOV IPerf server: %s' % cmd_result)
-
-        if self.server_ip not in cmd_result:
-            raise TestCaseError(
-                'Error: SR-IOV IPerf test failed. IPerf data: %s' % cmd_result)
-
-        return self.parse_iperf_line(cmd_result)
-
-    def run(self):
-        """This classes run test function"""
-        self.deploy_iperf()
-        self.run_sriov_iperf_server()
-        self.run_sriov_iperf_client()
-
-        return self.validate_sriov_iperf()
-
-
 class InterHostSRIOVTestClass(IperfTestClass):
     """Iperf test between VF (in VM1 on master) and VIF (in VM2 on slave)"""
 
     REQUIRED_FOR = ">= %s" % XCP_MIN_VER_WITH_SRIOV
     caps = [SRIOV_CAP]
     required = False
+
+    IPERF_ARGS = {'format': 'm',
+                  'thread_count': '4'}
 
     def _run_test(self, session, direction):
         ret = {}
@@ -1326,24 +1285,42 @@ class InterHostSRIOVTestClass(IperfTestClass):
         log.debug("IPerf server VM ref: %s" % server)
         log.debug("IPerf client VM ref: %s" % client)
 
-        log.debug("About to run SR-IOV IPerf test...")
+        # Prepare iperf test
+        devices_s = get_vm_interface(session, get_pool_master(session), server)
+        devices_c = get_vm_interface(session, get_pool_master(session), client)
 
-        # Run IPerf test - if failure, an exception should be raised.
-        iperf_data = SRIOVTest(session, client, server, None, None).run()
+        vm_info = {server: IperfTest.default_iface_config.copy(),
+                   client: IperfTest.default_iface_config.copy()}
+        vm_info[server]['iface_t'] = 'eth1'
+        vm_info[server]['mac_t'] = devices_s['eth1'][0]
+        vm_info[server]['ip_t'] = devices_s['eth1'][1].split('/')[0]
+        vm_info[client]['iface_t'] = 'eth1'
+        vm_info[client]['mac_t'] = devices_c['eth1'][0]
+        vm_info[client]['ip_t'] = devices_c['eth1'][1].split('/')[0]
+
+        log.debug("About to run SR-IOV IPerf test...")
+        iperf_data = IperfTest(session, client, server,
+                               None, None,
+                               config=self.IPERF_ARGS,
+                               vm_info=vm_info).run()
+
         self.set_data(result, iperf_data)
 
     def ops_test(self, session, vms):
         pass
 
 
+'''
+# Remove the test at present because of feature limit in CA-285893
 class IntraHostSRIOVTestClass1(InterHostSRIOVTestClass):
     """Iperf test between VF (in VM1 on master) and VIF (in VM2 on master)"""
 
     def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
         return deploy_two_droid_vms_for_sriov_intra_host_test_vf_to_vif(session, vf_driver, network_refs, sms)
+'''
 
 
-class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
+class IntraHostSRIOVTestClass1(InterHostSRIOVTestClass):
     """Iperf test between VF (in VM1 on master) and VF (in VM2 on master)"""
 
     def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
@@ -1352,7 +1329,7 @@ class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
         return vm_list
 
 
-class IntraHostSRIOVTestClass3(InterHostSRIOVTestClass):
+class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
     """Assign maximum number of VFs to VMs, 6 per VM at most;
     Do 10 iterations of parallel VM reboots with VF verifying;
     Iperf test between VF (in VM1 on master) and VF (in VM2 on master)"""
@@ -1394,4 +1371,6 @@ class IntraHostSRIOVTestClass3(InterHostSRIOVTestClass):
                          x, master_ref, False, False)) for vm_ref in vms]
             run_xapi_async_tasks(session, task_list)
             verify_vif_status(session, self.vif_list, True)
+            for vm_ref in vms:
+                wait_for_all_ips(session, vm_ref)
             verify_vif_config(session, master_ref, self.vif_group)

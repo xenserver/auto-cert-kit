@@ -1196,6 +1196,7 @@ def add_route(session, args):
     dest_ip = validate_exists(args, 'dest_ip')
     gw = validate_exists(args, 'gw', required=False)
     mask = validate_exists(args, 'mask', required=False)
+    src = validate_exists(args, 'src', required=False)
 
     log.debug("add_route %s %s %s" % (vm_ref, device, dest_ip))
 
@@ -1249,6 +1250,8 @@ def add_route(session, args):
                 "%s/32" % dest_ip,
                 "dev",
                 device]
+        if src:
+            call += ["src", src]
 
     return json_dumps(make_local_call(call)["stdout"])
 
@@ -1313,7 +1316,7 @@ def reset_arp(session, args):
         vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
 
         # Global ARP Ignore
-        cmd = "%s net.ipv4.conf.all.arp_ignore=0" % SYSCTL
+        cmd = "%s net.ipv4.conf.all.arp_ignore=1" % SYSCTL
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
 
@@ -1350,6 +1353,14 @@ def reset_arp(session, args):
             call = [SSH, vm_m_ip, ARPING, "-c",
                     '10', '-A', '-I', device, device_ip]
             make_local_call(call)
+
+        # log arp
+        call = [SSH, vm_m_ip, "cat", "/proc/net/arp"]
+        make_local_call(call)
+
+        # log sysctl
+        call = [SSH, vm_m_ip, SYSCTL, "-A"]
+        make_local_call(call)
 
     return json_dumps("OK")
 
