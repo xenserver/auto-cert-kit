@@ -1357,15 +1357,23 @@ class IntraHostSRIOVTestClass3(InterHostSRIOVTestClass):
     Do 10 iterations of parallel VM reboots with VF verifying;
     Iperf test between VF (in VM1 on master) and VF (in VM2 on master)"""
 
+    # Max number of NIC per VM is limited to 7 on iCenter, and one of is default eth0 (vif) for management
+    MAX_VF_PER_VM = 6
+
     def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
-        # Max number of NIC per VM is limited to 7 on iCenter, and one of is default eth0 (vif) for management
-        max_vf_per_vm = 6
-        vm_num = int(math.ceil(float(self.vf_num) / max_vf_per_vm))
-        log.debug("Total VF number: %d, needs %d VMs to assign" %
-                  (self.vf_num, vm_num))
+        device = self.config['device_config']['Kernel_name']
+        max_vf_num = get_value(self.get_netconf()[device], "max_vf_num")
+        max_vf_num = int(max_vf_num) if max_vf_num else self.vf_num
+        vf_num_test = min(max_vf_num, self.vf_num)
+
+        vm_num = int(math.ceil(float(vf_num_test) / self.MAX_VF_PER_VM))
+        if vm_num < 2:
+            vm_num = 2
+        log.debug("Total VF number: %d, will test %d, needs %d VMs to assign" %
+                  (self.vf_num, vf_num_test, vm_num))
 
         vm_list, self.vif_list, self.vif_group = deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(
-            session, vf_driver, network_refs, sms, vm_count=vm_num, vf_count=self.vf_num)
+            session, vf_driver, network_refs, sms, vm_count=vm_num, vf_count=vf_num_test)
         return vm_list
 
     def ops_test(self, session, vms):

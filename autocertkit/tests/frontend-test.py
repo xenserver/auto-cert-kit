@@ -56,13 +56,17 @@ class NetworkConfRobustTests(unittest.TestCase):
 
     def testExampleNetconf(self):
         output = {'eth0': {'network_id': 0, 'vlan_ids': [200, 204, 240],
-                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': self.default_vf_driver_pkg},
+                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': self.default_vf_driver_pkg,
+                           'max_vf_num': '8'},
                   'eth1': {'network_id': 1, 'vlan_ids': [200, 124],
-                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': ''},
+                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': '',
+                           'max_vf_num': '8'},
                   'eth2': {'network_id': 0, 'vlan_ids': [204, 240],
-                           'vf_driver_name': '', 'vf_driver_pkg': self.default_vf_driver_pkg},
+                           'vf_driver_name': '', 'vf_driver_pkg': self.default_vf_driver_pkg,
+                           'max_vf_num': '8'},
                   'eth3': {'network_id': 1, 'vlan_ids': [200],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '',
+                           'max_vf_num': ''},
                   'static_0_200': {'gw': '192.168.0.1',
                                    'netmask': '255.255.255.0',
                                    'ip_end': '192.168.0.10',
@@ -86,9 +90,9 @@ network_id = 0
 vlan_ids = 0
 """
         output = {'eth0': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '', 'max_vf_num': ''},
                   'eth1': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '', 'max_vf_num': ''},
                   }
         self._runTest(content, output)
 
@@ -99,6 +103,7 @@ network_id =    0
 vlan_ids =      0  
 vf_driver_name =    %s  
 vf_driver_pkg =     %s  
+max_vf_num =        8 
 [eth1]
 network_id =    0  
 vlan_ids =      0  
@@ -106,9 +111,11 @@ vf_driver_name =
 vf_driver_pkg =   
 """ % (self.default_vf_driver_name, self.default_vf_driver_pkg)
         output = {'eth0': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': self.default_vf_driver_pkg},
+                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': self.default_vf_driver_pkg,
+                           'max_vf_num': '8'},
                   'eth1': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '',
+                           'max_vf_num': ''},
                   }
         self._runTest(content, output)
 
@@ -130,9 +137,11 @@ vf_driver_name = %s
 # comment starting with #
 """ % (self.default_vf_driver_name, self.default_vf_driver_pkg, self.default_vf_driver_name)
         output = {'eth0': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': self.default_vf_driver_pkg},
+                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': self.default_vf_driver_pkg,
+                           'max_vf_num': ''},
                   'eth1': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': ''},
+                           'vf_driver_name': self.default_vf_driver_name, 'vf_driver_pkg': '',
+                           'max_vf_num': ''},
                   }
         self._runTest(content, output)
 
@@ -156,9 +165,9 @@ gw = 192.168.0.1
                                  'ip_end': '192.168.0.10',
                                  'ip_start': '192.168.0.2'},
                   'eth0': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '', 'max_vf_num': ''},
                   'eth1': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '', 'max_vf_num': ''},
                   }
         self._runTest(content, output)
 
@@ -233,9 +242,9 @@ gw = 192.168.0.1
                                         'ip_end': '192.168.0.10',
                                         'ip_start': '192.168.0.2'},
                   'eth0': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '', 'max_vf_num': ''},
                   'eth1': {'network_id': 0, 'vlan_ids': [0],
-                           'vf_driver_name': '', 'vf_driver_pkg': ''},
+                           'vf_driver_name': '', 'vf_driver_pkg': '', 'max_vf_num': ''},
                   }
 
         self._runTest(content, output)
@@ -245,6 +254,30 @@ gw = 192.168.0.1
 [eth0]
 network_id = 0
 vlan_ids = 100,2 00
+[eth1]
+network_id = 0
+vlan_ids = 100
+"""
+        self._runTest(content, exception=Exception)
+
+    def testWrongMaxVFnum1(self):
+        content = """
+[eth0]
+network_id = 0
+vlan_ids = 100,200
+max_vf_num = a8
+[eth1]
+network_id = 0
+vlan_ids = 100
+"""
+        self._runTest(content, exception=Exception)
+
+    def testWrongMaxVFnum2(self):
+        content = """
+[eth0]
+network_id = 0
+vlan_ids = 100,200
+max_vf_num = 1
 [eth1]
 network_id = 0
 vlan_ids = 100

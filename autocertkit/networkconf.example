@@ -2,32 +2,36 @@
 # i.e.:
 #   [eth0]
 
-# Supported options are network_id, vlan_ids, vf_driver_name, vf_driver_pkg,
-# and the latter 3 items are optional
+# Supported options are network_id, vlan_ids, vf_driver_name, vf_driver_pkg, max_vf_num,
+# and the latter 4 items are optional
 
 [eth0]
 network_id = 0
 vlan_ids = 200,204,240
 vf_driver_name = igbvf
 vf_driver_pkg = igbvf-2.3.9.6-1.x86_64.rpm
+max_vf_num = 8
 
 [eth1]
 network_id = 1
 vlan_ids = 200,124
 vf_driver_name = igbvf
 vf_driver_pkg =
+max_vf_num = 8
 
 [eth2]
 network_id = 0
 vlan_ids = 204,240
 vf_driver_name =
 vf_driver_pkg = igbvf-2.3.9.6-1.x86_64.rpm
+max_vf_num = 8
 
 [eth3]
 network_id = 1
 vlan_ids = 200
 vf_driver_name =
 vf_driver_pkg =
+max_vf_num =
 
 #8x-------------------------------------------------------------------------------------------------
 
