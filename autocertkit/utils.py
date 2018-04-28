@@ -1129,6 +1129,10 @@ def wait_for_ip(session, vm_ref, device, timeout=300):
             if k == device:
                 return v
 
+        if ips.has_key('eth0'):
+            ssh_command(ips['eth0'], 'root', DEFAULT_PASSWORD,
+                        'dhclient >/dev/null 2>&1', attempts=1, timeout=5)
+
         i = i + 1
         time.sleep(5)
 
