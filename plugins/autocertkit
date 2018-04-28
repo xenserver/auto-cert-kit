@@ -875,11 +875,30 @@ def _get_local_storage_disks(session):
 
 
 __bus_id_regex = re.compile("[0-9a-fA-F]{2}\:[0-9a-fA-F]{2}\.[0-9a-fA-F]")
+__pci_addr_regex = re.compile("^[0-9a-fA-F]{4}\:[0-9a-fA-F]{2}\:[0-9a-fA-F]{2}\.[0-9a-fA-F]$")
 
 
 def _is_bus_id(bus_id):
     """ Check given bus_id is format of bus id """
     return __bus_id_regex.match(bus_id[-7:])
+
+
+def _is_pci_addr(pci_addr):
+    """ Check given pci_addr is format of PCI address """
+    return __pci_addr_regex.match(pci_addr)
+
+
+def get_dev_pci_addr(full_path):
+    """ Get device PCI address from full path
+    :param full_path: device full path in /sys, e.g.
+        ../../devices/pci0000:00/0000:00:01.0/0000:03:00.0/host0/target0:2:0/0:2:0:0/block/sda
+    :return: index and device PCI address, e.g. (5, 0000:03:00.0)
+    """
+    tmp_list = full_path.split(os.sep)
+    for index, value in reversed(list(enumerate(tmp_list))):
+        if _is_pci_addr(value):
+            return index, value
+    return -1, None
 
 
 def _get_bus_paths(disks):
@@ -898,7 +917,8 @@ def _get_bus_paths(disks):
     modified_bus_path = {}
     for bus_path, sr in bus_paths.iteritems():
         path_tokens = bus_path.split(os.sep)
-        if len(path_tokens) < 5 or not _is_bus_id(path_tokens[4]):
+        _, pci_addr = get_dev_pci_addr(bus_path)
+        if len(path_tokens) < 5 or not _is_bus_id(pci_addr):
             disk = path_tokens[-1]
             newpath = "sys/block/%s/device" % disk
             if os.path.exists(newpath) and os.path.islink(newpath):
@@ -986,7 +1006,7 @@ def get_local_storage_devices(session, args):
         storage_devices = []
         for bus_path, sr in bus_paths.iteritems():
 
-            bus_id = bus_path.split(os.sep)[4]
+            index, bus_id = get_dev_pci_addr(bus_path)
 
             if bus_id.startswith('0000:'):
                 # We only care about the shortened id
@@ -1000,7 +1020,7 @@ def get_local_storage_devices(session, args):
             device['PCI_subsystem'] = get_pci_subsystem(bus_id)
 
             device['sr'] = sr
-            driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:5])
+            driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:index+1])
 
             log.debug("Searching for driver sym link in '%s'" %
                       driver_root_dir)
