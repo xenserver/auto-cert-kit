@@ -71,7 +71,7 @@ MULTICAST_CAP = "MULTICAST"
 SRIOV_CAP = "SR-IOV"
 
 # XCP minimum version with SR-IOV support
-XCP_MIN_VER_WITH_SRIOV = "2.5.50"  # target 2.6.0, waiting K release branched
+XCP_MIN_VER_WITH_SRIOV = "2.6.0"  # XenServer 7.5
 
 # XAPI States
 XAPI_RUNNING_STATE = "Running"

@@ -875,7 +875,8 @@ def _get_local_storage_disks(session):
 
 
 __bus_id_regex = re.compile("[0-9a-fA-F]{2}\:[0-9a-fA-F]{2}\.[0-9a-fA-F]")
-__pci_addr_regex = re.compile("^[0-9a-fA-F]{4}\:[0-9a-fA-F]{2}\:[0-9a-fA-F]{2}\.[0-9a-fA-F]$")
+__pci_addr_regex = re.compile(
+    "^[0-9a-fA-F]{4}\:[0-9a-fA-F]{2}\:[0-9a-fA-F]{2}\.[0-9a-fA-F]$")
 
 
 def _is_bus_id(bus_id):
@@ -1020,7 +1021,8 @@ def get_local_storage_devices(session, args):
             device['PCI_subsystem'] = get_pci_subsystem(bus_id)
 
             device['sr'] = sr
-            driver_root_dir = "/sys/%s" % '/'.join(bus_path.split('/')[2:index+1])
+            driver_root_dir = "/sys/%s" % '/'.join(
+                bus_path.split('/')[2:index+1])
 
             log.debug("Searching for driver sym link in '%s'" %
                       driver_root_dir)
