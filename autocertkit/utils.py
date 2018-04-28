@@ -551,6 +551,8 @@ class IperfTestStatsValidator(object):
         low_lim = pre_bytes + sent_bytes
         warn_lim = low_lim + sent_bytes * self.warn_threshold / 100
         high_lim = low_lim + sent_bytes * self.error_threshold / 100
+        # high_lim_wa is workaround for issue found in CP-27559
+        high_lim_wa = low_lim + sent_bytes + sent_bytes * 2 * self.error_threshold / 100
 
         log.debug("pre_bytes = %d" % pre_bytes)
         log.debug("post_bytes = %d" % post_bytes)
@@ -558,14 +560,21 @@ class IperfTestStatsValidator(object):
         log.debug("low_lim = %d" % low_lim)
         log.debug("warn_lim = %d" % warn_lim)
         log.debug("high_lim = %d" % high_lim)
+        log.debug("high_lim_wa = %d" % high_lim_wa)
 
-        if not self.value_in_range(post_bytes, low_lim, warn_lim):
-            log.debug("Warning: limit not within warning range. (%d)" %
-                      self.warn_threshold)
+        if post_bytes < low_lim:
+            raise Exception("Error: mismatch in expected number of bytes, "
+                            "post_bytes %d is less than low_lim %d"
+                            % (post_bytes, low_lim))
 
-        if not self.value_in_range(post_bytes, low_lim, high_lim):
-            raise Exception("Error: mismatch in expected number " +
-                            " of bytes")
+        if post_bytes > high_lim_wa:
+            raise Exception("Error: mismatch in expected number of bytes, "
+                            "post_bytes %d is greater than high_lim_wa %d"
+                            % (post_bytes, high_lim_wa))
+
+        log.debug("OK. It's in acceptable number of bytes range, "
+                  "post_bytes %d is among low_lim %d and high_lim_wa %d."
+                  % (post_bytes, low_lim, high_lim_wa))
         return True
 
 
