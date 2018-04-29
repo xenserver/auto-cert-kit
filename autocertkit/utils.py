@@ -71,7 +71,7 @@ MULTICAST_CAP = "MULTICAST"
 SRIOV_CAP = "SR-IOV"
 
 # XCP minimum version with SR-IOV support
-XCP_MIN_VER_WITH_SRIOV = "2.5.50"  # target 2.6.0, waiting K release branched
+XCP_MIN_VER_WITH_SRIOV = "2.6.0"  # XenServer 7.5
 
 # XAPI States
 XAPI_RUNNING_STATE = "Running"
@@ -551,6 +551,8 @@ class IperfTestStatsValidator(object):
         low_lim = pre_bytes + sent_bytes
         warn_lim = low_lim + sent_bytes * self.warn_threshold / 100
         high_lim = low_lim + sent_bytes * self.error_threshold / 100
+        # high_lim_wa is workaround for issue found in CP-27559
+        high_lim_wa = low_lim + sent_bytes + sent_bytes * 2 * self.error_threshold / 100
 
         log.debug("pre_bytes = %d" % pre_bytes)
         log.debug("post_bytes = %d" % post_bytes)
@@ -558,14 +560,21 @@ class IperfTestStatsValidator(object):
         log.debug("low_lim = %d" % low_lim)
         log.debug("warn_lim = %d" % warn_lim)
         log.debug("high_lim = %d" % high_lim)
+        log.debug("high_lim_wa = %d" % high_lim_wa)
 
-        if not self.value_in_range(post_bytes, low_lim, warn_lim):
-            log.debug("Warning: limit not within warning range. (%d)" %
-                      self.warn_threshold)
+        if post_bytes < low_lim:
+            raise Exception("Error: mismatch in expected number of bytes, "
+                            "post_bytes %d is less than low_lim %d"
+                            % (post_bytes, low_lim))
 
-        if not self.value_in_range(post_bytes, low_lim, high_lim):
-            raise Exception("Error: mismatch in expected number " +
-                            " of bytes")
+        if post_bytes > high_lim_wa:
+            raise Exception("Error: mismatch in expected number of bytes, "
+                            "post_bytes %d is greater than high_lim_wa %d"
+                            % (post_bytes, high_lim_wa))
+
+        log.debug("OK. It's in acceptable number of bytes range, "
+                  "post_bytes %d is among low_lim %d and high_lim_wa %d."
+                  % (post_bytes, low_lim, high_lim_wa))
         return True
 
 
@@ -1030,7 +1039,7 @@ def create_vif(session, device, network, vm, mac=''):
                                       'qos_algorithm_params': {}})
 
 
-def setup_vm_on_network(session, vm_ref, network_ref, iface='eth0', wipe=True):
+def setup_vm_on_network(session, vm_ref, network_ref, iface='eth0', wipe=True, mac=None):
     """Remove VIFs plugged into a VM, and create a new
     VIF and plug it in for a particular network"""
 
@@ -1051,8 +1060,9 @@ def setup_vm_on_network(session, vm_ref, network_ref, iface='eth0', wipe=True):
     log.debug("Create a new VIF for VM")
     log.debug("Network ref = %s" % network_ref)
     # 2. Create a new VIF attached to the specified network reference
+    mac_tmp = mac if mac else generate_mac()
     vif_ref = create_vif(session, iface.replace('eth', ''),
-                         network_ref, vm_ref, mac=generate_mac())
+                         network_ref, vm_ref, mac=mac_tmp)
 
     if session.xenapi.VM.get_power_state(vm_ref) == "Running":
         log.debug("Plug VIF %s" % vif_ref)
@@ -1118,6 +1128,10 @@ def wait_for_ip(session, vm_ref, device, timeout=300):
         for k, v in ips.iteritems():
             if k == device:
                 return v
+
+        if ips.has_key('eth0'):
+            ssh_command(ips['eth0'], 'root', DEFAULT_PASSWORD,
+                        'dhclient >/dev/null 2>&1', attempts=1, timeout=5)
 
         i = i + 1
         time.sleep(5)
@@ -1214,6 +1228,35 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
     raise TestCaseError("""Error: Unexpected response 
                        from ping, to transmission statistics: %s"""
                         % result)
+
+
+def ping_with_retry(session, vm_ref, dst_vm_ip, interface, timeout=20, retry=15):
+    loss_re = re.compile(""".* (?P<loss>[0-9]+)% packet loss, .*""", re.S)
+
+    cmd_str = "ping -I %s -w %d %s" % (interface, timeout, dst_vm_ip)
+    cmd = binascii.hexlify(cmd_str)
+    for i in range(retry):
+        log.debug("ping_with_retry %d/%d: %s" % (i, retry, cmd_str))
+
+        if session.xenapi.VM.get_is_control_domain(vm_ref):
+            args = {'cmd': cmd}
+        else:
+            args = {'vm_ref': vm_ref,
+                    'username': 'root',
+                    'password': DEFAULT_PASSWORD,
+                    'cmd': cmd}
+        res = call_ack_plugin(session, 'shell_run', args,
+                              session.xenapi.VM.get_resident_on(vm_ref))
+        result = res.pop()["stdout"]
+
+        match = loss_re.match(result)
+        if match and int(match.group("loss")) == 0:
+            log.debug("Ping is successful completely, network is ready")
+            return True
+
+    log.debug("Warning: Ping is not successful completely, network has not been yet ready in %d seconds"
+              % (timeout * retry))
+    return False
 
 
 @log_exceptions
@@ -1547,6 +1590,7 @@ def import_droid_vm(session, host_ref, creds=None):
     convert_to_template(session, vm_ref)
     brand_vm(session, vm_ref, DROID_TEMPLATE_TAG)
     session.xenapi.VM.set_name_label(vm_ref, 'Droid VM')
+    time.sleep(5)
     return vm_ref
 
 
@@ -1782,6 +1826,12 @@ def deploy_slave_droid_vm(session, network_refs, sms=None):
     # continuing with executing commands against it.
     wait_for_all_ips(session, vm_ref)
 
+    # Install SSH Keys for Plugin operations
+    call_ack_plugin(session, 'inject_ssh_key',
+                    {'vm_ref': vm_ref,
+                     'username': 'root',
+                     'password': DEFAULT_PASSWORD})
+
     return vm_ref
 
 
@@ -1851,7 +1901,7 @@ def import_two_droid_vms(session, network_refs, sms=None):
     return (host_master_ref, host_slave_ref, vm1_ref, vm2_ref)
 
 
-def config_network_for_droid_vm(session, vm_ref, network_ref, did, sms=None):
+def config_network_for_droid_vm(session, vm_ref, network_ref, did, sms=None, mac=None):
     """Setup VM network"""
 
     device = 'eth%d' % did
@@ -1859,7 +1909,7 @@ def config_network_for_droid_vm(session, vm_ref, network_ref, did, sms=None):
     log.debug("Setting interfaces up for %s" % device)
     # Note: only remove all existing networks on first run.
     vif_ref = setup_vm_on_network(
-        session, vm_ref, network_ref, device, wipe=(did == 0))
+        session, vm_ref, network_ref, device, wipe=(did == 0), mac=mac)
 
     log.debug("Static Manager Recs: %s" % sms)
     if sms and network_ref in sms.keys() and sms[network_ref]:
@@ -1874,7 +1924,7 @@ def config_network_for_droid_vm(session, vm_ref, network_ref, did, sms=None):
     return vif_ref
 
 
-def config_networks_for_droid_vm(session, vm_ref, network_refs, id_start=0, sms=None):
+def config_networks_for_droid_vm(session, vm_ref, network_refs, id_start=0, sms=None, mac=None):
     """Setup VM networks"""
 
     log.debug("Setup vm %s on network" % vm_ref)
@@ -1883,7 +1933,7 @@ def config_networks_for_droid_vm(session, vm_ref, network_refs, id_start=0, sms=
     i = id_start
     for network_ref in network_refs:
         vif_ref = config_network_for_droid_vm(
-            session, vm_ref, network_ref, i, sms)
+            session, vm_ref, network_ref, i, sms, mac)
         vif_list.append(vif_ref)
         i += 1
 
@@ -2076,6 +2126,9 @@ def deploy_two_droid_vms_for_sriov_intra_host_test_vf_to_vif(session, vf_driver,
 
 def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, network_refs, sms=None, vm_count=1, vf_count=1):
     """A utility method for setting up count VMs on primary host, with VFs evenly"""
+    if len(network_refs[1]) != 2:
+        raise Exception("length of network_refs[1] should be 2")
+
     vf_num_list = [0] * vm_count
     for i in range(vf_count):
         vf_num_list[i % vm_count] += 1
@@ -2095,9 +2148,12 @@ def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, netw
 
         setup_vm_for_sriov(session, vm_ref, vf_driver)
 
+        macs = {}
         # create default interface files
         for j in range(1, vf_num_list[i] + 1):
-            droid_add_ifcfg(session, host_master_ref, vm_ref, "eth%d" % j)
+            macs[j] = generate_mac()
+            droid_add_ifcfg(session, host_master_ref,
+                            vm_ref, "eth%d" % j, macs[j])
 
         shutdown_droid_vms(session, [vm_ref])
 
@@ -2105,7 +2161,7 @@ def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, netw
         vifs_of_vm = []
         for j in range(1, vf_num_list[i] + 1):
             vifs = config_networks_for_droid_vm(
-                session, vm_ref, network_refs[1][1:], j, sms)
+                session, vm_ref, network_refs[1][1:], j, sms, macs[j])
             vifs_of_vm += vifs
 
         start_droid_vms(session, [(host_master_ref, vm_ref)])
@@ -2149,9 +2205,9 @@ def verify_vif_config(session, host, vif_group):
                     'Error: SR-IOV test failed. VF MAC does not match any interface')
 
 
-def droid_add_ifcfg(session, host, vm_ref, iface):
-    cmd = b'''echo "DEVICE=%s\nBOOTPROTO=dhcp\nONBOOT=yes" > "%s/ifcfg-%s"''' \
-          % (iface, "/etc/sysconfig/network-scripts", iface)
+def droid_add_ifcfg(session, host, vm_ref, iface, mac):
+    cmd = b'''echo "NAME=%s\nDEVICE=%s\nHWADDR=%s\nBOOTPROTO=dhcp\nONBOOT=yes" > "%s/ifcfg-%s"''' \
+          % (iface, iface, mac, "/etc/sysconfig/network-scripts", iface)
     cmd = binascii.hexlify(cmd)
     args = {'vm_ref': vm_ref,
             'username': 'root',
@@ -2312,6 +2368,7 @@ def get_vm_interface(session, host, vm_ref):
         if match:
             ret[match.group('device')].append(match.group('ip'))
 
+    log.debug("ret: %s" % ret)
     return ret
 
 
@@ -2587,7 +2644,7 @@ def get_cpu_id(cpu_des):
         return cpu_des.replace('(tm)', '')
 
 
-def wait_for_hosts(session, timeout=300):
+def wait_for_hosts(session, timeout=600):
     """Wait until both hosts are up and live."""
 
     log.debug("Wait for hosts to come back online...")

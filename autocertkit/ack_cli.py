@@ -178,6 +178,7 @@ def parse_netconf_file(filename):
         vlan_ids = 200,204,240
         vf_driver_name = igbvf
         vf_driver_pkg = igbvf-2.3.9.6-1.x86_64.rpm
+        max_vf_num = 8
 
         [static_0_200]
         ip_start = 192.168.0.2
@@ -224,7 +225,7 @@ def parse_netconf_file(filename):
                     raise utils.InvalidArgument('VLAN ID for %s' % section, vlan_id, '%d < x < %d' %
                                                 (MIN_VLAN, MAX_VLAN))
 
-            # VF driver info for SR-IOV test, and maybe with comment
+            # VF driver info for SR-IOV test
             vf_driver_name = ""
             if cp.has_option(section, 'vf_driver_name'):
                 vf_driver_name = cp.get(section, 'vf_driver_name')
@@ -234,8 +235,26 @@ def parse_netconf_file(filename):
             utils.log.debug("VF Driver Name: '%s'" % vf_driver_name)
             utils.log.debug("VF Driver Pkg: '%s'" % vf_driver_pkg)
 
+            # User is able to specify maxinum VF number per PF to test
+            max_vf_num = ""
+            if cp.has_option(section, 'max_vf_num'):
+                max_vf_num = cp.get(section, 'max_vf_num')
+            if max_vf_num:
+                try:
+                    max_vf_num = int(max_vf_num)
+                except:
+                    raise utils.InvalidArgument('Maxinum VF number for %s' % section, max_vf_num,
+                                                'should be integer')
+                if max_vf_num <= 1:
+                    raise utils.InvalidArgument('Maxinum VF number for %s' % section, max_vf_num,
+                                                'should be greater than 1')
+                max_vf_num = str(max_vf_num)
+            utils.log.debug(
+                "Maxinum VF number per PF to test: '%s'" % max_vf_num)
+
             rec[section] = {'network_id': network_id, 'vlan_ids': vlan_ids,
-                            'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg}
+                            'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg,
+                            'max_vf_num': max_vf_num}
         elif section == "static_management":
             rec[section] = parse_static_config(cp, section)
         elif section.startswith('static'):
