@@ -1,22 +1,68 @@
-#Interface = Network ID,VLANs
-eth0 = 0,[200,204,240]
-eth1 = 1,[200,124]
-eth2 = 0,[204,240]
-eth3 = 1,[200]
+# For network interfaces, each of them should be specified in independent section
+# i.e.:
+#   [eth0]
 
-# For static addressing, each network/vlan combination needs to be
-# explicitly stated, otherwise we assume DHCP is available. The syntax can
-# be seen in the example below. For the 'non-vlan' case, the vlan Id should
-# be 0, i.e.:
-#	static_0_0 = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
+# Supported options are network_id, vlan_ids, vf_driver_name, vf_driver_pkg, max_vf_num,
+# and the latter 4 items are optional
 
-# static_<network _id>_<vlan_id> = <ip_start>,<ip_end>,<netmask>,<gw>
+[eth0]
+network_id = 0
+vlan_ids = 200,204,240
+vf_driver_name = igbvf
+vf_driver_pkg = igbvf-2.3.9.6-1.x86_64.rpm
+max_vf_num = 8
+
+[eth1]
+network_id = 1
+vlan_ids = 200,124
+vf_driver_name = igbvf
+vf_driver_pkg =
+max_vf_num = 8
+
+[eth2]
+network_id = 0
+vlan_ids = 204,240
+vf_driver_name =
+vf_driver_pkg = igbvf-2.3.9.6-1.x86_64.rpm
+max_vf_num = 8
+
+[eth3]
+network_id = 1
+vlan_ids = 200
+vf_driver_name =
+vf_driver_pkg =
+max_vf_num =
+
+#8x-------------------------------------------------------------------------------------------------
+
+# For static addressing section, each network/vlan combination needs to be
+# explicitly stated, otherwise we assume DHCP is available.
+# The syntax can be seen from below:
+#   [static_<network _id>_<vlan_id>]
+# An example for VLAN 200 on Network ID 0:
+#   [static_0_200]
+# For the 'non-vlan' case, the vlan Id should be 0, i.e.:
+#   [static_0_0]
+
+# All options ip_start, ip_end, netmask and gw should be present under the section
+
+[static_0_200]
+ip_start = 192.168.0.2
+ip_end = 192.168.0.10
+netmask = 255.255.255.0
+gw = 192.168.0.1
+
+#8x-------------------------------------------------------------------------------------------------
 
 # In case, management network is not having DHCP and management interface
 # is not specified above ( management interface is not being certified),
-# It is mandatory to specify static addressing, i.e.:
-#  static_management = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
+# It is mandatory to specify static addressing through this section:
+#   [static_management]
 
-# Setting static addressing for VLAN 200 on Network ID 0:
-static_0_200 = 192.168.0.2,192.168.0.10,255.255.255.0,192.168.0.1
+# All options ip_start, ip_end, netmask and gw should be present under the section
 
+[static_management]
+ip_start = 192.168.0.2
+ip_end = 192.168.0.10
+netmask = 255.255.255.0
+gw = 192.168.0.1

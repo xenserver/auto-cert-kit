@@ -82,7 +82,8 @@ class PerfTestClass(testbase.CPUTestClass):
             threads.append(create_test_thread(lambda: TimeoutFunction(ssh_command(vm_ip,
                                                                                   self.username,
                                                                                   self.password,
-                                                                                  self.cmd_str),
+                                                                                  self.cmd_str,
+                                                                                  timeout=self.timeout)["stdout"],
                                                                       self.timeout, '%s test timed out %d' % (self.test, self.timeout))))
         return threads
 
