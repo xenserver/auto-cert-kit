@@ -1341,22 +1341,30 @@ class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
         device = self.config['device_config']['Kernel_name']
         max_vf_num = get_value(self.get_netconf()[device], "max_vf_num")
         max_vf_num = int(max_vf_num) if max_vf_num else self.vf_num
-        vf_num_test = min(max_vf_num, self.vf_num)
+        self.vf_num_test = min(max_vf_num, self.vf_num)
 
-        vm_num = int(math.ceil(float(vf_num_test) / self.MAX_VF_PER_VM))
+        vm_num = int(math.ceil(float(self.vf_num_test) / self.MAX_VF_PER_VM))
         if vm_num < 2:
             vm_num = 2
         log.debug("Total VF number: %d, will test %d, needs %d VMs to assign" %
-                  (self.vf_num, vf_num_test, vm_num))
+                  (self.vf_num, self.vf_num_test, vm_num))
 
         vm_list, self.vif_list, self.vif_group = deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(
-            session, vf_driver, network_refs, sms, vm_count=vm_num, vf_count=vf_num_test)
+            session, vf_driver, network_refs, sms, vm_count=vm_num, vf_count=self.vf_num_test)
         return vm_list
 
     def ops_test(self, session, vms):
         master_ref = get_pool_master(session)
 
-        test_times = 10
+        if self.vf_num_test < 16:
+            test_times = 8
+        elif self.vf_num_test >= 16 and self.vf_num_test < 32:
+            test_times = 4
+        elif self.vf_num_test >= 32 and self.vf_num_test < 64:
+            test_times = 2
+        else:
+            test_times = 1
+
         for i in range(test_times):
             log.debug("Starting test run %d of %d" % (i, test_times))
 
