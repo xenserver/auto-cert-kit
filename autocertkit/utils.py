@@ -719,7 +719,10 @@ def host_crash(session, do_cleanup=False):
 
     host = get_pool_master(session)
     log.debug("Crashing host: %s" % host)
-    call_ack_plugin(session, 'force_crash_host')
+    #call_ack_plugin(session, 'force_crash_host')
+    cmd = 'echo s > /proc/sysrq-trigger; sleep 5; echo c > /proc/sysrq-trigger'
+    cmd = binascii.hexlify(cmd)
+    call_ack_plugin(session, 'shell_run', {'cmd': cmd}, host)
 
     # Once it is successful, host will be crashed hence code should not reach
     # here.
