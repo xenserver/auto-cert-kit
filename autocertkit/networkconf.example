@@ -3,7 +3,7 @@
 #   [eth0]
 
 # Supported options are network_id, vlan_ids, vf_driver_name, vf_driver_pkg, max_vf_num,
-# and the latter 4 items are optional
+# and the latter 3 items are optional
 
 [eth0]
 network_id = 0
