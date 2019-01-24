@@ -1047,10 +1047,8 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session, vm_ref)
 
-        ips = [vm1_ip, vm2_ip]
-        # SSH to vm 'ifconfig ethX mtu XXXX up'
-        cmd_str = 'ifconfig eth1 mtu %s up' % self.MTU
-        for vm_ip in ips:
+        cmd_str = 'ip link set dev eth1 mtu %s' % self.MTU
+        for vm_ip in [vm1_ip, vm2_ip]:
             ssh_command(vm_ip, self.username, self.password, cmd_str)
 
         log.debug("Starting large MTU ping test...")
@@ -1070,7 +1068,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         rec['config'] = self.PING_ARGS
 
         # Check for failure
-        if "0% packet loss" not in ping_result:
+        if " 0% packet loss" not in ping_result:
             raise TestCaseError("Error: Large MTU ping transmission failed. %s"
                                 % ping_result)
 
