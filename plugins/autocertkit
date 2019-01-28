@@ -68,38 +68,77 @@ except ImportError:
 from xcp.pci import *
 
 INSTALL_DIR = '/opt/xensource/packages/files/auto-cert-kit'
-LMBENCH_RESULTS_DIR = '%s/lmbench_results' % INSTALL_DIR
 
-##################
 if INSTALL_DIR not in sys.path:
     sys.path.insert(0, INSTALL_DIR)
-import ssh
-##################
+import ssh  # nopep8
+
 
 XE = '/opt/xensource/bin/xe'
-IPERF = '/usr/bin/iperf'
-XS_INVENTORY_PATH = "/etc/xensource-inventory"
-LMBENCH_CONF_LOC = "%s/config/lmbench.conf" % INSTALL_DIR
-LOGROTATE_CONF_LOC = "%s/config/logrotate.conf" % INSTALL_DIR
-FOR_CLEANUP = "for_cleanup"
-SSH = "/usr/bin/ssh"
-IP = "/sbin/ip"
-ARPING = "/sbin/arping"
-DHCLIENT = "/sbin/dhclient"
-IFCONFIG = "/sbin/ifconfig"
-ETHTOOL = "/sbin/ethtool"
-KILL = "/bin/kill"
-SYSCTL = "/sbin/sysctl"
-CAT = "/bin/cat"
+
 PS = "/bin/ps"
+KILL = "/bin/kill"
 UNAME = "/bin/uname"
+SYSCTL = "/sbin/sysctl"
+
+CAT = "/bin/cat"
 PGREP = "/usr/bin/pgrep"
 
-# Logging setup
+IP = "/sbin/ip"
+IFCONFIG = "/sbin/ifconfig"
+ARPING = "/sbin/arping"
+ROUTE = "/sbin/route"
+ETHTOOL = "/sbin/ethtool"
+DHCLIENT = "/sbin/dhclient"
+
+SSH = "/usr/bin/ssh"
+IPERF = "/usr/bin/iperf"
+LMBENCH = "/usr/bin/lmbench"
+
+FOR_CLEANUP = "for_cleanup"
+
+XS_INVENTORY_PATH = "/etc/xensource-inventory"
+LMBENCH_RESULTS_DIR = '%s/lmbench_results' % INSTALL_DIR
+LMBENCH_CONF_LOC = "%s/config/lmbench.conf" % INSTALL_DIR
+LOGROTATE_CONF_LOC = "%s/config/logrotate.conf" % INSTALL_DIR
+
 LOG_NAME = "auto-cert-kit-plugin"
 LOG_LOC = '/var/log/auto-cert-kit-plugin.log'
 
+SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
+SSH_HOST_KEYS = '/root/.ssh/known_hosts'
 
+IPERF_RPM = "iperf-2.0.10-1.el7.x86_64.rpm"
+LMBENCH_RPM = "lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm"
+IOZONE_RPM = "iozone-3.471-1.el7.x86_64.rpm"
+BONNIE_RPM = "bonnie++-1.96-1.el7.rf.x86_64.rpm"
+
+OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
+                 'scatter-gather': 'sg',
+                 'generic-segmentation-offload': 'gso',
+                 'tx-checksumming': 'tx',
+                 'large-receive-offload': 'lro',
+                 'generic-receive-offload': 'gro',
+                 'tcp-segmentation-offload': 'tso',
+                 'rx-checksumming': 'rx',
+                 'rx-vlan-offload': 'rxvlan',
+                 'tx-vlan-offload': 'txvlan',
+                 'ntuple-filters': 'ntuple',
+                 'receive-hashing': 'rxhash'}
+
+OFFLOAD_FLAGS_OFFSET = {'sg': 1,
+                        'tso': 1 << 16,
+                        'ufo': 1 << 17,
+                        'gso': 1 << 11,
+                        'gro': 1 << 14,
+                        'lro': 1 << 15,
+                        'rxvlan': 1 << 8,
+                        'txvlan': 1 << 7,
+                        'ntuple': 1 << 27,
+                        'rxhash': 1 << 28}
+
+
+# Logging setup
 def configure_logging():
     global log
     log = acktools.log.configure_log(LOG_NAME, LOG_LOC, False)
@@ -225,48 +264,6 @@ def get_from_xensource_inventory(key):
             values = line.split('\'')
             return values[1]
     return XenAPI.Failure('Error reading %s from %s' % (key, XS_INVENTORY_PATH))
-
-
-##################################
-
-SSH = "/usr/bin/ssh"
-CAT = "/bin/cat"
-ROUTE = "/sbin/route"
-ETHTOOL = "/sbin/ethtool"
-IPERF = "/usr/bin/iperf"
-LMBENCH = "/usr/bin/lmbench"
-
-SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
-SSH_HOST_KEYS = '/root/.ssh/known_hosts'
-
-IPERF_RPM = "iperf-2.0.10-1.el7.x86_64.rpm"
-LMBENCH_RPM = "lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm"
-IOZONE_RPM = "iozone-3.471-1.el7.x86_64.rpm"
-BONNIE_RPM = "bonnie++-1.96-1.el7.rf.x86_64.rpm"
-
-
-OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
-                 'scatter-gather': 'sg',
-                 'generic-segmentation-offload': 'gso',
-                 'tx-checksumming': 'tx',
-                 'large-receive-offload': 'lro',
-                 'generic-receive-offload': 'gro',
-                 'tcp-segmentation-offload': 'tso',
-                 'rx-checksumming': 'rx',
-                 'rx-vlan-offload': 'rxvlan',
-                 'tx-vlan-offload': 'txvlan',
-                 'ntuple-filters': 'ntuple',
-                 'receive-hashing': 'rxhash'}
-OFFLOAD_FLAGS_OFFSET = {'sg': 1,
-                        'tso': 1 << 16,
-                        'ufo': 1 << 17,
-                        'gso': 1 << 11,
-                        'gro': 1 << 14,
-                        'lro': 1 << 15,
-                        'rxvlan': 1 << 8,
-                        'txvlan': 1 << 7,
-                        'ntuple': 1 << 27,
-                        'rxhash': 1 << 28}
 
 
 ############# SSH KEY SETUP ##########################
@@ -1912,6 +1909,11 @@ def _get_local_device_bridge(session, device):
     log.debug("Searching for bridge name of device %s" % device)
     host = session.xenapi.session.get_this_host(session.handle)
     for pif in session.xenapi.host.get_PIFs(host):
+        # skip sriov logical pif
+        if not session.xenapi.PIF.get_physical(pif) and \
+                session.xenapi.PIF.get_sriov_logical_PIF_of(pif):
+            continue
+
         if device == session.xenapi.PIF.get_device(pif):
             network = session.xenapi.PIF.get_network(pif)
             log.debug("Found matching bridge on PIF %s of network %s." %
