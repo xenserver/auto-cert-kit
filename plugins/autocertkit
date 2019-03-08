@@ -2092,9 +2092,9 @@ def start_iperf_server(session, args):
         call = ['service', 'iptables', 'stop']
         make_local_call(call)
 
-        # Start iperf daemon - need to ensure we don't block
-        call = [IPERF, '-s', '-D', '-B', dev.ip]
-        log.debug("About to start iperf server daemon (%s)" % call)
+        # Start iperf - need to ensure we don't block
+        call = ['nohup', IPERF, '-s', '-B', dev.ip, '>/dev/null', '&']
+        log.debug("About to start iperf server (%s)" % call)
         subprocess.Popen(call, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,
                          close_fds=True, bufsize=4096)
