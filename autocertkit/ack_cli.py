@@ -467,6 +467,9 @@ def main(config, test_run_file):
 
     session = get_xapi_session(config)
 
+    # Ensure that all hosts in the pool have booted up.
+    utils.wait_for_hosts(session)
+
     # Start Logger
     utils.init_ack_logging(session)
 
