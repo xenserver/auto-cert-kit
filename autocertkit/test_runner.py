@@ -179,7 +179,6 @@ def run_tests_from_file(test_file):
     """Open the testfile, retrieve the next un-executed to completion test"""
 
     session = get_local_xapi_session()
-
     # Ensure that all hosts in the pool have booted up. (for the case where
     # we have had to reboot to switch backend).
     wait_for_hosts(session)

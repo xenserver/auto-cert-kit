@@ -597,10 +597,18 @@ class Iface(object):
 
 def get_local_xapi_session():
     """Login to Xapi locally. This will only work if this script is being run 
-    on Dom0. For this, no credentials are required."""
-    session = XenAPI.xapi_local()
-    session.login_with_password("", "")
-    return session
+    on Dom0. For this, no credentials are required. Wait until session connected successfully."""
+    for i in range(10):
+        if i > 0:
+            time.sleep(15)
+        try:
+            session = XenAPI.xapi_local()
+            session.login_with_password("", "")
+            return session
+        except Exception as e:
+            log.debug("Get xapi session error: '%s', retry: %d" % (e, i))
+    else:
+        raise e
 
 
 def get_pool_master(session):
