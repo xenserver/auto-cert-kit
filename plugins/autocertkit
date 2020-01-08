@@ -342,45 +342,6 @@ def inject_ssh_key(session, args):
     return json_dumps("OK")
 
 
-@log_exceptions
-def wait_for_ip(session, vm_ref, device, timeout=60):
-    """Wait for an IP address to be returned (until a given timeout)"""
-
-    xs_data = session.xenapi.VM.get_xenstore_data(vm_ref)
-    log.debug("xenstore data: %s" % xs_data)
-    key = "vm-data/control/%s/ip" % device
-    if key in xs_data.keys():
-        log.debug("Static IP %s found for VM %s" % (xs_data[key],
-                                                    vm_ref))
-        return xs_data[key]
-
-    if not device.startswith('eth'):
-        raise PluginError(
-            "Invalid device specified, it should be in the format 'ethX'")
-
-    start = time.time()
-
-    def should_timeout(start, timeout):
-        """Method for evaluating whether a time limit has been met"""
-        return time.time() - start > float(timeout)
-
-    i = 0
-    while not should_timeout(start, timeout):
-        log.debug("Trying to retrieve VM IP address - Attempt %d" % i)
-        ips = get_vm_ips(session, vm_ref)
-        log.debug("VM %s has these %s IPs" % (vm_ref, ips))
-
-        for k, v in ips.iteritems():
-            if k == device:
-                return v
-
-        i = i + 1
-        time.sleep(5)
-
-    raise PluginError("""Timeout has been exceeded waiting for IP
-                     address of VM to be returned %s """ % str(timeout))
-
-
 def get_vm_ips(session, vm_ref):
     guest_metrics_ref = session.xenapi.VM.get_guest_metrics(vm_ref)
     networks = session.xenapi.VM_guest_metrics.get_networks(guest_metrics_ref)
@@ -545,12 +506,6 @@ def install_vf_driver(session, vm_ref, username, password, package, driver_name)
         run_command(session, vm_ref, username, password, cmd)
 
 
-def disable_net_dev_naming(session, vm_ref, username, password):
-    cmd = '''sed -i 's/\(GRUB_CMDLINE_LINUX=.*\)"/\\1 net.ifnames=0 biosdevname=0"/' /etc/default/grub;''' \
-          '''grub2-mkconfig -o /boot/grub2/grub.cfg;'''
-    run_command(session, vm_ref, username, password, cmd)
-
-
 def validate_xml_key(key):
     """Check that a key will be acceptable for an XML attribute
     there are some cases, where invalid keys will cause things
@@ -628,38 +583,6 @@ def deploy_vf_driver(session, args):
                 time.sleep(8)
 
     log.debug("VF driver installation completed")
-    return json_dumps("OK")
-
-
-@log_exceptions
-def disable_network_device_naming(session, args):
-    """Disable network device_naming, referrence:
-        https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/networking_guide/ch-consistent_network_device_naming
-        http://www.geekpills.com/operating-system/linux/change-default-network-interface-name-ens-old-eth-rhel7-centos7
-    """
-    log.debug("disable network device naming plugin call")
-    vm_ref = validate_exists(args, 'vm_ref')
-    username = validate_exists(args, 'username')
-    password = validate_exists(args, 'password')
-
-    if not session.xenapi.VM.get_is_control_domain(vm_ref):
-        i = 0
-        limit = 10
-        while i < limit:
-            try:
-                install_ssh_key(session, vm_ref, username, password)
-                disable_net_dev_naming(session, vm_ref, username, password)
-                break
-            except:
-                log.debug(
-                    "Exception raised attempting to disable network device naming. Attempt %d" % i)
-                i += 1
-                if i == limit:
-                    raise PluginError(
-                        "Plugin Error: Cannot disable network device naming")
-                time.sleep(5)
-
-    log.debug("disable network device naming completed")
     return json_dumps("OK")
 
 
@@ -1048,14 +971,6 @@ def get_local_storage_devices(session, args):
     except Exception, e:
         log.debug("Could not get local storage info. Exception: %s" % str(e))
         return json_dumps([{'Exception': 'StorageInfoNotAvailable', 'Exception_Info': str(e)}])
-
-
-@log_exceptions
-def get_vm_ip(session, args):
-    """Return an IP address for a specified VMs device"""
-    vm_ref = validate_exists(args, 'vm_ref')
-    device = validate_exists(args, 'device')
-    return wait_for_ip(session, vm_ref, device)
 
 
 @log_exceptions
@@ -2171,7 +2086,6 @@ if __name__ == '__main__':
                            'set_hw_offload': set_hw_offload,
                            'iperf_test': iperf_test,
                            'lmbench_test': lmbench_test,
-                           'get_vm_ip': get_vm_ip,
                            'deploy_iperf': deploy_iperf,
                            'deploy_lmbench': deploy_lmbench,
                            'deploy_iozone': deploy_iozone,
@@ -2209,6 +2123,5 @@ if __name__ == '__main__':
                            'retrieve_crashdumps': retrieve_crashdumps,
                            'force_crash_host': force_crash_host,
                            'deploy_vf_driver': deploy_vf_driver,
-                           'disable_network_device_naming': disable_network_device_naming,
                            'shell_run': shell_run
                            })
