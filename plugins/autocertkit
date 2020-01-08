@@ -292,17 +292,16 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, time
     return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
 
 
-def install_ssh_key(session, vm_ref, username, password):
+def install_ssh_key(session, vm_ref, ip, username, password):
     """Install Dom0 public key in droid VM"""
     setup_public_ssh_key()
-    vm_ip = wait_for_ip(session, vm_ref, 'eth0')
 
     fh = open(SSH_PUBLIC_KEY, 'r')
     public_key = fh.read()
     fh.close()
 
     # Remove any host key previously installed for the specified IP address
-    call = ["/bin/sed", "-i", "/%s/d" % vm_ip, SSH_HOST_KEYS]
+    call = ["/bin/sed", "-i", "/%s/d" % ip, SSH_HOST_KEYS]
     make_local_call(call)
 
     cmd1 = ["mkdir", "-p", "/root/.ssh"]
@@ -311,11 +310,11 @@ def install_ssh_key(session, vm_ref, username, password):
     cmd_str = "%s; %s" % (" ".join(cmd1), " ".join(cmd2))
 
     log.debug("Install SSH key command string: %s" % cmd_str)
-    ssh_command(vm_ip, username, password, cmd_str,
+    ssh_command(ip, username, password, cmd_str,
                 "Installing SSH Key")["stdout"]
 
     # Disable hostkey checking
-    call = [SSH, '-o', 'StrictHostKeyChecking=no', vm_ip]
+    call = [SSH, '-o', 'StrictHostKeyChecking=no', ip]
     make_local_call(call)
 
     return True
@@ -334,11 +333,12 @@ def setup_public_ssh_key():
 def inject_ssh_key(session, args):
     """Inject Dom0's public SSH key into a guest VM"""
     vm_ref = validate_exists(args, 'vm_ref')
+    mip = validate_exists(args, 'mip')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
 
     log.debug("Call to Inject Dom0's SSH key into %s" % vm_ref)
-    install_ssh_key(session, vm_ref, username, password)
+    install_ssh_key(session, vm_ref, mip, username, password)
     return json_dumps("OK")
 
 
@@ -428,18 +428,17 @@ def run_ack_logrotate(session, args):
 ############### IPERF Setup #########################
 
 
-def install_iperf(session, vm_ref, username, password):
+def install_iperf(session, vm_ref, ip, username, password):
     """Install iperf rpm on a droid vm"""
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
     call = ['/usr/bin/scp',
             "-o", "StrictHostKeyChecking=no",
             "/opt/xensource/packages/files/auto-cert-kit/%s" % IPERF_RPM,
-            'root@%s:' % ip_address]
+            'root@%s:' % ip]
     log.debug(call)
     make_local_call(call)
     cmd_str = "rpm -i /root/%s" % IPERF_RPM
     log.debug(cmd_str)
-    ssh_command(ip_address, username, password, cmd_str)["stdout"]
+    ssh_command(ip, username, password, cmd_str)["stdout"]
 
 
 def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
@@ -462,48 +461,46 @@ def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
 
 
 @log_exceptions
-def upload_file(session, vm_ref, username, password, file):
+def upload_file(session, vm_ref, ip, username, password, file):
     """upload one file to VM"""
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
     call = ['/usr/bin/scp',
             "-o", "StrictHostKeyChecking=no",
             "/opt/xensource/packages/files/auto-cert-kit/%s" % file,
-            'root@%s:' % ip_address]
+            'root@%s:' % ip]
     log.debug(call)
     make_local_call(call)
 
 
 @log_exceptions
-def run_command(session, vm_ref, username, password, cmd):
+def run_command(session, vm_ref, ip, username, password, cmd):
     """run shell command on VM"""
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
     log.debug(cmd)
-    return ssh_command(ip_address, username, password, cmd)
+    return ssh_command(ip, username, password, cmd)
 
 
-def install_rpms(session, vm_ref, username, password, rpms):
+def install_rpms(session, vm_ref, ip, username, password, rpms):
     """install a group of rpm"""
     for rpm in rpms:
-        upload_file(session, vm_ref, username, password, rpm)
+        upload_file(session, vm_ref, ip, username, password, rpm)
     rpm_paths = ["/root/%s" % i for i in rpms]
     cmd = "rpm -i %s --nosignature" % ' '.join(rpm_paths)
-    run_command(session, vm_ref, username, password, cmd)
+    run_command(session, vm_ref, ip, username, password, cmd)
 
 
-def install_rpm(session, vm_ref, username, password, rpm):
+def install_rpm(session, vm_ref, ip, username, password, rpm):
     """install one rpm"""
-    install_rpms(session, vm_ref, username, password, [rpm])
+    install_rpms(session, vm_ref, ip, username, password, [rpm])
 
 
-def install_vf_driver(session, vm_ref, username, password, package, driver_name):
+def install_vf_driver(session, vm_ref, ip, username, password, package, driver_name):
     """Install VF driver rpm on a droid vm"""
     if package:
-        install_rpm(session, vm_ref, username, password, package)
+        install_rpm(session, vm_ref, ip, username, password, package)
 
     if driver_name:
         cmd = "echo %s > /etc/modules-load.d/%s.conf" % (
             driver_name, driver_name)
-        run_command(session, vm_ref, username, password, cmd)
+        run_command(session, vm_ref, ip, username, password, cmd)
 
 
 def validate_xml_key(key):
@@ -528,20 +525,20 @@ def deploy_iperf(session, args):
     """Install iPerf on a specified VM"""
     log.debug("deploy iperf plugin call")
     vm_ref = validate_exists(args, 'vm_ref')
-    username = validate_exists(args, 'username')
-    password = validate_exists(args, 'password')
 
     log.debug("validation complete")
 
     if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        mip = validate_exists(args, 'mip')
+        username = validate_exists(args, 'username')
+        password = validate_exists(args, 'password')
         # Only setup iperf if not control domain
         # - that already has iperf installed.
         i = 0
         limit = 10
         while i < limit:
             try:
-                install_ssh_key(session, vm_ref, username, password)
-                install_iperf(session, vm_ref, username, password)
+                install_iperf(session, vm_ref, mip, username, password)
                 break
             except:
                 log.debug(
@@ -560,6 +557,7 @@ def deploy_vf_driver(session, args):
     """Install VF driver on a specified VM"""
     log.debug("deploy VF driver plugin call")
     vm_ref = validate_exists(args, 'vm_ref')
+    mip = validate_exists(args, 'mip')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
     package = args['package']
@@ -570,8 +568,7 @@ def deploy_vf_driver(session, args):
         limit = 10
         while i < limit:
             try:
-                install_ssh_key(session, vm_ref, username, password)
-                install_vf_driver(session, vm_ref, username,
+                install_vf_driver(session, vm_ref, mip, username,
                                   password, package, driver_name)
                 break
             except:
@@ -586,11 +583,11 @@ def deploy_vf_driver(session, args):
     return json_dumps("OK")
 
 
-def shell_run_on_guest(session, vm_ref, username, password, cmd):
+def shell_run_on_guest(session, vm_ref, mip, username, password, cmd):
     if session.xenapi.VM.get_is_control_domain(vm_ref):
         return {"returncode": -1, "stdout": "", "stderr": "DON'T run in control domain"}
 
-    return run_command(session, vm_ref, username, password, cmd)
+    return run_command(session, vm_ref, mip, username, password, cmd)
 
 
 def shell_run_on_host(session, cmd):
@@ -607,13 +604,14 @@ def shell_run(session, args):
     """General interface execute shell command(s) on host and even guest VM"""
     log.debug("shell run plugin call")
     vm_ref = validate_exists(args, 'vm_ref', None, False)
+    mip = validate_exists(args, 'mip', "", False)
     username = validate_exists(args, 'username', "", False)
     password = validate_exists(args, 'password', "", False)
     cmd = validate_exists(args, 'cmd')
     cmd = binascii.unhexlify(cmd)
 
     if vm_ref:
-        res = shell_run_on_guest(session, vm_ref, username, password, cmd)
+        res = shell_run_on_guest(session, vm_ref, mip, username, password, cmd)
     else:
         res = shell_run_on_host(session, cmd)
 
@@ -1176,7 +1174,7 @@ def add_route(session, args):
 
     else:
         # Handle the case we are adding a route to a VM
-        vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
+        vm_m_ip = validate_exists(args, 'mip')
         call = [SSH,
                 vm_m_ip, IP,
                 "route",
@@ -1247,7 +1245,7 @@ def reset_arp(session, args):
 
     else:
         # Handle the Droid VM case
-        vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
+        vm_m_ip = validate_exists(args, 'mip')
 
         # Global ARP Ignore
         cmd = "%s net.ipv4.conf.all.arp_ignore=1" % SYSCTL
@@ -1276,17 +1274,6 @@ def reset_arp(session, args):
               """do %s net.ipv4.conf.$i.rp_filter=0; done""" % SYSCTL
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
-
-        vifs = session.xenapi.VM.get_VIFs(vm_ref)
-        for vif in vifs:
-            device_id = session.xenapi.VIF.get_device(vif)
-            device = "eth%s" % device_id
-
-            # Execute a gratuitus ARP for the device in question
-            device_ip = wait_for_ip(session, vm_ref, device)
-            call = [SSH, vm_m_ip, ARPING, "-c",
-                    '10', '-A', '-I', device, device_ip]
-            make_local_call(call)
 
         # log arp
         call = [SSH, vm_m_ip, "cat", "/proc/net/arp"]
@@ -1327,7 +1314,7 @@ def get_iface_stats(session, args):
                                                    args)
     else:
         # Dealing with a non-control domain. SSH and obtain result
-        vm_m_ip = wait_for_ip(session, vm_ref, 'eth0')
+        vm_m_ip = validate_exists(args, 'mip')
         log.debug("IP address for VM '%s' is '%s'" % (vm_ref,
                                                       vm_m_ip))
 
@@ -1454,18 +1441,17 @@ def retrieve_crashdumps(session, args):
 
 ############### LMbench Setup #########################
 @log_exceptions
-def copy_lmbench_config(session, vm_ref, username, password):
+def copy_lmbench_config(session, vm_ref, ip, username, password):
     """Copy the LMbench config file to a VM"""
     if not os.path.exists(LMBENCH_CONF_LOC):
         raise Exception("LMbench config file is not present in %s" %
                         LMBENCH_CONF_LOC)
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
 
     # Determine where lmbench will be looking for the config
     # file, so that we can copy it to the correct place.
     cmd_str = "/usr/lib/lmbench/scripts/config"
     config_file_name = ssh_command(
-        ip_address, username, password, cmd_str)["stdout"]
+        ip, username, password, cmd_str)["stdout"]
 
     log.debug("Deterined that VM %s needs lmbench config file named: %s" %
               (vm_ref, config_file_name))
@@ -1473,7 +1459,7 @@ def copy_lmbench_config(session, vm_ref, username, password):
     call = ['/usr/bin/scp',
             "-o", "StrictHostKeyChecking=no",
             LMBENCH_CONF_LOC,
-            'root@%s:/usr/lib/lmbench/bin/x86_64-linux-gnu/%s' % (ip_address, config_file_name)]
+            'root@%s:/usr/lib/lmbench/bin/x86_64-linux-gnu/%s' % (ip, config_file_name)]
     log.debug(call)
     return make_local_call(call)["stdout"]
 
@@ -1482,6 +1468,7 @@ def copy_lmbench_config(session, vm_ref, username, password):
 def deploy_lmbench(session, args):
     """Install LMbench on a VM"""
     vm_ref = validate_exists(args, 'vm_ref')
+    mip = validate_exists(args, 'mip')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
 
@@ -1492,9 +1479,8 @@ def deploy_lmbench(session, args):
         limit = 5
         while i < limit:
             try:
-                install_ssh_key(session, vm_ref, username, password)
-                install_rpm(session, vm_ref, username, password, LMBENCH_RPM)
-                copy_lmbench_config(session, vm_ref, username, password)
+                install_rpm(session, vm_ref, mip, username, password, LMBENCH_RPM)
+                copy_lmbench_config(session, vm_ref, mip, username, password)
                 break
             except:
                 log.debug(
@@ -1514,7 +1500,7 @@ def retrieve_lmbench_logs(session, args):
     vm_ref = validate_exists(args, 'vm_ref')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    ip_address = validate_exists(args, 'mip')
 
     # Make sure the logs exists
     results_dir = '/usr/lib/lmbench/results/x86_64-linux-gnu/'
@@ -1557,6 +1543,7 @@ def lmbench_test(session):
 def deploy_iozone(session, args):
     """Install Iozone on a VM"""
     vm_ref = validate_exists(args, 'vm_ref')
+    mip = validate_exists(args, 'mip')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
 
@@ -1567,8 +1554,7 @@ def deploy_iozone(session, args):
         limit = 5
         while i < limit:
             try:
-                install_ssh_key(session, vm_ref, username, password)
-                install_rpm(session, vm_ref, username, password, IOZONE_RPM)
+                install_rpm(session, vm_ref, mip, username, password, IOZONE_RPM)
                 break
             except:
                 log.debug(
@@ -1588,7 +1574,7 @@ def retrieve_iozone_logs(session, args):
     vm_ref = validate_exists(args, 'vm_ref')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    ip_address = validate_exists(args, 'mip')
 
     # Make sure the logs exists
     cmd_str = "test -e /root/localhost.log"
@@ -1610,6 +1596,7 @@ def retrieve_iozone_logs(session, args):
 def deploy_bonnie(session, args):
     """Install Bonnie++ on a VM"""
     vm_ref = validate_exists(args, 'vm_ref')
+    mip = validate_exists(args, 'mip')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
 
@@ -1620,10 +1607,8 @@ def deploy_bonnie(session, args):
         limit = 5
         while i < limit:
             try:
-                install_ssh_key(session, vm_ref, username, password)
-                install_rpm(session, vm_ref, username, password, BONNIE_RPM)
-                vm_ip = wait_for_ip(session, vm_ref, 'eth0')
-                ssh_command(vm_ip, username, password,
+                install_rpm(session, vm_ref, mip, username, password, BONNIE_RPM)
+                ssh_command(mip, username, password,
                             'mkdir -m a=rwx /root/bonnie; useradd citrix; chown citrix /root/bonnie')
                 break
             except:
@@ -1644,7 +1629,7 @@ def retrieve_bonnie_logs(session, args):
     vm_ref = validate_exists(args, 'vm_ref')
     username = validate_exists(args, 'username')
     password = validate_exists(args, 'password')
-    ip_address = wait_for_ip(session, vm_ref, 'eth0')
+    ip_address = validate_exists(args, 'mip')
 
     # Make sure the logs exists
     cmd_str = "test -e /root/localhost.log"
@@ -1972,7 +1957,7 @@ def configure_local_device(session, args):
             raise Exception("Error: invalid 'mode' '%s'" % mode)
 
     dev = configure_local_device_ip(session, device, ip_addr, ip_netmask, mode)
-    return json_dumps("OK")
+    return json_dumps(dev.to_rec())
 
 
 @log_exceptions
@@ -1980,23 +1965,7 @@ def start_iperf_server(session, args):
     """Start up iPerf in sever mode. This command will block - due to how iperf returns
     from the command line issued. It should be run as an Async tasks by XAPI."""
 
-    device_name = validate_exists(args, 'device')
-    mode = validate_exists(args, 'mode')
-
-    log.debug("start_iperf_server (%s) (%s)" % (device_name, mode))
-
-    ip_addr = None
-    ip_netmask = None
-
-    if mode == "static":
-        ip_addr = validate_exists(args, 'ip_addr')
-        ip_netmask = validate_exists(args, 'ip_netmask')
-    else:
-        if mode.lower() != "dhcp":
-            raise Exception("Error: invalid 'mode' '%s'" % mode)
-
-    dev = configure_local_device_ip(
-        session, device_name, ip_addr, ip_netmask, mode)
+    ip = validate_exists(args, 'ip')
 
     kill_processes('iperf')
 
@@ -2008,7 +1977,7 @@ def start_iperf_server(session, args):
         make_local_call(call)
 
         # Start iperf - need to ensure we don't block
-        call = ['nohup', IPERF, '-s', '-B', dev.ip, '>/dev/null', '&']
+        call = ['nohup', IPERF, '-s', '-B', ip, '>/dev/null', '&']
         log.debug("About to start iperf server (%s)" % call)
         subprocess.Popen(call, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,

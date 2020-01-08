@@ -45,11 +45,11 @@ class VMOpsTestClass(testbase.OperationsTestClass):
         master host's local SR"""
         host_ref = get_pool_master(session)
         net_ref = get_management_network(session)
-        return deploy_count_droid_vms_on_host(session,
-                                              host_ref,
+        return deploy_common_droid_vms_on_hosts(session,
+                                              [host_ref],
                                               [net_ref],
                                               self.vm_count,
-                                              {net_ref: self.get_static_manager(net_ref)})
+                                              {net_ref: self.get_static_manager(net_ref)})[host_ref]
 
     def test_vm_power_control(self, session):
         """Creates a number of VMs and alterates the power
@@ -60,7 +60,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
-                check_vm_ping_response(session, vm_ref)
+                check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
             # Shut down all VMs
             log.debug("Shutting down VMs: %s" % vm_ref_list)
@@ -102,6 +102,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             log.debug("Test run %d of %d has completed successfully" %
                       (i + 1, range(3)[-1] + 1))
 
+            wait_for_vms_ips(session, vm_ref_list)
+
         rec = {}
         rec['info'] = ("VM power state tests completed successfully.")
 
@@ -116,7 +118,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
-                check_vm_ping_response(session, vm_ref)
+                check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
             # Reboot all VMs
             log.debug("Rebooting VMs: %s" % vm_ref_list)
@@ -135,6 +137,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             log.debug("Test run %d of %d has completed successfully" %
                       (i + 1, range(3)[-1] + 1))
 
+            wait_for_vms_ips(session, vm_ref_list)
+
         rec = {}
         rec['info'] = ("VM reboot test completed successfully")
 
@@ -149,7 +153,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
-                check_vm_ping_response(session, vm_ref)
+                check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
             # Suspend all VMs
             log.debug("Suspending VMs: %s" % vm_ref_list)
@@ -190,6 +194,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             log.debug("Test run %d of %d has completed successfully" %
                       (i + 1, range(3)[-1] + 1))
 
+            wait_for_vms_ips(session, vm_ref_list)
+
         rec = {}
         rec['info'] = ("VM suspend tests completed successfully")
 
@@ -204,7 +210,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
-                check_vm_ping_response(session, vm_ref)
+                check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
             # Relocate all VMs
             log.debug("Relocating VMs: %s" % vm_ref_list)
@@ -226,6 +232,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
 
             log.debug("Test run %d of %d has completed successfully" %
                       (i + 1, range(3)[-1] + 1))
+
+            wait_for_vms_ips(session, vm_ref_list)
 
         rec = {}
         rec['info'] = ("VM relocation tests completed successfully")

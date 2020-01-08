@@ -55,11 +55,11 @@ class PerfTestClass(testbase.CPUTestClass):
         return a list of VM ref objects"""
         host_ref = get_pool_master(session)
         net_ref = get_management_network(session)
-        return deploy_count_droid_vms_on_host(session,
-                                              host_ref,
+        return deploy_common_droid_vms_on_hosts(session,
+                                              [host_ref],
                                               [net_ref],
                                               self.vm_count,
-                                              {net_ref: self.get_static_manager(net_ref)})
+                                              {net_ref: self.get_static_manager(net_ref)})[host_ref]
 
     def _call_plugin(self, session, vm_ref_list, call):
         """Generic plugin call modified for this test class"""
@@ -67,6 +67,7 @@ class PerfTestClass(testbase.CPUTestClass):
         for vm_ref in vm_ref_list:
             res.append(call_ack_plugin(self.session, call,
                                        {'vm_ref': vm_ref,
+                                        'mip': get_context_vm_mip(vm_ref),
                                         'username': self.username,
                                         'password': self.password}))
         return res
@@ -78,13 +79,8 @@ class PerfTestClass(testbase.CPUTestClass):
         the master host by the XenAPI plugin"""
         threads = []
         for vm_ref in vm_ref_list:
-            vm_ip = wait_for_ip(session, vm_ref, 'eth0')
-            threads.append(create_test_thread(lambda: TimeoutFunction(ssh_command(vm_ip,
-                                                                                  self.username,
-                                                                                  self.password,
-                                                                                  self.cmd_str,
-                                                                                  timeout=self.timeout)["stdout"],
-                                                                      self.timeout, '%s test timed out %d' % (self.test, self.timeout))))
+            threads.append(create_test_thread(ssh_command,
+                (get_context_vm_mip(vm_ref), self.username, self.password, self.cmd_str)))
         return threads
 
     def _run_test(self, session):
@@ -96,7 +92,7 @@ class PerfTestClass(testbase.CPUTestClass):
 
         # Make certain the VMs are available
         for vm_ref in vm_ref_list:
-            check_vm_ping_response(session, vm_ref)
+            check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
         # deploy test rpms
         log.debug("Deploying test RPMs")

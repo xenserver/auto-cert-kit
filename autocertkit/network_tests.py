@@ -81,11 +81,7 @@ class IperfTest:
         self.max_retry_on_failure = max_retry_on_failure
 
         # Interface and IP etc on server/client to (t)est and (m)anagement
-        if vm_info:
-            self.vm_info = vm_info
-        else:
-            self.vm_info = {self.server: self.default_iface_config.copy(),
-                            self.client: self.default_iface_config.copy()}
+        self.vm_info = vm_info
 
         if not config:
             self.config = self.default_config
@@ -101,21 +97,22 @@ class IperfTest:
         # self.validate_refs()
 
     def init_vm_info(self):
+        if self.vm_info:
+            return
+        self.vm_info = {self.server: self.default_iface_config.copy(),
+                        self.client: self.default_iface_config.copy()}
         for vm_ref in [self.server, self.client]:
-            if not self.vm_info[vm_ref]['ip_m']:
-                self.vm_info[vm_ref]['ip_m'] = self.get_iface_ip(
-                    vm_ref, self.vm_info[vm_ref]['iface_m'])
-
-            if not self.vm_info[vm_ref]['iface_t']:
-                self.vm_info[vm_ref]['iface_t'] = self.get_device_name(vm_ref)
-            if not self.vm_info[vm_ref]['ip_t']:
-                self.vm_info[vm_ref]['ip_t'] = self.get_iface_ip(
-                    vm_ref, self.vm_info[vm_ref]['iface_t'])
-            if not self.vm_info[vm_ref]['mac_t']:
-                self.vm_info[vm_ref]['mac_t'] = get_vm_device_mac(
-                    self.session, vm_ref, self.vm_info[vm_ref]['iface_t'])
-
-            log.debug("vm_info for %s: %s" % (vm_ref, self.vm_info[vm_ref]))
+            if self.session.xenapi.VM.get_is_control_domain(vm_ref):
+                self.vm_info[vm_ref]['iface_m'] = ""
+                self.vm_info[vm_ref]['ip_m'] = ""
+            else:
+                mif = get_context_vm_mif(vm_ref)
+                self.vm_info[vm_ref]['iface_m'] = mif[0]
+                self.vm_info[vm_ref]['ip_m'] = mif[2]
+            test_if = get_context_test_ifs(vm_ref)[0]
+            self.vm_info[vm_ref]['iface_t'] = test_if[0]
+            self.vm_info[vm_ref]['mac_t'] = test_if[1]
+            self.vm_info[vm_ref]['ip_t'] = test_if[2]
 
     def validate_refs(self):
         """Check that the specified references are valid,
@@ -156,16 +153,17 @@ class IperfTest:
         # packets over the correct interface
 
         self.plugin_call('reset_arp',
-                         {'vm_ref': self.client,
+                         {'vm_ref': self.client, 'mip':self.vm_info[self.client]['ip_m']
                           })
 
         self.plugin_call('reset_arp',
-                         {'vm_ref': self.server,
+                         {'vm_ref': self.server, 'mip':self.vm_info[self.server]['ip_m']
                           })
 
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',
                          {'vm_ref': self.client,
+                          'mip': self.vm_info[self.client]['ip_m'],
                           'dest_ip': self.vm_info[self.server]['ip_t'],
                           'dest_mac': self.vm_info[self.server]['mac_t'],
                           'device': self.vm_info[self.client]['iface_t'],
@@ -174,6 +172,7 @@ class IperfTest:
 
         self.plugin_call('add_route',
                          {'vm_ref': self.server,
+                          'mip': self.vm_info[self.server]['ip_m'],
                           'dest_ip': self.vm_info[self.client]['ip_t'],
                           'dest_mac': self.vm_info[self.client]['mac_t'],
                           'device': self.vm_info[self.server]['iface_t'],
@@ -183,6 +182,7 @@ class IperfTest:
         if self.multicast_ip:
             self.plugin_call('add_route',
                              {'vm_ref': self.client,
+                              'mip': self.vm_info[self.client]['ip_m'],
                               'dest_ip': self.multicast_ip,
                               'mask': '240.0.0.0',
                               'device': self.vm_info[self.client]['iface_t'],
@@ -191,6 +191,7 @@ class IperfTest:
 
             self.plugin_call('add_route',
                              {'vm_ref': self.server,
+                              'mip': self.vm_info[self.server]['ip_m'],
                               'dest_ip': self.multicast_ip,
                               'mask': '240.0.0.0',
                               'device': self.vm_info[self.server]['iface_t'],
@@ -199,17 +200,13 @@ class IperfTest:
 
     def run(self):
         """This classes run test function"""
-
-        # Make sure test network ip be ready
-        self.configure_server_ip()
-        self.configure_client_ip()
-
         self.init_vm_info()
 
         # Configure routes
         self.configure_routes()
 
-        ping_with_retry(self.session, self.client, self.vm_info[self.server]['ip_t'],
+        ping_with_retry(self.session, self.client, self.vm_info[self.client]['ip_m'],
+                        self.vm_info[self.server]['ip_t'],
                         self.vm_info[self.client]['iface_t'])
 
         self.deploy_iperf()
@@ -252,125 +249,21 @@ class IperfTest:
 
         return iperf_data
 
-    ############# Utility Functions used by Class ###############
-    def get_iface_ip(self, vm_ref, iface=None):
-        # By default return the interface the server will be listening on
-
-        if not iface:
-            iface = self.get_device_name(self.server)
-
-        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
-            # Handle Dom0 Case
-            host_ref = self.session.xenapi.VM.get_resident_on(vm_ref)
-            ip = call_ack_plugin(self.session, 'get_local_device_ip',
-                                 {'device': iface}, host_ref)
-            return ip
-
-        else:
-            # Handle DroidVM Case
-            return wait_for_ip(self.session, vm_ref, iface)
-
     def deploy_iperf(self):
         """deploy iPerf on both client and server"""
         def deploy(vm_ref):
             self.plugin_call('deploy_iperf',
                              {'vm_ref': vm_ref,
+                              'mip': self.vm_info[vm_ref]['ip_m'],
                               'username': self.username,
                               'password': self.password})
 
         deploy(self.client)
         deploy(self.server)
 
-    def get_device_name(self, vm_ref):
-        vm_host = self.session.xenapi.VM.get_resident_on(vm_ref)
-
-        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
-            # Handle the Dom0 case
-            pifs = self.session.xenapi.network.get_PIFs(self.network)
-            device_names = []
-            for pif in pifs:
-                host_ref = self.session.xenapi.PIF.get_host(pif)
-                if vm_host == host_ref:
-                    device_names.append(
-                        self.session.xenapi.PIF.get_device(pif))
-
-            if len(device_names) > 1:
-                raise Exception("Error: expected only a single device " +
-                                "name to be found in PIF list ('%s') " +
-                                "Instead, '%s' were returned." %
-                                (pifs, device_names))
-            device_name = device_names.pop()
-            # For control domains, only deal with bridges
-            device_name = device_name.replace('eth', 'xenbr')
-
-        else:
-            # Handle the case where we are dealing with a VM
-            vm_vifs = self.session.xenapi.VM.get_VIFs(vm_ref)
-
-            filtered_vifs = [vif for vif in vm_vifs
-                             if self.session.xenapi.VIF.get_device(vif) != '0']
-
-            network_vifs = self.session.xenapi.network.get_VIFs(self.network)
-
-            int_vifs = intersection(filtered_vifs, network_vifs)
-
-            if len(int_vifs) > 1:
-                raise Exception("Error: more than one VIF connected " +
-                                "to VM '%s' ('%s')" % (int_vifs, filtered_vifs))
-
-            device_name = "eth%s" % \
-                          self.session.xenapi.VIF.get_device(int_vifs.pop())
-
-        log.debug("Device under test for VM %s is '%s'" %
-                  (vm_ref, device_name))
-        return device_name
-
     def get_iface_stats(self, vm_ref):
         # Make plugin call to get statistics
-        return get_iface_statistics(self.session, vm_ref, self.vm_info[vm_ref]['iface_t'])
-
-    def configure_server_ip(self):
-        if self.vm_info[self.server]['ip_t']:
-            log.debug("server test ip is ready %s" %
-                      self.vm_info[self.server]['ip_t'])
-        else:
-            log.debug("configure server test ip")
-            return self.configure_vm_ip(self.server)
-
-    def configure_client_ip(self):
-        if self.vm_info[self.client]['ip_t']:
-            log.debug("client test ip is ready %s" %
-                      self.vm_info[self.client]['ip_t'])
-        else:
-            log.debug("configure client test ip")
-            return self.configure_vm_ip(self.client)
-
-    def configure_vm_ip(self, vm_ref):
-        """Make sure that the client has an IP, which may not be the case
-        if we are dealing with Dom0 to Dom0 tests."""
-        if self.session.xenapi.VM.get_is_control_domain(vm_ref):
-            log.debug("Client VM is Dom0... setup IP on bridge")
-            device = self.vm_info[vm_ref]['iface_t']
-            if not device:
-                device = self.get_device_name(vm_ref)
-                self.vm_info[vm_ref]['iface_t'] = device
-            args = {'device': device}
-
-            if self.static_manager:
-                args['mode'] = 'static'
-                ip = self.static_manager.get_ip()
-                args['ip_addr'] = ip.addr
-                args['ip_netmask'] = ip.netmask
-            else:
-                args['mode'] = 'dhcp'
-
-            host_ref = self.session.xenapi.VM.get_resident_on(vm_ref)
-            call_ack_plugin(self.session,
-                            'configure_local_device',
-                            args,
-                            host=host_ref)
-        else:
-            log.debug("Client VM is a droid VM, no need to configure an IP")
+        return get_iface_statistics(self.session, vm_ref, self.vm_info[vm_ref]['ip_m'], self.vm_info[vm_ref]['iface_t'])
 
     def run_iperf_server(self):
         """Start the iPerf server listening on a VM"""
@@ -378,25 +271,13 @@ class IperfTest:
         if self.session.xenapi.VM.get_is_control_domain(self.server):
             host_ref = self.session.xenapi.VM.get_resident_on(self.server)
             log.debug("Host ref = %s" % host_ref)
-            device = self.vm_info[self.server]['iface_t']
-            if not device:
-                device = self.get_device_name(self.server)
-            args = {'device': device}
-
-            if self.static_manager:
-                args['mode'] = 'static'
-                ip = self.static_manager.get_ip()
-                args['ip_addr'] = ip.addr
-                args['ip_netmask'] = ip.netmask
-            else:
-                args['mode'] = 'dhcp'
-
+            args = {'ip': self.vm_info[self.server]['ip_t']}
             call_ack_plugin(self.session,
                             'start_iperf_server',
                             args,
                             host=host_ref)
         else:
-            m_ip_address = self.vm_info[self.server]['ip_m']
+            mip = self.vm_info[self.server]['ip_m']
             if self.multicast_ip:
                 test_ip = self.multicast_ip
                 protocol = '-u'
@@ -406,7 +287,7 @@ class IperfTest:
 
             cmd_str = "iperf -s -D %s -B %s < /dev/null >&/dev/null" \
                       % (protocol, test_ip)
-            ssh_command(m_ip_address, self.username, self.password, cmd_str)
+            ssh_command(mip, self.username, self.password, cmd_str)
 
     def parse_iperf_line(self, data):
         """Take a CSV line from iperf, parse, returning a dictionary"""
@@ -543,30 +424,19 @@ class VLANTestClass(testbase.NetworkTestClass):
         # Deploy two VMs
         vm1_ref, vm2_ref = deploy_two_droid_vms(session, network_refs, sms)
 
-        vm1_ip = wait_for_ip(session, vm1_ref, 'eth0')
+        vm1_ip = get_context_vm_mip(vm1_ref)
         log.debug("IP address for vm1 is %s" % vm1_ip)
-        vm2_ip = wait_for_ip(session, vm2_ref, 'eth0')
+        vm2_ip = get_context_vm_mip(vm2_ref)
         log.debug("IP address for vm2 is %s" % vm2_ip)
 
-        if 'dhcp' in self.config:
-            if self.config['dhcp'].lower() == 'true':
-                log.debug("Using DHCP for VMs secondary interface")
-                dhcp = True
-            else:
-                dhcp = False
-        else:
-            dhcp = False
-
-        log.debug("About to configure network interfaces over SSH")
-
-        vm2_eth1_ip = wait_for_ip(session, vm2_ref, 'eth1')
+        vm2_test_dev, _, vm2_test_ip = get_context_test_ifs(vm2_ref)[0]
 
         # Make certain the VMs are available
         for vm_ref in [vm1_ref, vm2_ref]:
-            check_vm_ping_response(session, vm_ref)
+            check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
         # Run Ping Command
-        ping_result = ping(vm1_ip, vm2_eth1_ip, 'eth1')
+        ping_result = ping(vm1_ip, vm2_test_ip, vm2_test_dev)
         log.debug("Result: %s" % ping_result)
 
         rec = {}
@@ -636,25 +506,26 @@ class BondingTestClass(testbase.NetworkTestClass):
             Returns failure if any packet loss."""
         net_refs = self._setup_network(session, mode)
         vm1_ref, vm2_ref = self._setup_vms(session, net_refs)
-        vm1_ip = wait_for_ip(session, vm1_ref, 'eth0')
-        vm2_bondnic_ip = wait_for_ip(session, vm2_ref, 'eth1')
+
+        vm1_ip = get_context_vm_mip(vm1_ref)
+        vm2_bondnic_dev, _, vm2_bondnic_ip = get_context_test_ifs(vm2_ref)[0]
 
         for vm_ref in [vm1_ref, vm2_ref]:
-            check_vm_ping_response(session, vm_ref)
+            check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
         log.debug("Starting test...")
         results = []
         # Test healthy bond
-        results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
+        results.append(ping(vm1_ip, vm2_bondnic_ip, vm2_bondnic_dev))
 
         # Test degraded bond
         set_nic_device_status(session, self.piface, 'down')
-        results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
+        results.append(ping(vm1_ip, vm2_bondnic_ip, vm2_bondnic_dev))
 
         # Test degraded bond
         set_nic_device_status(session, self.piface, 'up')
         set_nic_device_status(session, self.siface, 'down')
-        results.append(ping(vm1_ip, vm2_bondnic_ip, 'eth1'))
+        results.append(ping(vm1_ip, vm2_bondnic_ip, vm2_bondnic_dev))
 
         set_nic_device_status(session, self.siface, 'up')
 
@@ -727,23 +598,33 @@ class IperfTestClass(testbase.NetworkTestClass):
         return deploy_two_droid_vms(session, network_refs, sms)
 
     def _setup_dom0_to_vm(self, session, network_refs):
-        log.debug("Get dom0")
-        vm1_ref = get_master_control_domain(session)
-
         sms = {}
         for network_ref in network_refs:
             sms[network_ref] = self.get_static_manager(network_ref)
 
+        log.debug("Get dom0")
+        vm1_ref = get_master_control_domain(session)
+        device = get_dom0_device_name(session, vm1_ref, self.network_for_test)
+        wait_for_dom0_device_ip(session, vm1_ref, device, sms[self.network_for_test])
+
         log.debug("Create droid")
-        vm2_ref = deploy_slave_droid_vm(session, network_refs, sms)
+        slave_ref = get_pool_slaves(session)[0]
+        vm2_ref = deploy_common_droid_vms_on_hosts(session, [slave_ref], network_refs, 1, sms)[slave_ref][0]
         log.debug("droid created")
+
         return vm1_ref, vm2_ref
 
     def _setup_dom0_to_dom0(self, session):
+        static_manager = self.get_static_manager(self.network_for_test)
         log.debug("Get dom0 for master")
         vm1_ref = get_master_control_domain(session)
+        device = get_dom0_device_name(session, vm1_ref, self.network_for_test)
+        wait_for_dom0_device_ip(session, vm1_ref, device, static_manager)
+
         log.debug("Get dom0 for slave")
         vm2_ref = get_slave_control_domain(session)
+        device = get_dom0_device_name(session, vm2_ref, self.network_for_test)
+        wait_for_dom0_device_ip(session, vm2_ref, device, static_manager)
         return vm1_ref, vm2_ref
 
     def _run_test(self, session, direction):
@@ -1011,55 +892,56 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         vm1_ref, vm2_ref = self._setup_vms(session, net_refs)
 
         # retrieve VM IPs
-        vm1_ip = wait_for_ip(session, vm1_ref, 'eth0')
-        log.debug("VM %s has IP %s (iface: eth0)" % (vm1_ref, vm1_ip))
+        vm1_dev, _, vm1_ip = get_context_vm_mif(vm1_ref)
+        log.debug("VM %s has IP %s (iface: %s)" % (vm1_ref, vm1_ip, vm1_dev))
 
-        vm2_ip = wait_for_ip(session, vm2_ref, 'eth0')
-        log.debug("VM %s has IP %s (iface: eth0)" % (vm2_ref, vm2_ip))
+        vm2_dev, _, vm2_ip = get_context_vm_mif(vm2_ref)
+        log.debug("VM %s has IP %s (iface: %s)" % (vm2_ref, vm2_ip, vm2_dev))
 
-        vm1_ip_eth1 = wait_for_ip(session, vm1_ref, 'eth1')
-        log.debug("VM %s has IP %s (iface: eth1)" % (vm1_ref, vm1_ip_eth1))
+        vm1_test_dev, vm1_test_mac, vm1_test_ip = get_context_test_ifs(vm1_ref)[0]
+        log.debug("VM %s has IP %s (iface: %s)" % (vm1_ref, vm1_test_ip, vm1_test_dev))
 
-        vm2_ip_eth1 = wait_for_ip(session, vm2_ref, 'eth1')
-        log.debug("VM %s has IP %s (iface: eth1)" % (vm2_ref, vm2_ip_eth1))
+        vm2_test_dev, vm2_test_mac, vm2_test_ip = get_context_test_ifs(vm2_ref)[0]
+        log.debug("VM %s has IP %s (iface: %s)" % (vm2_ref, vm2_test_ip, vm2_test_dev))
 
         # Add explicit IP routes to ensure MTU traffic travels
         # across the correct interface.
 
         args = {
             'vm_ref': vm1_ref,
-            'dest_ip': vm2_ip_eth1,
-            'dest_mac': get_vm_device_mac(session, vm2_ref, 'eth1'),
-            'device': 'eth1',
+            'mip': vm1_ip,
+            'dest_ip': vm2_test_ip,
+            'dest_mac': vm2_test_mac,
+            'device': vm1_test_dev,
         }
 
         call_ack_plugin(session, 'add_route', args)
 
         args = {
             'vm_ref': vm2_ref,
-            'dest_ip': vm1_ip_eth1,
-            'dest_mac': get_vm_device_mac(session, vm1_ref, 'eth1'),
-            'device': 'eth1',
+            'mip': vm2_ip,
+            'dest_ip': vm1_test_ip,
+            'dest_mac': vm1_test_mac,
+            'device': vm2_test_dev,
         }
 
         call_ack_plugin(session, 'add_route', args)
 
         for vm_ref in [vm1_ref, vm2_ref]:
-            check_vm_ping_response(session, vm_ref)
+            check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
-        cmd_str = 'ip link set dev eth1 mtu %s' % self.MTU
-        for vm_ip in [vm1_ip, vm2_ip]:
-            ssh_command(vm_ip, self.username, self.password, cmd_str)
+        ssh_command(vm1_ip, self.username, self.password, 'ip link set dev %s mtu %s' % (vm1_test_dev, self.MTU))
+        ssh_command(vm2_ip, self.username, self.password, 'ip link set dev %s mtu %s' % (vm2_test_dev, self.MTU))
 
         log.debug("Starting large MTU ping test...")
 
         log.debug("Attempt normal ping first...")
-        ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1')
+        ping_result = ping(vm1_ip, vm2_test_ip, vm1_test_dev)
 
         log.debug("Moving onto large MTU ping...")
         log.debug("Ping Arguments: %s" % self.PING_ARGS)
         # set ping args and run cmd
-        ping_result = ping(vm1_ip, vm2_ip_eth1, 'eth1', self.PING_ARGS[
+        ping_result = ping(vm1_ip, vm2_test_ip, vm1_test_dev, self.PING_ARGS[
                            'packet_size'], self.PING_ARGS['packet_count'])
         log.debug("Result: %s" % ping_result)
 
@@ -1266,8 +1148,10 @@ class InterHostSRIOVTestClass(IperfTestClass):
 
     def iperf_test(self, session, result, vm1_ref, vm2_ref, direction):
         """Virtual function to perform IPerf test"""
+        mip = get_context_vm_mip(vm1_ref)
+        test_if = get_context_test_ifs(vm1_ref)[0]
         vf_driver_info = get_vf_driver_info(session, get_pool_master(session),
-                                            vm1_ref, 'eth1')
+                                            vm1_ref, mip, test_if[0])
         log.debug("vf driver info: %s" % str(vf_driver_info))
         self.set_config(result, vf_driver_info)
 
@@ -1283,24 +1167,10 @@ class InterHostSRIOVTestClass(IperfTestClass):
         log.debug("IPerf server VM ref: %s" % server)
         log.debug("IPerf client VM ref: %s" % client)
 
-        # Prepare iperf test
-        devices_s = get_vm_interface(session, get_pool_master(session), server)
-        devices_c = get_vm_interface(session, get_pool_master(session), client)
-
-        vm_info = {server: IperfTest.default_iface_config.copy(),
-                   client: IperfTest.default_iface_config.copy()}
-        vm_info[server]['iface_t'] = 'eth1'
-        vm_info[server]['mac_t'] = devices_s['eth1'][0]
-        vm_info[server]['ip_t'] = devices_s['eth1'][1].split('/')[0]
-        vm_info[client]['iface_t'] = 'eth1'
-        vm_info[client]['mac_t'] = devices_c['eth1'][0]
-        vm_info[client]['ip_t'] = devices_c['eth1'][1].split('/')[0]
-
         log.debug("About to run SR-IOV IPerf test...")
         iperf_data = IperfTest(session, client, server,
                                None, None,
-                               config=self.IPERF_ARGS,
-                               vm_info=vm_info).run()
+                               config=self.IPERF_ARGS).run()
 
         self.set_data(result, iperf_data)
 
@@ -1353,30 +1223,22 @@ class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
 
     def ops_test(self, session, vms):
         master_ref = get_pool_master(session)
-
-        if self.vf_num_test < 16:
-            test_times = 8
-        elif self.vf_num_test >= 16 and self.vf_num_test < 32:
-            test_times = 4
-        elif self.vf_num_test >= 32 and self.vf_num_test < 64:
-            test_times = 2
-        else:
-            test_times = 1
+        test_times = 10
+        test_timeout = 3600
+        start_time = time.time()
 
         for i in range(test_times):
             log.debug("Starting test run %d of %d" % (i, test_times))
 
             log.debug("Shutting down VMs: %s" % vms)
-            task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.shutdown(x))
-                         for vm_ref in vms]
-            run_xapi_async_tasks(session, task_list)
+            shutdown_droid_vms(session, vms)
             verify_vif_status(session, self.vif_list, False)
 
             log.debug("Booting VMs: %s" % vms)
-            task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.start_on(
-                         x, master_ref, False, False)) for vm_ref in vms]
-            run_xapi_async_tasks(session, task_list)
+            start_droid_vms(session, [(master_ref, vm) for vm in vms])
             verify_vif_status(session, self.vif_list, True)
-            for vm_ref in vms:
-                wait_for_all_ips(session, vm_ref)
             verify_vif_config(session, master_ref, self.vif_group)
+
+            if should_timeout(start_time, test_timeout):
+                log.debug("End test because of %d seconds timeout limit" % test_timeout)
+                break

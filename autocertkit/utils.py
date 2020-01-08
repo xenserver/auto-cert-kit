@@ -978,12 +978,12 @@ def is_vf_disabled(session):
     return sum == 0
 
 
-def get_vf_driver_info(session, host, vm_ref, device):
+def get_vf_driver_info(session, host, vm_ref, mip, device):
     cmd = b"%s -i %s" % (ETHTOOL, device)
     log.debug("get_vf_driver_info: %s" % cmd)
     cmd = binascii.hexlify(cmd)
     res = call_ack_plugin(session, 'shell_run',
-                          {'cmd': cmd, 'vm_ref': vm_ref,
+                          {'cmd': cmd, 'vm_ref': vm_ref, 'mip': mip,
                            'username': 'root', 'password': DEFAULT_PASSWORD},
                           host)
     ret = {}
@@ -1353,7 +1353,7 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
                         % result)
 
 
-def ping_with_retry(session, vm_ref, dst_vm_ip, interface, timeout=20, retry=15):
+def ping_with_retry(session, vm_ref, mip, dst_vm_ip, interface, timeout=20, retry=15):
     loss_re = re.compile(""".* (?P<loss>[0-9]+)% packet loss, .*""", re.S)
 
     cmd_str = "ping -I %s -w %d %s" % (interface, timeout, dst_vm_ip)
@@ -1364,7 +1364,7 @@ def ping_with_retry(session, vm_ref, dst_vm_ip, interface, timeout=20, retry=15)
         if session.xenapi.VM.get_is_control_domain(vm_ref):
             args = {'cmd': cmd}
         else:
-            args = {'vm_ref': vm_ref,
+            args = {'vm_ref': vm_ref, 'mip': mip,
                     'username': 'root',
                     'password': DEFAULT_PASSWORD,
                     'cmd': cmd}
@@ -2182,26 +2182,24 @@ def verify_vif_status(session, vifs, status):
 
 
 def verify_vif_config(session, host, vif_group):
-    for vm_ref, vifs in vif_group.iteritems():
-        devices = get_vm_interface(session, host, vm_ref)
-        log.debug("VM %s contains interface %s" % (vm_ref, devices))
+    for vm_ref, vifs in vif_group.items():
+        mip = get_context_vm_mip(vm_ref)
+        ifs = get_vm_interface(session, host, vm_ref, mip)
+        log.debug("VM %s contains interface %s" % (vm_ref, ifs))
 
         # get all MAC
         all_mac = []
-        for _, values in devices.iteritems():
-            all_mac.append(values[0])
+        for _, iface in ifs.items():
+            all_mac.append(iface[1])
 
         for vif in vifs:
             vif_rec = session.xenapi.VIF.get_record(vif)
-            log.debug("VIF %s device: %s, MAC: %s" %
-                      (vif, vif_rec['device'], vif_rec['MAC']))
+            log.debug("VIF %s device: %s, MAC: %s" % (vif, vif_rec['device'], vif_rec['MAC']))
 
             # check MAC
             if vif_rec['MAC'] not in all_mac:
-                log.debug(
-                    "Error: MAC %s does not match any interface" % vif_rec['MAC'])
-                raise TestCaseError(
-                    'Error: SR-IOV test failed. VF MAC does not match any interface')
+                log.debug("Error: MAC %s does not match any interface" % vif_rec['MAC'])
+                raise TestCaseError('Error: SR-IOV test failed. VF MAC does not match any interface')
 
 
 class TimeoutFunction:
@@ -2309,6 +2307,47 @@ def get_vm_device_mac(session, vm_ref, device):
                         (device, vm_ref))
 
 
+def get_dom0_device_name(session, vm_ref, net_ref):
+    """Get dom0 device name of network"""
+    vm_host = session.xenapi.VM.get_resident_on(vm_ref)
+    pifs = session.xenapi.network.get_PIFs(net_ref)
+    device_names = []
+    for pif in pifs:
+        if vm_host == session.xenapi.PIF.get_host(pif):
+            device_names.append(session.xenapi.PIF.get_device(pif))
+    log.debug("Got dom0 device names: %s" % device_names)
+    if len(device_names) > 1:
+        raise Exception("Error: expected only a single device " +
+                        "name to be found in PIF list ('%s') " +
+                        "Instead, '%s' were returned." %
+                        (pifs, device_names))
+    device_name = device_names.pop()
+    return device_name.replace('eth', 'xenbr')
+
+
+def wait_for_dom0_device_ip(session, vm_ref, device, static_manager):
+    """Wait for dom0 device ip ready"""
+    log.debug("Setup Dom0 IP on bridge %s" % device)
+    args = {'device': device}
+
+    if static_manager:
+        args['mode'] = 'static'
+        ip = static_manager.get_ip()
+        args['ip_addr'] = ip.addr
+        args['ip_netmask'] = ip.netmask
+    else:
+        args['mode'] = 'dhcp'
+
+    host_ref = session.xenapi.VM.get_resident_on(vm_ref)
+    res = call_ack_plugin(session,
+                          'configure_local_device',
+                          args,
+                          host=host_ref)
+    res = res.pop()
+    set_context_vm_ifs(vm_ref, [[device, res['mac'], res['ip']]])
+    set_context_vm_mif(vm_ref, ['', '', ''])
+
+
 def get_vm_interface(session, host, vm_ref, mip):
     """Use ip command to get all interface (eth*) information"""
 
@@ -2341,10 +2380,11 @@ def get_vm_interface(session, host, vm_ref, mip):
     return ifs
 
 
-def get_iface_statistics(session, vm_ref, iface):
+def get_iface_statistics(session, vm_ref, mip, iface):
     res = call_ack_plugin(session, 'get_iface_stats',
                           {'iface': iface,
-                           'vm_ref': vm_ref})
+                           'vm_ref': vm_ref,
+                           'mip': mip})
     stats_dict = res[0]
     return IfaceStats(iface, stats_dict)
 
@@ -2370,17 +2410,18 @@ def set_nic_device_status(session, interface, status):
 class TestThread(threading.Thread):
     """Threading class that runs a function"""
 
-    def __init__(self, function):
+    def __init__(self, function, args=()):
         self.function = function
+        self.args = args
         threading.Thread.__init__(self)
 
     def run(self):
-        self.function()
+        self.function(*self.args)
 
 
-def create_test_thread(function):
+def create_test_thread(function, args=()):
     """Function for creating and starting a number of threads"""
-    thread = TestThread(function)
+    thread = TestThread(function, args)
     thread.start()
     return thread
 
@@ -2673,20 +2714,19 @@ def combine_recs(rec1, rec2):
     return rec
 
 
-def check_vm_ping_response(session, vm_ref, interface='eth0', count=3, timeout=300):
+def check_vm_ping_response(session, vm_ref, mip, interface='eth0', count=3, timeout=300):
     """Function to run a simple check that a VM responds to a ping from the XenServer"""
     # Get VM IP and start timeout
-    vm_ip = wait_for_ip(session, vm_ref, interface)
     start = time.time()
 
     # Loop while waiting for an ICMP response
     while not should_timeout(start, timeout):
 
-        call = ["ping", vm_ip, "-c %s" % count]
+        call = ["ping", mip, "-c %s" % count]
 
         # Make the local shell call
         log.debug("Checking for ping response from VM %s on interface %s at %s" % (
-            vm_ref, interface, vm_ip))
+            vm_ref, interface, mip))
         process = subprocess.Popen(call, stdout=subprocess.PIPE)
         stdout, stderr = process.communicate()
         response = str(stdout).strip()
@@ -2694,7 +2734,7 @@ def check_vm_ping_response(session, vm_ref, interface='eth0', count=3, timeout=3
         # Check for no packet loss. Note the space before '0%', this is
         # required.
         if " 0% packet loss" in response:
-            log.debug("Ping response received from %s" % vm_ip)
+            log.debug("Ping response received from %s" % mip)
             return response
 
         log.debug("No ping response")
