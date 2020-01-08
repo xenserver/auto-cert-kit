@@ -115,6 +115,8 @@ class TestClass(object):
                 log.debug("******** %s.%s ********" % (
                     self.__class__.__name__, test))
 
+                init_context()
+
                 res = getattr(self, test)(self.session)
                 """
                 Critical key and value in res:

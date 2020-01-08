@@ -1103,6 +1103,69 @@ def _get_control_domain_ip(session, vm_ref, device='xenbr0'):
                            host_ref)
 
 
+"""
+To simply test, a context dict is used to record global information for test case
+context:
+    'vms': {vm_ref: {'mif': (interface, mac, ip),
+                     'ifs': [(interface, mac, ip), ...]} }
+    'networks': {net_ref: {'vifs': {vif_ref: (interface, mac, ip), ...}, 
+                           'pifs': {},
+                           'bridge': {} }
+                           
+  where
+    mif: management interface
+    ifs: all interfaces
+"""
+def init_context():
+    clean_context()
+
+
+def get_context():
+    global __context
+    return __context
+
+
+def clean_context():
+    global __context
+    __context = {'vms':{}}
+    return __context
+
+
+def get_context_vms():
+    return get_context()['vms']
+
+
+def get_context_vm_mif(vm_ref):
+    return get_context_vms()[vm_ref]['mif']
+
+
+def set_context_vm_mif(vm_ref, mif):
+    vms = get_context_vms()
+    if vm_ref not in vms:
+        vms[vm_ref] = {}
+    vms[vm_ref]['mif'] = mif
+
+
+def get_context_vm_mip(vm_ref):
+    return get_context_vm_mif(vm_ref)[2]
+
+
+def get_context_vm_ifs(vm_ref):
+    return get_context_vms()[vm_ref]['ifs']
+
+
+def set_context_vm_ifs(vm_ref, ifs):
+    vms = get_context_vms()
+    if vm_ref not in vms:
+        vms[vm_ref] = {}
+    vms[vm_ref]['ifs'] = ifs
+
+
+def get_context_test_ifs(vm_ref):
+    mdevice = get_context_vm_mif(vm_ref)[0]
+    return [test_if for test_if in get_context_vm_ifs(vm_ref) if test_if[0] != mdevice]
+
+
 def wait_for_ip(session, vm_ref, device, timeout=300):
     """Wait for an IP address to be returned (until a given timeout)"""
 
