@@ -526,8 +526,6 @@ def deploy_iperf(session, args):
     log.debug("deploy iperf plugin call")
     vm_ref = validate_exists(args, 'vm_ref')
 
-    log.debug("validation complete")
-
     if not session.xenapi.VM.get_is_control_domain(vm_ref):
         mip = validate_exists(args, 'mip')
         username = validate_exists(args, 'username')
@@ -1479,7 +1477,8 @@ def deploy_lmbench(session, args):
         limit = 5
         while i < limit:
             try:
-                install_rpm(session, vm_ref, mip, username, password, LMBENCH_RPM)
+                install_rpm(session, vm_ref, mip, username,
+                            password, LMBENCH_RPM)
                 copy_lmbench_config(session, vm_ref, mip, username, password)
                 break
             except:
@@ -1554,7 +1553,8 @@ def deploy_iozone(session, args):
         limit = 5
         while i < limit:
             try:
-                install_rpm(session, vm_ref, mip, username, password, IOZONE_RPM)
+                install_rpm(session, vm_ref, mip,
+                            username, password, IOZONE_RPM)
                 break
             except:
                 log.debug(
@@ -1607,7 +1607,8 @@ def deploy_bonnie(session, args):
         limit = 5
         while i < limit:
             try:
-                install_rpm(session, vm_ref, mip, username, password, BONNIE_RPM)
+                install_rpm(session, vm_ref, mip,
+                            username, password, BONNIE_RPM)
                 ssh_command(mip, username, password,
                             'mkdir -m a=rwx /root/bonnie; useradd citrix; chown citrix /root/bonnie')
                 break

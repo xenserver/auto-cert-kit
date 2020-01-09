@@ -56,10 +56,10 @@ class PerfTestClass(testbase.CPUTestClass):
         host_ref = get_pool_master(session)
         net_ref = get_management_network(session)
         return deploy_common_droid_vms_on_hosts(session,
-                                              [host_ref],
-                                              [net_ref],
-                                              self.vm_count,
-                                              {net_ref: self.get_static_manager(net_ref)})[host_ref]
+                                                [host_ref],
+                                                [net_ref],
+                                                self.vm_count,
+                                                {net_ref: self.get_static_manager(net_ref)})[host_ref]
 
     def _call_plugin(self, session, vm_ref_list, call):
         """Generic plugin call modified for this test class"""
@@ -79,8 +79,12 @@ class PerfTestClass(testbase.CPUTestClass):
         the master host by the XenAPI plugin"""
         threads = []
         for vm_ref in vm_ref_list:
-            threads.append(create_test_thread(ssh_command,
-                (get_context_vm_mip(vm_ref), self.username, self.password, self.cmd_str)))
+            threads.append(create_test_thread(lambda vm=vm_ref: TimeoutFunction(ssh_command(get_context_vm_mip(vm),
+                                                                                            self.username,
+                                                                                            self.password,
+                                                                                            self.cmd_str,
+                                                                                            timeout=self.timeout)["stdout"],
+                                                                                self.timeout, '%s test timed out %d' % (self.test, self.timeout))))
         return threads
 
     def _run_test(self, session):

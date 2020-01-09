@@ -153,11 +153,11 @@ class IperfTest:
         # packets over the correct interface
 
         self.plugin_call('reset_arp',
-                         {'vm_ref': self.client, 'mip':self.vm_info[self.client]['ip_m']
+                         {'vm_ref': self.client, 'mip': self.vm_info[self.client]['ip_m']
                           })
 
         self.plugin_call('reset_arp',
-                         {'vm_ref': self.server, 'mip':self.vm_info[self.server]['ip_m']
+                         {'vm_ref': self.server, 'mip': self.vm_info[self.server]['ip_m']
                           })
 
         # Make a plugin call to add a route to the client
@@ -605,11 +605,13 @@ class IperfTestClass(testbase.NetworkTestClass):
         log.debug("Get dom0")
         vm1_ref = get_master_control_domain(session)
         device = get_dom0_device_name(session, vm1_ref, self.network_for_test)
-        wait_for_dom0_device_ip(session, vm1_ref, device, sms[self.network_for_test])
+        wait_for_dom0_device_ip(session, vm1_ref, device,
+                                sms[self.network_for_test])
 
         log.debug("Create droid")
         slave_ref = get_pool_slaves(session)[0]
-        vm2_ref = deploy_common_droid_vms_on_hosts(session, [slave_ref], network_refs, 1, sms)[slave_ref][0]
+        vm2_ref = deploy_common_droid_vms_on_hosts(
+            session, [slave_ref], network_refs, 1, sms)[slave_ref][0]
         log.debug("droid created")
 
         return vm1_ref, vm2_ref
@@ -898,11 +900,15 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         vm2_dev, _, vm2_ip = get_context_vm_mif(vm2_ref)
         log.debug("VM %s has IP %s (iface: %s)" % (vm2_ref, vm2_ip, vm2_dev))
 
-        vm1_test_dev, vm1_test_mac, vm1_test_ip = get_context_test_ifs(vm1_ref)[0]
-        log.debug("VM %s has IP %s (iface: %s)" % (vm1_ref, vm1_test_ip, vm1_test_dev))
+        vm1_test_dev, vm1_test_mac, vm1_test_ip \
+            = get_context_test_ifs(vm1_ref)[0]
+        log.debug("VM %s has IP %s (iface: %s)" %
+                  (vm1_ref, vm1_test_ip, vm1_test_dev))
 
-        vm2_test_dev, vm2_test_mac, vm2_test_ip = get_context_test_ifs(vm2_ref)[0]
-        log.debug("VM %s has IP %s (iface: %s)" % (vm2_ref, vm2_test_ip, vm2_test_dev))
+        vm2_test_dev, vm2_test_mac, vm2_test_ip \
+            = get_context_test_ifs(vm2_ref)[0]
+        log.debug("VM %s has IP %s (iface: %s)" %
+                  (vm2_ref, vm2_test_ip, vm2_test_dev))
 
         # Add explicit IP routes to ensure MTU traffic travels
         # across the correct interface.
@@ -930,8 +936,10 @@ class MTUPingTestClass(testbase.NetworkTestClass):
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
 
-        ssh_command(vm1_ip, self.username, self.password, 'ip link set dev %s mtu %s' % (vm1_test_dev, self.MTU))
-        ssh_command(vm2_ip, self.username, self.password, 'ip link set dev %s mtu %s' % (vm2_test_dev, self.MTU))
+        ssh_command(vm1_ip, self.username, self.password,
+                    'ip link set dev %s mtu %s' % (vm1_test_dev, self.MTU))
+        ssh_command(vm2_ip, self.username, self.password,
+                    'ip link set dev %s mtu %s' % (vm2_test_dev, self.MTU))
 
         log.debug("Starting large MTU ping test...")
 
@@ -1240,5 +1248,6 @@ class IntraHostSRIOVTestClass2(InterHostSRIOVTestClass):
             verify_vif_config(session, master_ref, self.vif_group)
 
             if should_timeout(start_time, test_timeout):
-                log.debug("End test because of %d seconds timeout limit" % test_timeout)
+                log.debug("End test because of %d seconds timeout limit" %
+                          test_timeout)
                 break

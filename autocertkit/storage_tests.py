@@ -64,11 +64,12 @@ class PerfTestClass(testbase.LocalStorageTestClass):
             sr_ref = get_local_sr(session, host_ref)
         log.debug("%s is chosen for local storage test." % sr_ref)
         return deploy_common_droid_vms_on_hosts(session,
-                                              [host_ref],
-                                              [net_ref],
-                                              self.vm_count,
-                                              {net_ref: self.get_static_manager(net_ref)},
-                                              sr_ref)[host_ref]
+                                                [host_ref],
+                                                [net_ref],
+                                                self.vm_count,
+                                                {net_ref: self.get_static_manager(
+                                                    net_ref)},
+                                                sr_ref)[host_ref]
 
     def _call_plugin(self, session, vm_ref_list, call):
         """Util function to call ACK plugin method"""
@@ -86,8 +87,11 @@ class PerfTestClass(testbase.LocalStorageTestClass):
         timeout function over SSH to every VM in vm_ref_list"""
         threads = []
         for vm_ref in vm_ref_list:
-            threads.append(create_test_thread(ssh_command,
-                (get_context_vm_mip(vm_ref), self.username, self.password, self.cmd_str)))
+            threads.append(create_test_thread(lambda vm=vm_ref: TimeoutFunction(ssh_command(get_context_vm_mip(vm),
+                                                                                            self.username,
+                                                                                            self.password,
+                                                                                            self.cmd_str),
+                                                                                self.timeout, '%s test timed out %d' % (self.test, self.timeout))))
         return threads
 
     def _run_test(self, session):

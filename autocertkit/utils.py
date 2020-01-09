@@ -1116,6 +1116,8 @@ context:
     mif: management interface
     ifs: all interfaces
 """
+
+
 def init_context():
     clean_context()
 
@@ -1127,7 +1129,7 @@ def get_context():
 
 def clean_context():
     global __context
-    __context = {'vms':{}}
+    __context = {'vms': {}}
     return __context
 
 
@@ -1167,28 +1169,16 @@ def get_context_test_ifs(vm_ref):
 
 
 def get_management_vif(session, vm_ref):
-    networks = get_management_network(session)
+    network = get_management_network(session)
     for vif in session.xenapi.VM.get_VIFs(vm_ref):
-        if session.xenapi.VIF.get_network(vif) in networks:
+        if session.xenapi.VIF.get_network(vif) == network:
             return vif
     return None
 
 
-def init_vms_first_run(session, vm_refs):
-    for vm_ref in vm_refs:
-        mip = get_context_vm_mip(vm_ref)
-        # Install SSH Keys for Plugin operations
-        call_ack_plugin(session, 'inject_ssh_key',
-                        {'vm_ref': vm_ref, 'mip': mip, 'username': 'root',
-                         'password': DEFAULT_PASSWORD})
-        # Ensure that we make sure the switch accesses IP addresses by
-        # their own interfaces (avoid interface forwarding).
-        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref, 'mip': mip})
-
-
 def disable_vm_static_ip_service(session, mip):
-    cmd = """systemctl stop static-ip; systemctl disable static-ip; systemctl status static-ip; """ \
-          """rm -f /etc/sysconfig/network-scripts/ifcfg-eth*; """
+    cmd = """systemctl stop static-ip; systemctl disable static-ip; systemctl status static-ip; """
+    """rm -f /etc/sysconfig/network-scripts/ifcfg-eth*; """
     ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd, attempts=1, timeout=60)
 
 
@@ -1197,29 +1187,33 @@ def get_vm_vif_ifs(session, vm_ref):
     ifs = {}
     dom_root = "/local/domain/%s" % str(session.xenapi.VM.get_domid(vm_ref))
 
-    cmd = b'''xenstore-ls -f %s | grep -E "%s/device/vif/[0-9]+/mac|%s/attr/vif/[0-9]+/ipv4/[0-9]+"''' % (dom_root, dom_root, dom_root)
+    cmd = b'''xenstore-ls -f %s | grep -E "%s/device/vif/[0-9]+/mac|%s/attr/vif/[0-9]+/ipv4/[0-9]+"''' % (
+        dom_root, dom_root, dom_root)
     args = {'cmd': binascii.hexlify(cmd)}
-    res = call_ack_plugin(session, 'shell_run', args, session.xenapi.VM.get_resident_on(vm_ref))
+    res = call_ack_plugin(session, 'shell_run', args,
+                          session.xenapi.VM.get_resident_on(vm_ref))
     res = res.pop()
     if int(res["returncode"]) != 0:
         log.debug("Failed to get vm interfaces from xenstore.")
         return ifs
 
-    re_mac = re.compile(r"""^%s/device/vif/(?P<device>[0-9]+)/mac\s*=\s*"(?P<mac>.*)"$""" % dom_root)
-    re_ip = re.compile(r"""^%s/attr/vif/(?P<device>[0-9]+)/ipv4/(?P<index>[0-9]+)\s*=\s*"(?P<ip>.*)"$""" % dom_root)
+    re_mac = re.compile(
+        r"""^%s/device/vif/(?P<device>[0-9]+)/mac\s*=\s*"(?P<mac>.*)"$""" % dom_root)
+    re_ip = re.compile(
+        r"""^%s/attr/vif/(?P<device>[0-9]+)/ipv4/(?P<index>[0-9]+)\s*=\s*"(?P<ip>.*)"$""" % dom_root)
     for line in res["stdout"].split('\n'):
         m = re_mac.match(line)
         if m:
             device, mac = m.groups()
             if device not in ifs:
-                ifs[device] = {"vif":device, "mac":"", "ip":""}
+                ifs[device] = {"vif": device, "mac": "", "ip": ""}
             ifs[device]["mac"] = mac
             continue
         m = re_ip.match(line)
         if m:
             device, _, ip = m.groups()
             if device not in ifs:
-                ifs[device] = {"vif":device, "mac":"", "ip":""}
+                ifs[device] = {"vif": device, "mac": "", "ip": ""}
             ifs[device]["ip"] = ip
             continue
 
@@ -1240,7 +1234,7 @@ def wait_for_vm_mip(session, vm_ref, timeout=300):
         ifs = get_vm_vif_ifs(session, vm_ref)
         log.debug("VM %s has these vif IPs %s" % (vm_ref, ifs))
 
-        for _,f in ifs.items():
+        for _, f in ifs.items():
             if f["mac"] == mmac and f["ip"]:
                 log.debug("Got management ip: %s" % f["ip"])
                 set_context_vm_mif(vm_ref, ['', mmac, f["ip"]])
@@ -1264,10 +1258,11 @@ def wait_for_vm_ips(session, vm_ref, mip, timeout=300):
         ifs = get_vm_interface(session, host_ref, vm_ref, mip)
         log.debug("VM %s has these interface IPs %s" % (vm_ref, ifs))
 
-        if len(ifs) >= vif_count and "" not in [f[2] for _,f in ifs.items()]:
-            set_context_vm_ifs(vm_ref, [[f[0], f[1], f[2].split('/')[0]] for _,f in ifs.items()])
+        if len(ifs) >= vif_count and "" not in [f[2] for _, f in ifs.items()]:
+            set_context_vm_ifs(
+                vm_ref, [[f[0], f[1], f[2].split('/')[0]] for _, f in ifs.items()])
             mif = get_context_vm_mif(vm_ref)
-            mdevices = [f[0] for _,f in ifs.items() if f[1] == mif[1]]
+            mdevices = [f[0] for _, f in ifs.items() if f[1] == mif[1]]
             set_context_vm_mif(vm_ref, [mdevices[0], mif[1], mif[2]])
             return ifs
 
@@ -1752,9 +1747,8 @@ def assert_can_boot_here(session, vm_ref, host_ref):
 
 
 def prepare_droid_vm_template(session, host_ref, creds=None):
-    """Checks if the droid vm needs to be installed
-    on the host - if it does, it prepares it"""
-    log.debug("About to prepare droid vm for host %s" % host_ref)
+    """Prepare droid vm template, import it if not existing"""
+    log.debug("About to prepare droid vm template for host %s" % host_ref)
 
     templates = [template for template in find_droid_templates(session)
                  if assert_can_boot_here(session, template, host_ref)]
@@ -1820,7 +1814,7 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
 
 
 def deploy_common_droid_vms_on_hosts(session, host_refs, network_refs, vm_count, sms=None, sr_ref=None):
-    """Deploy count common VMs on each host, here common means one network has only one vif,
+    """Deploy vm_count common VMs on each host, here common means one network has only one vif,
     and management network vif device is 0, 1 for test network."""
 
     log.debug("Creating required VM(s)")
@@ -1832,14 +1826,15 @@ def deploy_common_droid_vms_on_hosts(session, host_refs, network_refs, vm_count,
         vms = import_droid_vms(session, host, vm_count)
         host_vms[host] = vms
         all_vms += vms
-        host_vm_list += [(host,vm) for vm in vms]
+        host_vm_list += [(host, vm) for vm in vms]
 
     management_net_ref = network_refs[0] if len(network_refs) else None
     test_net_ref = network_refs[1] if len(network_refs) > 1 else None
     vm_vifs = {}
     if management_net_ref:
         for vm in all_vms:
-            vm_vifs_info = init_droid_vm_mvif(session, vm, management_net_ref, sms, [0])
+            vm_vifs_info = init_droid_vm_mvif(
+                session, vm, management_net_ref, sms, [0])
             vm_vifs[vm] = vm_vifs_info
 
     start_droid_vms(session, host_vm_list)
@@ -1850,7 +1845,8 @@ def deploy_common_droid_vms_on_hosts(session, host_refs, network_refs, vm_count,
 
     if test_net_ref:
         for vm in all_vms:
-            vm_vifs_info = init_droid_vm_vifs(session, vm, test_net_ref, sms, [1])
+            vm_vifs_info = init_droid_vm_vifs(
+                session, vm, test_net_ref, sms, [1])
             vm_vifs[vm] = vm_vifs_info
 
     shutdown_droid_vms(session, all_vms)
@@ -1877,10 +1873,12 @@ def import_droid_vms(session, host_ref, count=1, label="Droid"):
     """Import count VM on host"""
     log.debug("Creating required VMs")
     vm_template_ref = prepare_droid_vm_template(session, host_ref)
-    tasks = [lambda id=i: session.xenapi.Async.VM.clone(vm_template_ref, '%s_%d' % (label,id)) for i in range(count)]
+    tasks = [lambda id=i: session.xenapi.Async.VM.clone(
+        vm_template_ref, '%s_%d' % (label, id)) for i in range(1, count+1)]
     vm_refs = run_xapi_async_tasks(session, tasks)
     if len(vm_refs) != count:
-        raise Exception("Expect to clone %d vms - only got %d results" % (count, len(vm_refs)))
+        raise Exception(
+            "Expect to clone %d vms - only got %d results" % (count, len(vm_refs)))
 
     for vm_ref in vm_refs:
         brand_vm(session, vm_ref, FOR_CLEANUP)
@@ -1911,7 +1909,8 @@ def create_vifs_for_droid_vm(session, vm_ref, network_ref, vifs_info):
     log.debug("Setup vm %s vifs on network" % vm_ref)
     vifs_rec = []
     for id, vif_info in vifs_info.items():
-        vif_info = create_vif_on_vm_network(session, vm_ref, network_ref, id, wipe=(id == 0), mac=vif_info[1])
+        vif_info = create_vif_on_vm_network(
+            session, vm_ref, network_ref, id, wipe=(id == 0), mac=vif_info[1])
         vifs_rec.append(vif_info)
     return vifs_rec
 
@@ -1922,10 +1921,12 @@ def init_vifs_ip_addressing(session, vm_ref, vifs_info):
         device = "eth%d" % id
         ip, netmask, gw = vif_info[2], vif_info[3], vif_info[4]
         if ip:
-            log.debug("Init VM %s device %s as static IP: %s, netmask: %s, gateway: %s" % (vm_ref, device, ip, netmask, gw))
+            log.debug("Init VM %s device %s as static IP: %s, netmask: %s, gateway: %s" % (
+                vm_ref, device, ip, netmask, gw))
             droid_set_static(session, vm_ref, 'ipv4', device, ip, netmask, gw)
         else:
-            log.debug("Init VM %s device %s as default dhcp" % (vm_ref, device))
+            log.debug("Init VM %s device %s as default dhcp" %
+                      (vm_ref, device))
 
 
 def init_ifs_ip_addressing(session, vm_ref, vifs_info):
@@ -1936,7 +1937,8 @@ def init_ifs_ip_addressing(session, vm_ref, vifs_info):
         device = "ethx%d" % id
         mac, ip, netmask, gw = vif_info[1], vif_info[2], vif_info[3], vif_info[4]
         if ip:
-            droid_add_static_ifcfg(session, host_ref, vm_ref, mip, device, mac, ip, netmask, gw)
+            droid_add_static_ifcfg(
+                session, host_ref, vm_ref, mip, device, mac, ip, netmask, gw)
         else:
             droid_add_dhcp_ifcfg(session, host_ref, vm_ref, mip, device, mac)
 
@@ -1944,9 +1946,9 @@ def init_ifs_ip_addressing(session, vm_ref, vifs_info):
 def droid_add_static_ifcfg(session, host, vm_ref, mip, iface, mac, ip, netmask, gw):
     """Set VM interface static ip in config file ifcfg-eth*"""
     cmd = b'''echo "TYPE=Ethernet\nNAME=%s\nDEVICE=%s\nHWADDR=%s\n''' \
-            b'''IPADDR=%s\nNETMASK=%s\nGATEWAY=%s\nBOOTPROTO=none\nONBOOT=yes" ''' \
-            b'''> "%s/ifcfg-%s" ''' \
-            % (iface, iface, mac, ip, netmask, gw, "/etc/sysconfig/network-scripts", iface)
+        b'''IPADDR=%s\nNETMASK=%s\nGATEWAY=%s\nBOOTPROTO=none\nONBOOT=yes" ''' \
+        b'''> "%s/ifcfg-%s" ''' \
+        % (iface, iface, mac, ip, netmask, gw, "/etc/sysconfig/network-scripts", iface)
     args = {'vm_ref': vm_ref,
             'mip': mip,
             'username': 'root',
@@ -1961,7 +1963,7 @@ def droid_add_static_ifcfg(session, host, vm_ref, mip, iface, mac, ip, netmask, 
 def droid_add_dhcp_ifcfg(session, host, vm_ref, mip, iface, mac):
     """Set VM interface dhcp in config file ifcfg-eth*"""
     cmd = b'''echo "NAME=%s\nDEVICE=%s\nHWADDR=%s\nBOOTPROTO=dhcp\nONBOOT=yes" > "%s/ifcfg-%s"''' \
-            % (iface, iface, mac, "/etc/sysconfig/network-scripts", iface)
+        % (iface, iface, mac, "/etc/sysconfig/network-scripts", iface)
     args = {'vm_ref': vm_ref,
             'mip': mip,
             'username': 'root',
@@ -1994,7 +1996,14 @@ def init_droid_vm_mvif(session, vm_ref, network_ref, sms, ids=[0]):
 
 def init_droid_vm_first_run(session, vm_ref, vifs_info):
     """Init VM first run"""
-    init_vms_first_run(session, [vm_ref])
+    mip = get_context_vm_mip(vm_ref)
+    # Install SSH Keys for Plugin operations
+    call_ack_plugin(session, 'inject_ssh_key',
+                    {'vm_ref': vm_ref, 'mip': mip, 'username': 'root',
+                     'password': DEFAULT_PASSWORD})
+    # Ensure that we make sure the switch accesses IP addresses by
+    # their own interfaces (avoid interface forwarding).
+    call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref, 'mip': mip})
     disable_vm_static_ip_service(session, get_context_vm_mip(vm_ref))
     init_ifs_ip_addressing(session, vm_ref, vifs_info)
 
@@ -2007,7 +2016,7 @@ def init_droid_vm_vifs(session, vm_ref, network_ref, sms, ids=[1]):
 
 
 def shutdown_droid_vms(session, vms, async=True):
-    """Shutdown two VMs"""
+    """Shutdown VMs"""
 
     log.debug("Shutdown required VMs")
     if async:
@@ -2025,7 +2034,7 @@ def shutdown_droid_vms(session, vms, async=True):
 
 
 def start_droid_vms(session, vms, async=True):
-    """Start two VMs"""
+    """Start VMs"""
 
     log.debug("Starting required VMs")
     if async:
@@ -2056,6 +2065,7 @@ def start_droid_vms(session, vms, async=True):
     log.debug("Wait for IPs...")
     wait_for_vms_ips(session, vm_refs)
     log.debug("IP's retrieved...")
+
 
 def wait_for_vms(session, vm_refs, power_state, timeout=60):
     """Wait for XAPI to mark each VM in the list as 'Running'"""
@@ -2099,30 +2109,39 @@ def deploy_two_droid_vms_for_sriov_inter_host_test(session, vf_driver, network_r
 
     host_master_ref = get_pool_master(session)
     host_slave_ref = get_pool_slaves(session)[0]
-    vm1_ref = import_droid_vms(session, host_master_ref, label='Droid_Sriov')[0]
+    vm1_ref = import_droid_vms(
+        session, host_master_ref, label='Droid_Sriov')[0]
     vm2_ref = import_droid_vms(session, host_slave_ref)[0]
 
     # config management network
-    vm1_vifs_info = init_droid_vm_mvif(session, vm1_ref, network_refs[1][0], sms, [0])
-    vm2_vifs_info = init_droid_vm_mvif(session, vm2_ref, network_refs[0][0], sms, [0])
+    vm1_vifs_info = init_droid_vm_mvif(
+        session, vm1_ref, network_refs[1][0], sms, [0])
+    vm2_vifs_info = init_droid_vm_mvif(
+        session, vm2_ref, network_refs[0][0], sms, [0])
 
-    start_droid_vms(session, [(host_master_ref, vm1_ref), (host_slave_ref, vm2_ref)])
+    start_droid_vms(
+        session, [(host_master_ref, vm1_ref), (host_slave_ref, vm2_ref)])
 
     init_droid_vm_first_run(session, vm1_ref, vm1_vifs_info)
     init_droid_vm_first_run(session, vm2_ref, vm2_vifs_info)
 
     setup_vm_for_sriov(session, vm1_ref, vf_driver)
 
-    vm1_vifs_info = init_droid_vm_vifs(session, vm1_ref, network_refs[1][1], sms, [1])
-    vm2_vifs_info = init_droid_vm_vifs(session, vm2_ref, network_refs[0][1], sms, [1])
+    vm1_vifs_info = init_droid_vm_vifs(
+        session, vm1_ref, network_refs[1][1], sms, [1])
+    vm2_vifs_info = init_droid_vm_vifs(
+        session, vm2_ref, network_refs[0][1], sms, [1])
 
     shutdown_droid_vms(session, [vm1_ref, vm2_ref])
 
     # config test networks
-    create_vifs_for_droid_vm(session, vm1_ref, network_refs[1][1], vm1_vifs_info)
-    create_vifs_for_droid_vm(session, vm2_ref, network_refs[0][1], vm2_vifs_info)
+    create_vifs_for_droid_vm(
+        session, vm1_ref, network_refs[1][1], vm1_vifs_info)
+    create_vifs_for_droid_vm(
+        session, vm2_ref, network_refs[0][1], vm2_vifs_info)
 
-    start_droid_vms(session, [(host_master_ref, vm1_ref), (host_slave_ref, vm2_ref)])
+    start_droid_vms(
+        session, [(host_master_ref, vm1_ref), (host_slave_ref, vm2_ref)])
 
     return vm1_ref, vm2_ref
 
@@ -2138,12 +2157,14 @@ def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, netw
     for i in range(vf_count):
         vf_num_list[i % vm_count] += 1
 
-    vm_list = import_droid_vms(session, host_master_ref, vm_count, 'Droid_Sriov')
+    vm_list = import_droid_vms(
+        session, host_master_ref, vm_count, 'Droid_Sriov')
     host_vm_list = [(host_master_ref, vm_ref) for vm_ref in vm_list]
 
     vm_vifs_dict = {}
     for vm_ref in vm_list:
-        vm_vifs_info = init_droid_vm_mvif(session, vm_ref, management_net_ref, sms, [0])
+        vm_vifs_info = init_droid_vm_mvif(
+            session, vm_ref, management_net_ref, sms, [0])
         vm_vifs_dict[vm_ref] = vm_vifs_info
 
     start_droid_vms(session, host_vm_list, False)
@@ -2154,7 +2175,8 @@ def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, netw
         setup_vm_for_sriov(session, vm_ref, vf_driver)
 
         vf_ids = list(range(1, vf_num_list[vm_list.index(vm_ref)] + 1))
-        vm_vifs_info = init_droid_vm_vifs(session, vm_ref, test_net_ref, sms, vf_ids)
+        vm_vifs_info = init_droid_vm_vifs(
+            session, vm_ref, test_net_ref, sms, vf_ids)
         vm_vifs_dict[vm_ref] = vm_vifs_info
 
     shutdown_droid_vms(session, vm_list)
@@ -2162,7 +2184,8 @@ def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, netw
     vif_list = []
     vif_group = {}
     for vm_ref in vm_list:
-        vifs_rec = create_vifs_for_droid_vm(session, vm_ref, test_net_ref, vm_vifs_dict[vm_ref])
+        vifs_rec = create_vifs_for_droid_vm(
+            session, vm_ref, test_net_ref, vm_vifs_dict[vm_ref])
         vif_refs = [vif_ref for vif_ref, _, _ in vifs_rec]
         vif_list += vif_refs
         vif_group[vm_ref] = vif_refs
@@ -2194,12 +2217,15 @@ def verify_vif_config(session, host, vif_group):
 
         for vif in vifs:
             vif_rec = session.xenapi.VIF.get_record(vif)
-            log.debug("VIF %s device: %s, MAC: %s" % (vif, vif_rec['device'], vif_rec['MAC']))
+            log.debug("VIF %s device: %s, MAC: %s" %
+                      (vif, vif_rec['device'], vif_rec['MAC']))
 
             # check MAC
             if vif_rec['MAC'] not in all_mac:
-                log.debug("Error: MAC %s does not match any interface" % vif_rec['MAC'])
-                raise TestCaseError('Error: SR-IOV test failed. VF MAC does not match any interface')
+                log.debug("Error: MAC %s does not match any interface" %
+                          vif_rec['MAC'])
+                raise TestCaseError(
+                    'Error: SR-IOV test failed. VF MAC does not match any interface')
 
 
 class TimeoutFunction:
@@ -2714,7 +2740,7 @@ def combine_recs(rec1, rec2):
     return rec
 
 
-def check_vm_ping_response(session, vm_ref, mip, interface='eth0', count=3, timeout=300):
+def check_vm_ping_response(session, vm_ref, mip, count=3, timeout=300):
     """Function to run a simple check that a VM responds to a ping from the XenServer"""
     # Get VM IP and start timeout
     start = time.time()
@@ -2725,8 +2751,8 @@ def check_vm_ping_response(session, vm_ref, mip, interface='eth0', count=3, time
         call = ["ping", mip, "-c %s" % count]
 
         # Make the local shell call
-        log.debug("Checking for ping response from VM %s on interface %s at %s" % (
-            vm_ref, interface, mip))
+        log.debug("Checking for ping response from VM %s at %s" % (
+            vm_ref, mip))
         process = subprocess.Popen(call, stdout=subprocess.PIPE)
         stdout, stderr = process.communicate()
         response = str(stdout).strip()
@@ -2740,8 +2766,8 @@ def check_vm_ping_response(session, vm_ref, mip, interface='eth0', count=3, time
         log.debug("No ping response")
         time.sleep(3)
 
-    raise Exception("VM %s interface %s could not be reached in the given timeout" % (
-        vm_ref, interface))
+    raise Exception("VM %s IP %s could not be reached in the given timeout" % (
+        vm_ref, mip))
 
 
 def valid_ping_response(ping_response, max_loss=0):
