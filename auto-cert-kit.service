@@ -1,0 +1,13 @@
+[Unit]
+Description=Service to run auto cert kit test
+Requires=xapi.service
+After=xapi.service
+
+[Service]
+Type=simple
+ExecStartPre=/opt/xensource/bin/xapi-wait-init-complete 300
+ExecStart=/usr/bin/python /opt/xensource/packages/files/auto-cert-kit/test_runner.py -t /opt/xensource/packages/files/auto-cert-kit/test_run.conf
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
