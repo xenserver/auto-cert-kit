@@ -515,6 +515,9 @@ class BondingTestClass(testbase.NetworkTestClass):
 
         log.debug("Starting test...")
         results = []
+        # First time try ping to make sure network stable
+        ping(vm1_ip, vm2_bondnic_ip, vm2_bondnic_dev)
+
         # Test healthy bond
         results.append(ping(vm1_ip, vm2_bondnic_ip, vm2_bondnic_dev))
 
