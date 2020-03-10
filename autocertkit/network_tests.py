@@ -972,6 +972,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 class MulticastTestClass(IperfTestClass):
     """ Subclass that runs multicast test"""
 
+    REQUIRED_FOR = ">= %s" % XCP_MIN_VER_WITH_MULTICAST
     caps = [MULTICAST_CAP]
     required = False
 

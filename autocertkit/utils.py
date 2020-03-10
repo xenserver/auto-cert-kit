@@ -70,6 +70,9 @@ REQ_CAP = "REQ"
 MULTICAST_CAP = "MULTICAST"
 SRIOV_CAP = "SR-IOV"
 
+# XCP minimum version with Multicast support
+XCP_MIN_VER_WITH_MULTICAST = "2.3.0"  # XenServer 7.2
+
 # XCP minimum version with SR-IOV support
 XCP_MIN_VER_WITH_SRIOV = "2.6.0"  # XenServer 7.5
 
