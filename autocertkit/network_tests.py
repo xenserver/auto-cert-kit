@@ -442,7 +442,7 @@ class VLANTestClass(testbase.NetworkTestClass):
         rec = {}
         rec['info'] = ping_result
 
-        if "0% packet loss" not in ping_result:
+        if " 0% packet loss" not in ping_result:
             raise TestCaseError("Error: Ping transmittion failed. %s"
                                 % ping_result)
 
