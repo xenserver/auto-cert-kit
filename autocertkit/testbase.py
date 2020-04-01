@@ -326,17 +326,20 @@ class TestClass(object):
                         log.debug("Create static config for %s (%s)" %
                                   (iface, vlan))
                         key_name = "%s_%s" % (iface, vlan)
-                        assert key_name not in res.keys(
-                        ), "Duplicate static IP addressing specified for %s (%s)" % (iface, vlan)
+                        assert key_name not in res.keys(), \
+                            "Duplicate static IP addressing specified for %s (%s)" % (
+                                iface, vlan)
                         res[key_name] = sm
                         log.debug("Added static conf for '%s'" % key_name)
 
         mgmt = get_pool_management_device(self.session)
-        if 'static_management' in netconf and mgmt not in netconf:
-            log.debug("Create static config for mgmt device %s" % mgmt)
+        log.debug("The pool management device is %s" % mgmt)
+        if 'static_management' in netconf:
+            assert mgmt not in netconf, \
+                "'static_management' should only be specified when management " \
+                "device(%s) is not being tested for certification. " % (mgmt)
+            log.debug("Create static config for management device %s" % mgmt)
             key_name = "%s_0" % (mgmt)
-            assert key_name not in res.keys(
-            ), "'static_management' should only be specified when management device(%s) is not being tested for certification." % (iface)
             res[key_name] = StaticIPManager(netconf['static_management'])
             log.debug("Added static conf for '%s'" % key_name)
 

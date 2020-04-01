@@ -42,86 +42,115 @@ class ExpressionMatchingTests(unittest_base.DevTestCase):
         self._exp_false('> 5.6 SP2', '5.6 FP1')
 
 
-class StaticIPUtilsTests(unittest_base.DevTestCase):
-    """Verify that the class methods for manipulating
-    static IP addresses work correctly"""
+class IPv4AddrTests(unittest.TestCase):
 
-    def _test_on_subnet(self, ip_a, ip_b, mask, expect=True):
-        ipa = utils.IPv4Addr(ip_a, mask, '192.168.0.1')
-        ipb = utils.IPv4Addr(ip_b, mask, '192.168.0.1')
+    def test_check_ip_format(self):
+        utils.IPv4Addr.check_ip_format('192.168.0.1')
+        self.assertRaises(
+            Exception, lambda: utils.IPv4Addr.check_ip_format('192.168.0.256'))
+        self.assertRaises(
+            Exception, lambda: utils.IPv4Addr.check_ip_format('192.168.1'))
+        self.assertRaises(
+            Exception, lambda: utils.IPv4Addr.check_ip_format('192.168.0.0.1'))
+        self.assertRaises(
+            Exception, lambda: utils.IPv4Addr.check_ip_format('192.168.0.01'))
 
-        if ipa.on_subnet(ipb) and not expect:
-            raise Exception("'%s' and '%s' on subnet '%s' - '%s'" % (ip_a,
-                                                                     ip_b,
-                                                                     mask,
-                                                                     expect))
+    def test_check_netwrok_mask(self):
+        utils.IPv4Addr.check_netwrok_mask('255.255.255.0')
+        utils.IPv4Addr.check_netwrok_mask('255.255.0.0')
+        utils.IPv4Addr.check_netwrok_mask('255.0.0.0')
+        utils.IPv4Addr.check_netwrok_mask('255.255.240.0')
+        self.assertRaises(
+            Exception, lambda: utils.IPv4Addr.check_netwrok_mask('255.255.255.255'))
+        self.assertRaises(
+            Exception, lambda: utils.IPv4Addr.check_netwrok_mask('0.0.0.0'))
 
-    def _test_increment_ip(self, start, result, expect=True):
-        conf = {'ip_start': '192.168.0.1',
-                'ip_end': '192.168.0.10',
-                'netmask': '255.255.255.0',
-                'gw': '192.168.0.1'}
-        sim = utils.StaticIPManager(conf)
+    def test_check_special_ip(self):
+        utils.IPv4Addr.check_special_ip('192.168.0.1', '255.255.255.0')
+        self.assertRaises(Exception, lambda: utils.IPv4Addr.check_special_ip(
+            '192.168.0.0', '255.255.255.0'))
+        self.assertRaises(Exception, lambda: utils.IPv4Addr.check_special_ip(
+            '192.168.0.255', '255.255.255.0'))
 
-        res = sim.increment_ip_string(start)
+    def test_split(self):
+        subnet, host = utils.IPv4Addr.split('192.168.0.1', '255.255.255.0')
+        self.assertEqual(subnet, (192 << 24) + (168 << 16) + (0 << 8))
+        self.assertEqual(host, 1)
 
-        if res != result and expect:
-            raise Exception("Error: '%s' incremeneted, should equal '%s' not '%s'" %
-                            (start, result, res))
+    def test_aton(self):
+        n_ip = utils.IPv4Addr.aton('192.168.0.1')
+        self.assertEqual(n_ip, (192 << 24) + (168 << 16) + (0 << 8) + 1)
+        self.assertRaises(
+            Exception, lambda: utils.IPv4Addr.aton('192.168.0.256'))
 
-    def testOnSubnet(self):
-        self._test_on_subnet('192.168.0.10',
-                             '192.168.0.40',
-                             '255.255.255.0')
+    def test_ntoa(self):
+        ip = utils.IPv4Addr.ntoa((192 << 24) + (168 << 16) + (0 << 8) + 1)
+        self.assertEqual(ip, '192.168.0.1')
+        self.assertRaises(Exception, lambda: utils.IPv4Addr.ntoa(0x100000000))
 
-    def testNotOnSubnet(self):
-        self._test_on_subnet('192.168.0.10',
-                             '192.128.0.40',
-                             '255.255.255.0',
-                             expect=False)
+    def test_validate_netmask(self):
+        utils.IPv4Addr.validate_netmask('255.255.255.0')
 
-    def testIncrementIPs(self):
-        self._test_increment_ip('192.168.0.1', '192.168.0.2')
-        self._test_increment_ip('192.168.0.1', '192.168.0.10', expect=False)
+    def test_validate_ip(self):
+        utils.IPv4Addr.validate_ip('192.168.255.1', '255.255.255.0')
 
-    def testEnumerateIPs(self):
-        conf = {'ip_start': '10.80.227.143',
-                'ip_end': '10.80.227.151',
-                'netmask': '255.255.0.0',
-                'gw': '10.80.227.1'}
+    def test_in_same_subnet(self):
+        utils.IPv4Addr.in_same_subnet(
+            '192.168.255.1', '192.168.255.254', '255.255.255.0')
 
-        full_list = ['10.80.227.143', '10.80.227.144', '10.80.227.145', '10.80.227.146',
-                     '10.80.227.147', '10.80.227.148', '10.80.227.149', '10.80.227.150',
-                     '10.80.227.151']
+    def test_validate(self):
+        ip = utils.IPv4Addr('192.168.0.10', '255.255.255.0', '192.168.0.1')
+        ip.validate()
+        ip = utils.IPv4Addr('192.16.254.10', '255.240.0.0', '192.16.0.1')
+        ip.validate()
 
-        sim = utils.StaticIPManager(conf)
-        free_list = sim.ip_pool
+    def test_get_subnet_host(self):
+        ip = utils.IPv4Addr('192.168.0.2', '255.255.255.0', '192.168.0.1')
+        subnet, host = ip.get_subnet_host()
+        self.assertEqual(subnet, (192 << 24) + (168 << 16) + (0 << 8))
+        self.assertEqual(host, 2)
 
-        if len(free_list) != len(full_list):
-            raise Exception("Error: we expect there to be %d IPs, enumerate produced %d." %
-                            (len(full_list), len(free_list)))
 
-        for i in range(len(full_list)):
-            if free_list[i].addr != full_list[i]:
-                raise Exception("Error: Enumerate IP returns %s, we expect %s" % (free_list,
-                                                                                  full_list))
+class StaticIPManagerTests(unittest.TestCase):
 
-    def testLoanStaticIP(self):
-        conf = {'ip_start': '192.168.0.5',
-                'ip_end': '192.168.0.10',
-                'netmask': '255.255.255.0',
-                'gw': '192.168.0.1'}
+    def setUp(self):
+        self.conf = {'ip_start': '192.168.0.2',
+                     'ip_end': '192.168.0.5',
+                     'netmask': '255.255.255.0',
+                     'gw': '192.168.0.1'}
+        self.sm = utils.StaticIPManager(self.conf)
 
-        sim = utils.StaticIPManager(conf)
+    def tearDown(self):
+        self.sm.release_all()
 
-        borrowed_ip = sim.get_ip()
-        assert(sim.available_ips() == 5)
-        assert(len(sim.in_use) == 1)
+    def test_get_ip(self):
+        ip = self.sm.get_ip()
+        self.assertEqual(ip.addr, '192.168.0.2')
+        self.assertEqual(ip.netmask, '255.255.255.0')
+        self.assertEqual(ip.gateway, '192.168.0.1')
+        ip = self.sm.get_ip()
+        self.assertEqual(ip.addr, '192.168.0.3')
+        ip = self.sm.get_ip()
+        self.assertEqual(ip.addr, '192.168.0.4')
+        ip = self.sm.get_ip()
+        self.assertEqual(ip.addr, '192.168.0.5')
+        self.assertRaises(Exception, lambda: self.sm.get_ip())
 
-        sim.return_ip(borrowed_ip)
+        self.sm.release_all()
 
-        assert(sim.available_ips() == 6)
-        assert(len(sim.in_use) == 0)
+    def test_return_ip(self):
+        free1 = self.sm.available_ips()
+        ip = self.sm.get_ip()
+        free2 = self.sm.available_ips()
+        self.assertEqual(free1 - 1, free2)
+
+        self.sm.return_ip(ip)
+        free3 = self.sm.available_ips()
+        self.assertEqual(free1, free3)
+
+        self.assertRaises(Exception, lambda: self.sm.return_ip(ip))
+
+        self.sm.release_all()
 
 
 class ValueInRangeFunctions(unittest.TestCase):

@@ -442,7 +442,7 @@ class VLANTestClass(testbase.NetworkTestClass):
         rec = {}
         rec['info'] = ping_result
 
-        if "0% packet loss" not in ping_result:
+        if " 0% packet loss" not in ping_result:
             raise TestCaseError("Error: Ping transmittion failed. %s"
                                 % ping_result)
 
@@ -975,6 +975,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 class MulticastTestClass(IperfTestClass):
     """ Subclass that runs multicast test"""
 
+    REQUIRED_FOR = ">= %s" % XCP_MIN_VER_WITH_MULTICAST
     caps = [MULTICAST_CAP]
     required = False
 

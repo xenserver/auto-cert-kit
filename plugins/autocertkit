@@ -137,6 +137,8 @@ OFFLOAD_FLAGS_OFFSET = {'sg': 1,
                         'ntuple': 1 << 27,
                         'rxhash': 1 << 28}
 
+XCP_MIN_VER_WITH_SRIOV = "2.6.0"
+
 
 # Logging setup
 def configure_logging():
@@ -1811,7 +1813,8 @@ def _get_local_device_bridge(session, device):
     host = session.xenapi.session.get_this_host(session.handle)
     for pif in session.xenapi.host.get_PIFs(host):
         # skip sriov logical pif
-        if not session.xenapi.PIF.get_physical(pif) and \
+        if has_sriov_feature(session) and not \
+                session.xenapi.PIF.get_physical(pif) and \
                 session.xenapi.PIF.get_sriov_logical_PIF_of(pif):
             continue
 
@@ -2007,6 +2010,15 @@ def start_iperf_server(session, args):
 
 
 @log_exceptions
+def get_xcp_version(session):
+    """Return the XCP version (using the master host)"""
+    pool = session.xenapi.pool.get_all()[0]
+    master_ref = session.xenapi.pool.get_master(pool)
+    software = session.xenapi.host.get_software_version(master_ref)
+    return software['platform_version']
+
+
+@log_exceptions
 def get_kernel_version(session, args):
     """Check kernel version using uname."""
     return json_dumps(make_local_call(['uname', '-r'])["stdout"])
@@ -2024,6 +2036,11 @@ def get_ack_version(session, args):
     if ver and len(ver) == 1:
         return json_dumps(ver[0].strip())
     raise Exception("Unable to parse ack version")
+
+
+@log_exceptions
+def has_sriov_feature(session):
+    return get_xcp_version(session) >= XCP_MIN_VER_WITH_SRIOV
 
 
 @log_exceptions

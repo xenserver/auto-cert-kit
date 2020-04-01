@@ -298,6 +298,14 @@ def parse_static_config(configParser, section):
             raise utils.InvalidArgument(
                 option, config[option], "Should not be empty!")
 
+    ip_s = utils.IPv4Addr(config['ip_start'], config['netmask'], config['gw'])
+    ip_s.validate()
+    ip_e = utils.IPv4Addr(config['ip_end'], config['netmask'], config['gw'])
+    ip_e.validate()
+    if ip_s.get_subnet_host()[1] >= ip_e.get_subnet_host()[1]:
+        raise utils.InvalidArgument('ip_end', config['ip_end'],
+                                    "Should be greater than 'ip_start' %s!" % config['ip_start'])
+
     return config
 
 

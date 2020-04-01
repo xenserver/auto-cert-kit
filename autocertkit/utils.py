@@ -36,18 +36,17 @@ import XenAPI
 import sys
 import time
 import ssh
-from xml.dom import minidom
-import tarfile
 import signal
 from datetime import datetime
 
 import os
-import base64
 import threading
 import re
 import json
 import binascii
-import uuid
+import socket
+import struct
+import ctypes
 
 from acktools.net import route, generate_mac
 import acktools.log
@@ -69,6 +68,9 @@ LOG_LOC = "/var/log/auto-cert-kit.log"
 REQ_CAP = "REQ"
 MULTICAST_CAP = "MULTICAST"
 SRIOV_CAP = "SR-IOV"
+
+# XCP minimum version with Multicast support
+XCP_MIN_VER_WITH_MULTICAST = "2.3.0"  # XenServer 7.2
 
 # XCP minimum version with SR-IOV support
 XCP_MIN_VER_WITH_SRIOV = "2.6.0"  # XenServer 7.5
@@ -205,84 +207,96 @@ class IPv4Addr(object):
         self.addr = ip
         self.netmask = netmask
         self.gateway = gateway
-        self.validate_ip()
-        self.validate_netmask()
 
-    def validate_ip(self):
-        arr = self.addr.split('.')
-        if len(arr) != 4:
-            raise Exception("Error: IP address is not correct: '%s'" %
-                            self.addr)
+    @staticmethod
+    def check_ip_format(ip):
+        # check by socket which can cover most of cases
+        IPv4Addr.aton(ip)
 
-        for i in range(0, 4):
-            if int(arr[i]) > 255:
-                raise Exception("IP address is out of range: %s" % self.addr)
+        if len(ip.split('.')) != 4:
+            raise Exception(
+                "The IP address %s is invalid with number of '.' is not 3"
+                % ip)
 
-    def validate_netmask(self):
-        arr = self.netmask.split('.')
-
-        # Extract netmask into a single mask
-        mask_str = ""
-        for group in arr:
-            mask_str = mask_str + int_to_bin(int(group))[2:]
-
-        # For a netmask, we expect a contigious line of ones.
-        zero_pos = mask_str.find('0')
-
-        if zero_pos == -1:
-            return True
-        else:
-            if '1' in mask_str[zero_pos + 1:]:
-                raise Exception("Invalid netmask: '%s' ('%s')" %
-                                (self.netmask, mask_str))
-
-    def to_bin(self, integer):
-        """Convert an integer to a 8bit string"""
-        if integer > 256:
-            raise Exception("'to_bin' method is only for 8bit integers")
-
-        bin_str = int_to_bin(integer)[2:]
-
-        tmp_str = ""
-        for i in range(8 - len(bin_str)):
-            tmp_str = tmp_str + "0"
-
-        return tmp_str + bin_str
-
-    def byte_mask_match(self, bina, binb, mask):
-        """For two 8bit binary strings, check that they match for
-        any masked bits"""
-
-        for i in range(8):
-            if mask[i] == '1':
-                if bina[i] != binb[i]:
-                    return False
-            elif mask[i] == '0':
-                continue
-            else:
+        # check no prefix 0 in each byte part, e.g. 10.71.05.88
+        for b in ip.split('.'):
+            if len(b) > 1 and b[0] == '0':
                 raise Exception(
-                    "Unexpected characted '%s' in binary string." % mask[i])
+                    "The IP address %s is invalid with redundant digit '0'"
+                    % ip)
 
-        return True
+    @staticmethod
+    def check_netwrok_mask(mask):
+        n_m = IPv4Addr.aton(mask)
+        bs_m = "{0:0>32b}".format(n_m)
+        # check not interlaced (just 1s on the left and 0s on the right)
+        # and not all 0, and not all 1
+        if bs_m.lstrip('1').rstrip('0') or bs_m[0] != '1' or bs_m[-1] != '0':
+            raise Exception(
+                "The network mask %s (%s) is invalid" % (mask, bs_m))
 
-    def on_subnet(self, ip):
-        # Check that mask is the same
-        if self.netmask != ip.netmask:
-            return False
+    @staticmethod
+    def check_special_ip(ip, mask):
+        n_ip = IPv4Addr.aton(ip)
+        n_m = IPv4Addr.aton(mask)
+        n_mc = ctypes.c_uint(~n_m).value
+        # check network ip with host part is all 0
+        if n_mc & n_ip == 0:
+            raise Exception(
+                "The IP address %s (%s) is network ip" % (ip, mask))
+        # check broadcast ip with host part is all 1
+        if n_mc & n_ip == n_mc:
+            raise Exception(
+                "The IP address %s (%s) is broadcast ip" % (ip, mask))
 
-        # Mask both IPs and check whether they are equal.
-        arrA = self.addr.split('.')
-        arrB = ip.addr.split('.')
-        arrMask = self.netmask.split('.')
+    @staticmethod
+    def split(ip, mask):
+        n_ip = IPv4Addr.aton(ip)
+        n_m = IPv4Addr.aton(mask)
+        subnet = ctypes.c_uint(n_ip & n_m).value
+        host = ctypes.c_uint(n_ip & ~n_m).value
+        return (subnet, host)
 
-        for i in range(0, 4):
-            a = self.to_bin(int(arrA[i]))
-            b = self.to_bin(int(arrB[i]))
-            m = self.to_bin(int(arrMask[i]))
+    @staticmethod
+    def aton(ip):
+        try:
+            return struct.unpack("!I", socket.inet_aton(ip))[0]
+        except Exception, e:
+            raise Exception(
+                "The IP address %s is invalid, exception: %s"
+                % (ip, str(e)))
 
-            if not self.byte_mask_match(a, b, m):
-                return False
-        return True
+    @staticmethod
+    def ntoa(n_ip):
+        try:
+            return socket.inet_ntoa(struct.pack('!I', n_ip))
+        except Exception, e:
+            raise Exception(
+                "The IP address 0x%x is invalid, exception: %s"
+                % (n_ip, str(e)))
+
+    @staticmethod
+    def validate_netmask(mask):
+        IPv4Addr.check_ip_format(mask)
+        IPv4Addr.check_netwrok_mask(mask)
+
+    @staticmethod
+    def validate_ip(ip, mask):
+        IPv4Addr.check_ip_format(ip)
+        IPv4Addr.check_special_ip(ip, mask)
+
+    @staticmethod
+    def in_same_subnet(ip1, ip2, mask):
+        return IPv4Addr.split(ip1, mask)[0] == IPv4Addr.split(ip2, mask)[0]
+
+    def validate(self):
+        IPv4Addr.validate_netmask(self.netmask)
+        IPv4Addr.validate_ip(self.addr, self.netmask)
+        IPv4Addr.validate_ip(self.gateway, self.netmask)
+        assert(IPv4Addr.in_same_subnet(self.addr, self.gateway, self.netmask))
+
+    def get_subnet_host(self):
+        return IPv4Addr.split(self.addr, self.netmask)
 
 
 def get_network_routes(session, host_ref, retry=6):
@@ -312,133 +326,66 @@ class StaticIPManager(object):
     the caller. Allows us to do simple 'leasing' operations"""
 
     def __init__(self, conf):
-        # Populate the internal list of IPs
-        free = []
-        for ip_addr in self.generate_ip_list(conf['ip_start'],
-                                             conf['ip_end']):
-            free.append(IPv4Addr(ip_addr,
-                                 conf['netmask'],
-                                 conf['gw']))
+        self.conf = conf
+        self.subnet, self.host_start = IPv4Addr.split(
+            conf['ip_start'], conf['netmask'])
+        _, self.host_end = IPv4Addr.split(conf['ip_end'], conf['netmask'])
+        self.total_ips = self.host_end - self.host_start + 1
+        self._reset()
 
-        self.ip_pool = free  # All the list of IPs
-        self.in_use = []    # Index list of used IP from ip_pool.
-        self.last_used = -1   # Index of IP lastly picked. Next will be 0.
-        self.total_ips = len(free)
-
-    def generate_ip_list(self, ip_start, ip_end):
-        """Take an IP address start, and end, and compose a list of all 
-        the IP addresses inbetween. E.g. '192.168.0.1' - '192.168.0.4' would
-        return ['192.168.0.1', '192.168.0.2', '192.168.0.3', '192.168.0.4']."""
-
-        def validate_ip(str_ip):
-            try:
-                arr = str_ip.split('.')
-                res = []
-                for i in range(0, 4):
-                    res.append(int(arr[i]))
-                    if res[i] > 254:
-                        raise Exception("Invalid IP %s" % str_ip)
-                return arr
-            except Exception, e:
-                raise Exception(
-                    "Error: '%s' is not a valid IPv4 Addr (%s)" % (str_ip, str(e)))
-
-        arr1 = validate_ip(ip_start)
-        arr2 = validate_ip(ip_end)
-
-        for i in range(4):
-            if int(arr2[i]) < int(arr1[i]):
-                raise Exception("IP start ('%s') must be smaller than IP end ('%s') (%s <  %s)" %
-                                (ip_start,
-                                 ip_end, arr2[i], arr1[i]))
-
-        res = []
-
-        res.append(ip_start)
-
-        if ip_end == ip_start:
-            return res
-
-        tmp_string = self.increment_ip_string(ip_start)
-
-        while tmp_string != ip_end:
-            res.append(tmp_string)
-            tmp_string = self.increment_ip_string(tmp_string)
-
-        # After exit, we must also add the last value
-        res.append(ip_end)
-
-        return res
-
-    def increment_ip_string(self, string):
-        chars = string.split('.')
-        arr = []
-        for i in range(4):
-            arr.append(int(chars[i]))
-
-        def carry(x):
-            if int(x) == 254:
-                return True
-            else:
-                return False
-
-        if not carry(arr[3]):
-            arr[3] = arr[3] + 1
-        elif not carry(arr[2]):
-            arr[3] = 1
-            arr[2] = arr[2] + 1
-        elif not carry(arr[1]):
-            arr[3] = 1
-            arr[2] = 1
-            arr[1] = arr[1] + 1
-        elif not carry(arr[0]):
-            arr[3] = 1
-            arr[2] = 1
-            arr[1] = 1
-            arr[0] = arr[0] + 1
-
-        if arr[0] == 255:
-            raise Exception("Error: Invalid to increment: %s" % string)
-
-        return "%s.%s.%s.%s" % (arr[0], arr[1], arr[2], arr[3])
+    def _reset(self):
+        self.ips = [False] * self.total_ips
+        self.free_ips = self.total_ips
+        self.last_used = -1
 
     def get_ip(self):
         """Return an unused IP object (if one exists)"""
-        if len(self.in_use) >= self.total_ips:
-            raise Exception("Error: no more IP addresses to allocate! (%d in use)" %
-                            len(self.in_use))
-
-        index = (self.last_used + 1) % self.total_ips
-        while True:
-            if not index in self.in_use:
-                self.last_used = index
-                self.in_use.append(index)
-                return self.ip_pool[index]
-            index = (index + 1) % self.total_ips
+        id = self._get_free()
+        ip = IPv4Addr.ntoa(self.subnet + self.host_start + id)
+        return IPv4Addr(ip, self.conf['netmask'], self.conf['gw'])
 
     def return_ip(self, ip):
-        """For a given IP object, attempt to remove from the 'in_use' list, and put
-        it back into circulation for others to use"""
-        if not ip in self.ip_pool:
-            log.debug("IP(%s) does not exist in IP pool." % (ip,))
-            raise Exception(
-                "Trying to return an IP address that did not orginally exist!")
+        """For a given IP object, put it back into circulation for others to use"""
+        self._put_free(ip.get_subnet_host()[1] - self.host_start)
 
-        index = self.ip_pool.index(ip)
-        if index in self.in_use:
-            log.debug("IP %s is in use. Removing..." % (ip,))
-            self.in_use.remove(index)
+    def _is_free(self, id):
+        return not self.ips[id]
+
+    def _set_free(self, id):
+        self.ips[id] = False
+        self.free_ips += 1
+
+    def _set_used(self, id):
+        self.ips[id] = True
+        self.free_ips -= 1
+
+    def _get_next_of(self, id):
+        return (id + 1) % self.total_ips
+
+    def _get_free(self):
+        while self.free_ips > 0:
+            self.last_used = self._get_next_of(self.last_used)
+            if self._is_free(self.last_used):
+                self._set_used(self.last_used)
+                return self.last_used
         else:
-            log.debug("IP %s is not in use. Passing." % (ip,))
+            raise Exception(
+                "Error: no more IP addresses to allocate! (%d in use)" % self.total_ips)
+
+    def _put_free(self, id):
+        if self._is_free(id):
+            raise Exception(
+                "Error: Should not free a unused IP address id: %d" % id)
+        self._set_free(id)
 
     def release_all(self):
         """Return all of the IP addresses that are currently in use"""
         log.debug("Clearing in-use IP list.")
-        self.in_use = []
+        self._reset()
 
     def available_ips(self):
         """Return number of unused IP in IP pool"""
-        return self.total_ips - len(self.in_use)
+        return self.free_ips
 
 
 class IfaceStats(object):
