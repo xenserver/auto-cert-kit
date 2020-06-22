@@ -564,26 +564,15 @@ class Device(object):
 
                 stream.write("%s: %s\n" % (k, reqval))
 
-        if tests_passed:
-            stream.write("\nTests that passed:\n")
-            for test in tests_passed:
-                stream.write("%s\n" % test.name)
+        self.print_results(stream, tests_passed, "Tests that passed:")
+        self.print_results(stream, tests_failed_req, "Tests that failed:")
+        self.print_results(stream, tests_failed_noreq, "None required tests that failed:")
+        self.print_results(stream, tests_skipped_req + tests_skipped_noreq, "Tests that skipped:")
 
-        if tests_failed_req:
-            stream.write("\nTests that failed:\n")
-            for test in tests_failed_req:
-                stream.write("%s\n" % test.name)
-
-        if tests_failed_noreq:
-            stream.write("\nNone required tests that failed:\n")
-            for test in tests_failed_noreq:
-                stream.write("%s\n" % test.name)
-
-        if tests_skipped_req or tests_skipped_noreq:
-            stream.write("\nTests that skipped:\n")
-            for test in tests_skipped_req:
-                stream.write("%s\n" % test.name)
-            for test in tests_skipped_noreq:
+    def print_results(self, stream, res, header):
+        if res:
+            stream.write("\n" + header + "\n")
+            for test in res:
                 stream.write("%s\n" % test.name)
 
 
@@ -650,15 +639,7 @@ class AutoCertKitRun(object):
                 continue
             # Get the test class still to run
             tcs = device.get_test_classes_to_run()
-            for tc in tcs:
-                if tc_info and 'test_class' in tc_info and tc_info['test_class'] not in tc.get_name():
-                    continue
-                if tc_info and 'test_method' in tc_info and not tc.get_method_by_name(tc_info['test_method']):
-                    continue
-
-                # Append a tuple - (test_class, order)
-                # Order index will be used below for sorting.
-                tcs_to_run.append((tc, tc.get_order()))
+            self.get_next_test_classes(tcs_to_run, tcs, tc_info)
 
         if not tcs_to_run:
             if tc_info:
@@ -674,6 +655,17 @@ class AutoCertKitRun(object):
 
         # Return the test class at the top of the list
         return tcs_to_run.pop()[0]
+
+    def get_next_test_classes(self, tcs_to_run, tcs, tc_info):
+        for tc in tcs:
+            if tc_info and 'test_class' in tc_info and tc_info['test_class'] not in tc.get_name():
+                continue
+            if tc_info and 'test_method' in tc_info and not tc.get_method_by_name(tc_info['test_method']):
+                continue
+
+            # Append a tuple - (test_class, order)
+            # Order index will be used below for sorting.
+            tcs_to_run.append((tc, tc.get_order()))
 
     def get_next_test(self):
         """Get the next test class and method to run"""

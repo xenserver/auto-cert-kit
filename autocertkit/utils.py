@@ -816,32 +816,32 @@ def get_pifs_by_device(session, device, hosts=[]):
                         (device, hosts))
 
 
+def get_physical_pifs(session, pifs):
+    res = []
+    for pif in pifs:
+        pif_rec = session.xenapi.PIF.get_record(pif)
+        if pif_rec['physical']:
+            res.append(pif)
+        elif pif_rec['bond_master_of']:
+            for bond in pif_rec['bond_master_of']:
+                bond_pifs = session.xenapi.Bond.get_slaves(bond)
+                res = res + get_physical_pifs(session, bond_pifs)
+        elif pif_rec['VLAN_master_of'] != 'OpaqueRef:NULL':
+            log.debug("VLAN PIF found: %s." % pif_rec)
+            vlan_obj = session.xenapi.VLAN.get_record(
+                pif_rec['VLAN_master_of'])
+            res = res + \
+                get_physical_pifs(session, [vlan_obj['tagged_PIF']])
+        else:
+            raise Exception(
+                "Error: %s is not physical, bond or VLAN" % pif_rec)
+    return res
+
+
 def get_physical_devices_by_network(session, network):
     """Taking a network, enumerate the list of physical devices attached 
     to each component PIF. This may require some unwrapping (e.g. bonds)
     to determine all the consituent physical PIFs."""
-
-    def get_physical_pifs(session, pifs):
-        res = []
-        for pif in pifs:
-            pif_rec = session.xenapi.PIF.get_record(pif)
-            if pif_rec['physical']:
-                res.append(pif)
-            elif pif_rec['bond_master_of']:
-                for bond in pif_rec['bond_master_of']:
-                    bond_pifs = session.xenapi.Bond.get_slaves(bond)
-                    res = res + get_physical_pifs(session, bond_pifs)
-            elif pif_rec['VLAN_master_of'] != 'OpaqueRef:NULL':
-                log.debug("VLAN PIF found: %s." % pif_rec)
-                vlan_obj = session.xenapi.VLAN.get_record(
-                    pif_rec['VLAN_master_of'])
-                res = res + \
-                    get_physical_pifs(session, [vlan_obj['tagged_PIF']])
-            else:
-                raise Exception(
-                    "Error: %s is not physical, bond or VLAN" % pif_rec)
-        return res
-
     pifs = session.xenapi.network.get_PIFs(network)
     physical_pifs = get_physical_pifs(session, pifs)
 
@@ -1368,6 +1368,30 @@ def destroy_pif(session, pif):
     session.xenapi.PIF.destroy(pif)
 
 
+def destroy_vm_vdi(session, vm_ref, timeout=60):
+    # Check that the VDI is not in-use
+    vbd_refs = session.xenapi.VM.get_VBDs(vm_ref)
+    for vbd_ref in vbd_refs:
+        vdi_ref = session.xenapi.VBD.get_VDI(vbd_ref)
+        log.debug("Destroying VDI %s" % vdi_ref)
+        try:
+            start = time.time()
+            ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
+            while 'destroy' not in ops_list:
+                time.sleep(2)
+                ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
+                if should_timeout(start, timeout):
+                    raise Exception("Cannot destroy VDI: VDI is still active")
+            # If the VDI is free, try to destroy it. Should pass the exception
+            # catch if it is a NULL VDI reference.
+            session.xenapi.VDI.destroy(vdi_ref)
+        except XenAPI.Failure, exn:
+            if exn.details[0] == 'HANDLE_INVALID':
+                log.debug("Ignore XenAPI.Failure of HANDLE_INVALID")
+            else:
+                raise exn
+
+
 def destroy_vm(session, vm_ref, timeout=60):
     """Checks powerstate of a VM, destroys associated VDIs, 
     and destroys VM once shutdown"""
@@ -1407,27 +1431,8 @@ def destroy_vm(session, vm_ref, timeout=60):
 
     log.debug("VM %s is ready to be removed." % vm_ref)
 
-    # Check that the VDI is not in-use
-    vbd_refs = session.xenapi.VM.get_VBDs(vm_ref)
-    for vbd_ref in vbd_refs:
-        vdi_ref = session.xenapi.VBD.get_VDI(vbd_ref)
-        log.debug("Destroying VDI %s" % vdi_ref)
-        try:
-            start = time.time()
-            ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
-            while 'destroy' not in ops_list:
-                time.sleep(2)
-                ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
-                if should_timeout(start, timeout):
-                    raise Exception("Cannot destroy VDI: VDI is still active")
-            # If the VDI is free, try to destroy it. Should pass the exception
-            # catch if it is a NULL VDI reference.
-            session.xenapi.VDI.destroy(vdi_ref)
-        except XenAPI.Failure, exn:
-            if exn.details[0] == 'HANDLE_INVALID':
-                log.debug("Ignore XenAPI.Failure of HANDLE_INVALID")
-            else:
-                raise exn
+    destroy_vm_vdi(session, vm_ref, timeout)
+
     # Finally, destroy the VM
     log.debug("Destroying VM %s" % vm_ref)
     session.xenapi.VM.destroy(vm_ref)
@@ -1486,6 +1491,26 @@ def pool_wide_host_cleanup(session):
         host_cleanup(session, host)
 
 
+def pool_wide_vm_dom0_cleanup(session, tag, vm, oc):
+    # Cleanup any routes that are lying around
+    keys_to_clean = []
+    for k, v in oc.iteritems():
+        if k.startswith('route_clean_'):
+            # Call plugin
+            call_ack_plugin(session, 'remove_route',
+                            {
+                                'vm_ref': vm,
+                                'dest_ip': v,
+                            })
+            keys_to_clean.append(k)
+
+    if keys_to_clean:
+        for key in keys_to_clean:
+            del oc[key]
+
+        session.xenapi.VM.set_other_config(vm, oc)
+
+
 def pool_wide_vm_cleanup(session, tag):
     """Searches for VMs with a cleanup tag, and destroys"""
     vms = session.xenapi.VM.get_all()
@@ -1496,23 +1521,7 @@ def pool_wide_vm_cleanup(session, tag):
             continue
 
         if session.xenapi.VM.get_is_control_domain(vm):
-            # Cleanup any routes that are lying around
-            keys_to_clean = []
-            for k, v in oc.iteritems():
-                if k.startswith('route_clean_'):
-                    # Call plugin
-                    call_ack_plugin(session, 'remove_route',
-                                    {
-                                        'vm_ref': vm,
-                                        'dest_ip': v,
-                                    })
-                    keys_to_clean.append(k)
-
-            if keys_to_clean:
-                for key in keys_to_clean:
-                    del oc[key]
-
-                session.xenapi.VM.set_other_config(vm, oc)
+            pool_wide_vm_dom0_cleanup(session, tag, vm, oc)
 
 
 def pool_wide_network_sriov_cleanup(session, tag):
@@ -1528,6 +1537,18 @@ def pool_wide_network_sriov_cleanup(session, tag):
 
     need_reboot = not is_vf_disabled(session)
     return need_reboot
+
+
+def pool_wide_network_host_pif_cleanup(session, tag):
+    for host in session.xenapi.host.get_all():
+        for pif in session.xenapi.host.get_PIFs(host):
+            oc = session.xenapi.PIF.get_other_config(pif)
+            if oc.pop(tag, None):
+                log.debug("Pif to cleanup: %s from host %s" % (pif, host))
+                call_ack_plugin(session, 'flush_local_device',
+                                {'device': session.xenapi.PIF.get_device(pif)},
+                                host=host)
+                session.xenapi.PIF.set_other_config(pif, oc)
 
 
 def pool_wide_network_cleanup(session, tag):
@@ -1547,15 +1568,7 @@ def pool_wide_network_cleanup(session, tag):
             session.xenapi.network.destroy(network)
         elif session.xenapi.network.get_MTU(network) != '1500':
             set_network_mtu(session, network, '1500')
-    for host in session.xenapi.host.get_all():
-        for pif in session.xenapi.host.get_PIFs(host):
-            oc = session.xenapi.PIF.get_other_config(pif)
-            if oc.pop(tag, None):
-                log.debug("Pif to cleanup: %s from host %s" % (pif, host))
-                call_ack_plugin(session, 'flush_local_device',
-                                {'device': session.xenapi.PIF.get_device(pif)},
-                                host=host)
-                session.xenapi.PIF.set_other_config(pif, oc)
+    pool_wide_network_host_pif_cleanup(session, tag)
 
 
 def get_pool_management_device(session):
@@ -2420,10 +2433,7 @@ def get_system_info_tabular(session):
     return call_ack_plugin(session, 'get_system_info_tabular')
 
 
-def get_master_network_devices(session):
-    nics = call_ack_plugin(session, 'get_network_devices')
-    log.debug("Network Devices found on machine(Plugin): '%s'" % nics)
-
+def remove_invalid_keys(nics):
     # remove invalid keys of nic which violates xml, referring to
     # https://stackoverflow.com/questions/19677315/xml-tagname-starting-with-number-is-not-working
     for n in nics:
@@ -2431,6 +2441,13 @@ def get_master_network_devices(session):
             if k and k[0].isdigit():
                 n.pop(k)
                 log.debug("Remove invalid key %s from %s" % (k, n['PCI_name']))
+
+
+def get_master_network_devices(session):
+    nics = call_ack_plugin(session, 'get_network_devices')
+    log.debug("Network Devices found on machine(Plugin): '%s'" % nics)
+
+    remove_invalid_keys(nics)
 
     hwinfo_devs = get_system_info_hwinfo(session)
     if hwinfo_devs:
@@ -2479,6 +2496,13 @@ def _get_type_and_value(entry):
     return r
 
 
+def copy_dict_items(src, dst, keys):
+    """Copy src dict items to dst and rename with new key"""
+    for skey, dkey in keys:
+        if skey in src:
+            dst[dkey] = src[skey]
+
+
 def get_system_info(session):
     """Returns some information of system and bios."""
 
@@ -2486,38 +2510,26 @@ def get_system_info(session):
     biosinfo = search_dmidecode(session, "BIOS Information")
     if biosinfo:
         entries = _get_type_and_value(biosinfo[0])
-        if 'Vendor' in entries:
-            rec['BIOS_vendor'] = entries['Vendor']
-        if 'Version' in entries:
-            rec['BIOS_version'] = entries['Version']
-        if 'Release Date' in entries:
-            rec['BIOS_release_date'] = entries['Release Date']
-        if 'BIOS Revision' in entries:
-            rec['BIOS_revision'] = entries['BIOS Revision']
+        copy_dict_items(entries, rec, [('Vendor', 'BIOS_vendor'),
+                                       ('Version', 'BIOS_version'),
+                                       ('Release Date', 'BIOS_release_date'),
+                                       ('BIOS Revision', 'BIOS_revision')])
 
     sysinfo = search_dmidecode(session, "System Information")
     if sysinfo:
         entries = _get_type_and_value(sysinfo[0])
-        if 'Manufacturer' in entries:
-            rec['system_manufacturer'] = entries['Manufacturer']
-        if 'Product Name' in entries:
-            rec['system_product_name'] = entries['Product Name']
-        if 'Serial Number' in entries:
-            rec['system_serial_number'] = entries['Serial Number']
-        if 'UUID' in entries:
-            rec['system_uuid'] = entries['UUID']
-        if 'Version' in entries:
-            rec['system_version'] = entries['Version']
-        if 'Family' in entries:
-            rec['system_family'] = entries['Family']
+        copy_dict_items(entries, rec, [('Manufacturer', 'system_manufacturer'),
+                                       ('Product Name', 'system_product_name'),
+                                       ('Serial Number', 'system_serial_number'),
+                                       ('UUID', 'system_uuid'),
+                                       ('Version', 'system_version'),
+                                       ('Family', 'system_family')])
 
     chassisinfo = search_dmidecode(session, "Chassis Information")
     if chassisinfo:
         entries = _get_type_and_value(chassisinfo[0])
-        if 'Type' in entries:
-            rec['chassis_type'] = entries['Type']
-        if 'Manufacturer' in entries:
-            rec['chassis_manufacturer'] = entries['Manufacturer']
+        copy_dict_items(entries, rec, [('Type', 'chassis_type'),
+                                       ('Manufacturer', 'chassis_manufacturer')])
 
     return rec
 

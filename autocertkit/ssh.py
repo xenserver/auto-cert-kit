@@ -209,10 +209,13 @@ class SSHCommand(SSHSession):
             else:
                 reply += output
 
-            if not self.nolog:
-                self.log.debug("%s: %s" %
-                               (label, (output[:-1] if output and output[-1] == '\n' else output)))
+            self.log_output(label, output)
         return reply
+
+    def log_output(self, label, output):
+        if not self.nolog:
+            self.log.debug("%s: %s" %
+                           (label, (output[:-1] if output and output[-1] == '\n' else output)))
 
     def read(self, out_file=None, err_file=None):
         """Process the output and result of the command.

@@ -154,16 +154,8 @@ class TestGenerator(object):
 
         test_classes = self.get_test_classes()
         for test_class_name, test_class in test_classes:
-            skipthis = False
             xcp_version = utils.get_xcp_version(self.session)
-            if test_class.REQUIRED_FOR:
-                if utils.eval_expr(test_class.REQUIRED_FOR, xcp_version):
-                    if not utils.REQ_CAP in test_class.caps:
-                        test_class.caps.append(utils.REQ_CAP)
-                else:
-                    if utils.REQ_CAP in test_class.caps:
-                        test_class.caps.remove(utils.REQ_CAP)
-                    skipthis = True
+            skip_this = self.set_test_class_cap(test_class, xcp_version)
 
             class_node = doc.createElement('test_class')
             class_node.setAttribute('name', test_class_name)
@@ -174,42 +166,58 @@ class TestGenerator(object):
 
             test_methods = test_class(self.session, self.config).list_tests()
             for method in test_methods:
-                method_node = doc.createElement('test_method')
-                method_node.setAttribute('name', str(method))
-
-                # Result/Info fields
-                result_node = doc.createElement('result')
-                info_node = doc.createElement('info')
-                if skipthis:
-                    result_node.appendChild(doc.createTextNode('skip'))
-                    reason_node = doc.createElement('reason')
-                    reason_node.appendChild(doc.createTextNode('%s is not required for XCP %s.'
-                                                               % (test_class_name, xcp_version)))
-                    method_node.appendChild(reason_node)
-                else:
-                    result_node.appendChild(doc.createTextNode('NULL'))
-
-                method_node.appendChild(result_node)
-                method_node.appendChild(info_node)
-                testname_node = doc.createElement('test_name')
-                testname_node.appendChild(doc.createTextNode('%s.%s' %
-                                                             (test_class_name.split('.')[1], str(method))))
-                method_node.appendChild(testname_node)
-
-                status_node = doc.createElement('status')
-                if skipthis:
-                    status_node.appendChild(doc.createTextNode('done'))
-                else:
-                    status_node.appendChild(doc.createTextNode('init'))
-                control_node = doc.createElement('control')
-                method_node.appendChild(status_node)
-                method_node.appendChild(control_node)
-
-                class_node.appendChild(method_node)
+                self.add_method_node(doc, skip_this, test_class_name, xcp_version, class_node, method)
 
             cts_node.appendChild(class_node)
 
         xml_node.appendChild(device_node)
+
+
+    def set_test_class_cap(self, test_class, xcp_version):
+        if test_class.REQUIRED_FOR:
+            if utils.eval_expr(test_class.REQUIRED_FOR, xcp_version):
+                if not utils.REQ_CAP in test_class.caps:
+                    test_class.caps.append(utils.REQ_CAP)
+            else:
+                if utils.REQ_CAP in test_class.caps:
+                    test_class.caps.remove(utils.REQ_CAP)
+                return True
+        return False
+
+
+    def add_method_node(self, doc, skipthis, test_class_name, xcp_version, class_node, method):
+        method_node = doc.createElement('test_method')
+        method_node.setAttribute('name', str(method))
+
+        # Result/Info fields
+        result_node = doc.createElement('result')
+        info_node = doc.createElement('info')
+        if skipthis:
+            result_node.appendChild(doc.createTextNode('skip'))
+            reason_node = doc.createElement('reason')
+            reason_node.appendChild(doc.createTextNode('%s is not required for XCP %s.'
+                                                       % (test_class_name, xcp_version)))
+            method_node.appendChild(reason_node)
+        else:
+            result_node.appendChild(doc.createTextNode('NULL'))
+
+        method_node.appendChild(result_node)
+        method_node.appendChild(info_node)
+        testname_node = doc.createElement('test_name')
+        testname_node.appendChild(doc.createTextNode('%s.%s' %
+                                                     (test_class_name.split('.')[1], str(method))))
+        method_node.appendChild(testname_node)
+
+        status_node = doc.createElement('status')
+        if skipthis:
+            status_node.appendChild(doc.createTextNode('done'))
+        else:
+            status_node.appendChild(doc.createTextNode('init'))
+        control_node = doc.createElement('control')
+        method_node.appendChild(status_node)
+        method_node.appendChild(control_node)
+
+        class_node.appendChild(method_node)
 
 
 class NetworkAdapterTestGenerator(TestGenerator):

@@ -1054,14 +1054,7 @@ class InterHostSRIOVTestClass(IperfTestClass):
             # choose 2 VM and perform IPerf test
             self.iperf_test(session, ret, vm_list[0], vm_list[1], direction)
 
-            # disable sriov
-            for i in vm_list:
-                destroy_vm(session, i)
-            log.debug("Disable VF begin")
-            # network_sriov may be synced to slave host, so here destroy all, rather than just sriov_net_ref
-            for i in session.xenapi.network_sriov.get_all():
-                log.debug("Destory network_sriov: %s" % i)
-                session.xenapi.network_sriov.destroy(i)
+            self._disable_vf(session, vm_list)
 
             if self.control == "enabled":
                 # need to reboot at first
@@ -1078,6 +1071,15 @@ class InterHostSRIOVTestClass(IperfTestClass):
             self.set_info(ret, 'Test ran successfully')
 
         return ret
+
+    def _disable_vf(self, session, vm_list):
+        for i in vm_list:
+            destroy_vm(session, i)
+        log.debug("Disable VF begin")
+        # network_sriov may be synced to slave host, so here destroy all, rather than just sriov_net_ref
+        for i in session.xenapi.network_sriov.get_all():
+            log.debug("Destory network_sriov: %s" % i)
+            session.xenapi.network_sriov.destroy(i)
 
     def _check_sriov_cap(self, session):
         device = self.config['device_config']['Kernel_name']

@@ -111,105 +111,9 @@ class TestClass(object):
             signal.alarm(0)
 
             rec = {}
-            try:
-                log.debug("******** %s.%s ********" % (
-                    self.__class__.__name__, test))
+            self.run_test(test, debug, rec)
 
-                init_context()
-
-                res = getattr(self, test)(self.session)
-                """
-                Critical key and value in res:
-                    'status': 'init'    initial status before running
-                              'running' test still running
-                              'done',   test finished
-                    'result': 'skip'    needless to run
-                              'pass'    test OK
-                              'fail'    test failed (with Exception occurs)
-                    'control': any private data of test itself.
-                    'superior': return common info to test runner from test, 
-                                test runner will handle and take general action, then remove it,
-                                so it won't be saved into xml file.
-                                currently it's used for rebooting hosts only.
-                """
-
-                log.debug("test return: %s" % res)
-
-                if 'superior' in res:
-                    rec['status'] = 'running'
-                    rec['result'] = 'NULL'
-                    rec['superior'] = res['superior']
-                else:
-                    rec['status'] = 'done'
-                    rec['result'] = 'pass'
-
-                def copy_field(rec, res, field, keep_tag=True):
-                    if field in res:
-                        rec[field] = res[field]
-                    elif keep_tag:
-                        rec[field] = ""
-
-                copy_field(rec, res, 'control', False)
-                copy_field(rec, res, 'info')
-                copy_field(rec, res, 'data')
-                copy_field(rec, res, 'config')
-                copy_field(rec, res, 'reason', False)
-                copy_field(rec, res, 'warning', False)
-
-            except Exception, e:
-                traceb = traceback.format_exc()
-                rec['status'] = 'done'
-                rec['result'] = 'fail'
-                rec['traceback'] = traceb
-                rec['exception'] = str(e)
-                log.error("Test Case Failure: %s" % str(test))
-                log.debug(traceb)
-                if debug:
-                    log.debug(
-                        "Running in debug mode - exiting due to Exception class: %s" % str(e))
-                    sys.exit(0)
-            except:
-                traceb = traceback.format_exc()
-                rec['status'] = 'done'
-                rec['result'] = 'fail'
-                rec['trackeback'] = traceb
-                rec['exception'] = "Unexpected error: %s" % sys.exc_info()[0]
-                log.debug(traceb)
-                if debug:
-                    log.debug(
-                        "Running in debug mode - exiting due to exception: %s" % sys.exc_info()[0])
-                    sys.exit(0)
-
-            # cleanup occurs only when current test really done
-            if rec['status'] == 'done':
-                try:
-                    need_reboot = pool_wide_cleanup(self.session)
-                except:
-                    traceb = traceback.format_exc()
-                    log.debug(traceb)
-                    if debug:
-                        log.debug(
-                            "Running in debug mode - exiting due to exception when cleanup: %s" % sys.exc_info()[0])
-                        sys.exit(0)
-
-                    log.debug("The general cleanup is failed")
-                    # reset test result
-                    if rec['result'] == 'pass':
-                        rec['result'] = 'fail'
-                        rec['trackeback'] = traceb
-                        rec['exception'] = "Unexpected error: %s" % \
-                                           sys.exc_info()[0]
-                else:
-                    # If test done normally then noneed reboot even if cleanup requires, that indicates
-                    # test itself should handle reboot requirement as one test step
-                    # If test is done by exception and cleanup requires reboot then ask runner to reboot
-                    if rec['result'] == 'pass' and need_reboot:
-                        log.debug(
-                            "Warning: test should handle reboot requirement")
-                    elif rec['result'] == 'fail' and need_reboot:
-                        rec['superior'] = 'reboot'
-                        log.debug(
-                            "Ask for hosts reboot because current test did not finish normally")
+            self.cleanup_test(debug, rec)
 
             log.debug("Test case %s, %s: %s.%s" %
                       (rec['result'], rec['status'], self.__class__.__name__, test))
@@ -217,6 +121,110 @@ class TestClass(object):
             results.append(rec)
 
         return results
+
+    def copy_field(self, rec, res, field, keep_tag=True):
+        if field in res:
+            rec[field] = res[field]
+        elif keep_tag:
+            rec[field] = ""
+
+    def run_test(self, test, debug, rec):
+        try:
+            log.debug("******** %s.%s ********" % (
+                self.__class__.__name__, test))
+
+            init_context()
+
+            res = getattr(self, test)(self.session)
+            """
+            Critical key and value in res:
+                'status': 'init'    initial status before running
+                          'running' test still running
+                          'done',   test finished
+                'result': 'skip'    needless to run
+                          'pass'    test OK
+                          'fail'    test failed (with Exception occurs)
+                'control': any private data of test itself.
+                'superior': return common info to test runner from test, 
+                            test runner will handle and take general action, then remove it,
+                            so it won't be saved into xml file.
+                            currently it's used for rebooting hosts only.
+            """
+
+            log.debug("test return: %s" % res)
+
+            if 'superior' in res:
+                rec['status'] = 'running'
+                rec['result'] = 'NULL'
+                rec['superior'] = res['superior']
+            else:
+                rec['status'] = 'done'
+                rec['result'] = 'pass'
+
+            self.copy_field(rec, res, 'control', False)
+            self.copy_field(rec, res, 'info')
+            self.copy_field(rec, res, 'data')
+            self.copy_field(rec, res, 'config')
+            self.copy_field(rec, res, 'reason', False)
+            self.copy_field(rec, res, 'warning', False)
+
+        except Exception, e:
+            traceb = traceback.format_exc()
+            rec['status'] = 'done'
+            rec['result'] = 'fail'
+            rec['traceback'] = traceb
+            rec['exception'] = str(e)
+            log.error("Test Case Failure: %s" % str(test))
+            log.debug(traceb)
+            if debug:
+                log.debug(
+                    "Running in debug mode - exiting due to Exception class: %s" % str(e))
+                sys.exit(0)
+        except:
+            traceb = traceback.format_exc()
+            rec['status'] = 'done'
+            rec['result'] = 'fail'
+            rec['trackeback'] = traceb
+            rec['exception'] = "Unexpected error: %s" % sys.exc_info()[0]
+            log.debug(traceb)
+            if debug:
+                log.debug(
+                    "Running in debug mode - exiting due to exception: %s" % sys.exc_info()[0])
+                sys.exit(0)
+
+    def cleanup_test(self, debug, rec):
+        # cleanup occurs only when current test really done
+        if rec['status'] != 'done':
+            return
+
+        try:
+            need_reboot = pool_wide_cleanup(self.session)
+        except:
+            traceb = traceback.format_exc()
+            log.debug(traceb)
+            if debug:
+                log.debug(
+                    "Running in debug mode - exiting due to exception when cleanup: %s" % sys.exc_info()[0])
+                sys.exit(0)
+
+            log.debug("The general cleanup is failed")
+            # reset test result
+            if rec['result'] == 'pass':
+                rec['result'] = 'fail'
+                rec['trackeback'] = traceb
+                rec['exception'] = "Unexpected error: %s" % \
+                                   sys.exc_info()[0]
+        else:
+            # If test done normally then noneed reboot even if cleanup requires, that indicates
+            # test itself should handle reboot requirement as one test step
+            # If test is done by exception and cleanup requires reboot then ask runner to reboot
+            if rec['result'] == 'pass' and need_reboot:
+                log.debug(
+                    "Warning: test should handle reboot requirement")
+            elif rec['result'] == 'fail' and need_reboot:
+                rec['superior'] = 'reboot'
+                log.debug(
+                    "Ask for hosts reboot because current test did not finish normally")
 
     # set result dict using below functions in TestClass
     def set_control(self, rec, value):
@@ -284,24 +292,7 @@ class TestClass(object):
         the test cases with this class"""
         return self.required_config
 
-    def generate_static_net_conf(self):
-        log.debug("Config: %s" % self.config)
-        netconf = self.get_netconf()
-        log.debug("Netconf: %s" % netconf)
-        netid_rec = {}
-        for iface, rec in netconf.iteritems():
-            if iface.startswith('eth'):
-                log.debug("iface: %s Rec: %s" % (iface, rec))
-                nid = rec['network_id']
-
-                # Required for initialisation
-                if nid not in netid_rec:
-                    netid_rec[nid] = []
-
-                # Append interface on that network id
-                netid_rec[nid].append(iface)
-
-        res = {}
+    def generate_static_net_conf_common(self, netid_rec, res):
         regex = re.compile(r'static_(?P<netid>\d+)_(?P<vlan>\d+)')
 
         # Iterate through the network config structure to
@@ -330,6 +321,26 @@ class TestClass(object):
                                 iface, vlan)
                         res[key_name] = sm
                         log.debug("Added static conf for '%s'" % key_name)
+
+    def generate_static_net_conf(self):
+        log.debug("Config: %s" % self.config)
+        netconf = self.get_netconf()
+        log.debug("Netconf: %s" % netconf)
+        netid_rec = {}
+        for iface, rec in netconf.iteritems():
+            if iface.startswith('eth'):
+                log.debug("iface: %s Rec: %s" % (iface, rec))
+                nid = rec['network_id']
+
+                # Required for initialisation
+                if nid not in netid_rec:
+                    netid_rec[nid] = []
+
+                # Append interface on that network id
+                netid_rec[nid].append(iface)
+
+        res = {}
+        self.generate_static_net_conf_common(netid_rec, res)
 
         mgmt = get_pool_management_device(self.session)
         log.debug("The pool management device is %s" % mgmt)
