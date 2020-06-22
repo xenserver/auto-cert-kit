@@ -228,7 +228,7 @@ class DeviceTestClass(object):
     def get_caps(self):
         """ Return a list of caps supported by this
         device based on the tests that have passed/failed """
-        return eval(self.config['caps'])
+        return eval(self.config['caps'])    # NOSONAR
 
     def get_order(self):
         """Return the integer number specified by the test class to indicate

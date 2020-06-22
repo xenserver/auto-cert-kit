@@ -176,7 +176,7 @@ class IperfTest:
                              {'vm_ref': self.client,
                               'mip': self.vm_info[self.client]['ip_m'],
                               'dest_ip': self.multicast_ip,
-                              'mask': '240.0.0.0',
+                              'mask': '240.0.0.0',  # NOSONAR
                               'device': self.vm_info[self.client]['iface_t'],
                               'src': self.vm_info[self.client]['ip_t']}
                              )
@@ -185,7 +185,7 @@ class IperfTest:
                              {'vm_ref': self.server,
                               'mip': self.vm_info[self.server]['ip_m'],
                               'dest_ip': self.multicast_ip,
-                              'mask': '240.0.0.0',
+                              'mask': '240.0.0.0',  # NOSONAR
                               'device': self.vm_info[self.server]['iface_t'],
                               'src': self.vm_info[self.server]['ip_t']}
                              )
@@ -968,7 +968,7 @@ class MulticastTestClass(IperfTestClass):
     IPERF_ARGS = {'format': 'm',
                   'thread_count': '4'}
 
-    MULTICAST_IP = '226.94.1.1'
+    MULTICAST_IP = '226.94.1.1' # NOSONAR
 
 
 class GROOffloadTestClass(testbase.NetworkTestClass):

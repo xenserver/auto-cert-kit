@@ -587,49 +587,6 @@ def get_slave_control_domain(session):
     return _find_control_domain(session, slave_refs[0])
 
 
-def set_reboot_flag(tc_info=None, flag_loc=REBOOT_FLAG_FILE):
-    """Set an OS flag (i.e. touch a file) for when we're about to reboot.
-    This is so that, on host reboot, we can work out whether we should
-    run, and what the status of the kit is"""
-
-    ffile = open(flag_loc, 'w')
-    if tc_info:
-        ffile.write(str(tc_info))
-    ffile.close()
-
-
-def get_reboot_flag(flag=REBOOT_FLAG_FILE):
-    """Return a dictionary that contains information of when reboot was
-    initiated."""
-
-    if os.path.exists(flag):
-        ffile = open(flag, 'r')
-        flag_str = ffile.read().strip()
-        ffile.close()
-
-        if len(flag_str) > 0:
-            tc_info = eval(flag_str)
-            if isinstance(tc_info, dict):
-                return tc_info
-
-        return {'info': 'flag contains no previous running info.'}
-    else:
-        return None
-
-
-def get_reboot_flag_timestamp(flag=REBOOT_FLAG_FILE):
-    """Finding when reboot was initialised."""
-    if os.path.exists(flag):
-        time_str = time.ctime(os.path.getctime(flag))
-        return datetime(*(time.strptime(time_str, "%a %b %d %H:%M:%S %Y")[0:6]))
-    return None
-
-
-def clear_reboot_flag(flag=REBOOT_FLAG_FILE):
-    if os.path.exists(flag):
-        os.remove(flag)
-
-
 def reboot_all_hosts(session):
     master = get_pool_master(session)
     hosts = session.xenapi.host.get_all()
@@ -1144,9 +1101,9 @@ def get_vm_vif_ifs(session, vm_ref):
         return ifs
 
     re_mac = re.compile(
-        r"""^%s/device/vif/(?P<device>[0-9]+)/mac\s*=\s*"(?P<mac>.*)"$""" % dom_root)
+        r"""^%s/device/vif/(?P<device>[0-9]+)/mac\s*=\s*"(?P<mac>.*)"$""" % dom_root)   # NOSONAR
     re_ip = re.compile(
-        r"""^%s/attr/vif/(?P<device>[0-9]+)/ipv4/(?P<index>[0-9]+)\s*=\s*"(?P<ip>.*)"$""" % dom_root)
+        r"""^%s/attr/vif/(?P<device>[0-9]+)/ipv4/(?P<index>[0-9]+)\s*=\s*"(?P<ip>.*)"$""" % dom_root)   # NOSONAR
     for line in res["stdout"].split('\n'):
         m = re_mac.match(line)
         if m:
@@ -1294,7 +1251,7 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
 
 
 def ping_with_retry(session, vm_ref, mip, dst_vm_ip, interface, timeout=20, retry=15):
-    loss_re = re.compile(""".* (?P<loss>[0-9]+)% packet loss, .*""", re.S)
+    loss_re = re.compile(""".* (?P<loss>[0-9]+)% packet loss, .*""", re.S)  # NOSONAR
 
     cmd_str = "ping -I %s -w %d %s" % (interface, timeout, dst_vm_ip)
     cmd = binascii.hexlify(cmd_str)
@@ -1461,7 +1418,7 @@ def host_cleanup(session, host):
     default_route_key = 'default_routes'
     default_route_list = []
     if default_route_key in oc.keys():
-        default_routes = eval(oc[default_route_key])
+        default_routes = eval(oc[default_route_key])    # NOSONAR
         for rec in default_routes:
             route_obj = route.Route(**rec)
             default_route_list.append(route_obj)
@@ -2344,7 +2301,7 @@ def get_vm_interface(session, host, vm_ref, mip):
     # cmd output: "eth0: ec:f4:bb:ce:91:9c"
     cmd = b"""ip -o link | awk '{if($2 ~ /^eth/) print $2,$(NF-2)}'"""
     res = ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd)
-    mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")
+    mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")     # NOSONAR
     for line in res['stdout'].strip().split('\n'):
         match = mac_re.match(line)
         if match:
@@ -2354,7 +2311,7 @@ def get_vm_interface(session, host, vm_ref, mip):
     # cmd output: "eth0 10.62.114.80/21"
     cmd = b"""ip -o -f inet addr | awk '{if($2 ~ /^eth/) print $2,$4}'"""
     res = ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd)
-    ip_re = re.compile(r"(?P<device>.*) (?P<ip>.*)")
+    ip_re = re.compile(r"(?P<device>.*) (?P<ip>.*)")    # NOSONAR
     for line in res['stdout'].strip().split('\n'):
         match = ip_re.match(line)
         if match:
@@ -2713,7 +2670,7 @@ def check_vm_ping_response(session, vm_ref, mip, count=3, timeout=300):
         # Make the local shell call
         log.debug("Checking for ping response from VM %s at %s" % (
             vm_ref, mip))
-        process = subprocess.Popen(call, stdout=subprocess.PIPE)
+        process = subprocess.Popen(call, stdout=subprocess.PIPE)    # NOSONAR
         stdout, stderr = process.communicate()
         response = str(stdout).strip()
 

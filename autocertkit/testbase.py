@@ -293,7 +293,7 @@ class TestClass(object):
         return self.required_config
 
     def generate_static_net_conf_common(self, netid_rec, res):
-        regex = re.compile(r'static_(?P<netid>\d+)_(?P<vlan>\d+)')
+        regex = re.compile(r'static_(?P<netid>\d+)_(?P<vlan>\d+)')  # NOSONAR
 
         # Iterate through the network config structure to
         # see if we have any static managers to initialise.
@@ -382,7 +382,7 @@ class TestClass(object):
     def get_vlans(self, iface):
         """ For a specified ethernet interface, return the list of 
         VLANs that the user has declared to be in operation."""
-        netconf = eval(self.config['netconf'])
+        netconf = eval(self.config['netconf'])  # NOSONAR
         if iface not in netconf:
             raise Exception("The interface %s has not been defined in the network config file. (%s)" %
                             (iface, netconf))
@@ -390,7 +390,7 @@ class TestClass(object):
 
     def get_netconf(self):
         """Return the network config dictionary, as provided by the user"""
-        return eval(self.config['netconf'])
+        return eval(self.config['netconf']) # NOSONAR
 
     def singlenicmode(self):
         return 'singlenic' in self.config.keys() and self.config['singlenic'] == 'true'

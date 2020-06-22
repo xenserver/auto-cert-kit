@@ -290,7 +290,7 @@ def get_test_class(fqtn):
 if __name__ == "__main__":
     # Main function entry point
 
-    parser = OptionParser(usage="%prog [-c] [-t]", version="%prog 0.1")
+    parser = OptionParser(usage="%prog [-c] [-t]", version="%prog 0.1") # NOSONAR
 
     parser.add_option("-t", "--test file",
                       dest="testfile",
