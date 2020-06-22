@@ -56,7 +56,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
         state a predefined number of times"""
         vm_ref_list = self._setup_vms(session)
         for i in range(3):
-            log.debug("Starting test run %d of %d" % (i + 1, range(3)[-1] + 1))
+            log.debug("Starting test (power control) run %d of %d" % (i + 1, 3))
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
@@ -70,10 +70,10 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             particular issue with Python variable bindings within loops"""
             task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.clean_shutdown(x))
                          for vm_ref in vm_ref_list]
-            res = run_xapi_async_tasks(session, task_list)
+            run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Halted' power state
-            log.debug("Verrifying VM power control operations")
+            log.debug("Verrifying VM power control operations for 'Halted'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Halted':
                     raise Exception(
@@ -89,10 +89,10 @@ class VMOpsTestClass(testbase.OperationsTestClass):
                                                                             False,
                                                                             False))
                          for vm_ref in vm_ref_list]
-            res = run_xapi_async_tasks(session, task_list)
+            run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Running' power state
-            log.debug("Verrifying VM power control operations")
+            log.debug("Verrifying VM power control operations for 'Running'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Running':
                     raise Exception(
@@ -100,8 +100,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
                 log.debug("VM %s is running" % vm_ref)
             log.debug("Verrification complete: All VMs have booted")
 
-            log.debug("Test run %d of %d has completed successfully" %
-                      (i + 1, range(3)[-1] + 1))
+            log.debug("Test (power control) run %d of %d has completed successfully" %
+                      (i + 1, 3))
 
             wait_for_vms_ips(session, vm_ref_list)
 
@@ -115,7 +115,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
         them a predefined number of times"""
         vm_ref_list = self._setup_vms(session)
         for i in range(3):
-            log.debug("Starting test run %d of %d" % (i + 1, range(3)[-1] + 1))
+            log.debug("Starting test (reboot) run %d of %d" % (i + 1, 3))
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
@@ -126,18 +126,18 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             log.debug("Rebooting VMs: %s" % vm_ref_list)
             task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.clean_reboot(x))
                          for vm_ref in vm_ref_list]
-            res = run_xapi_async_tasks(session, task_list)
+            run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Running' power state
-            log.debug("Verrifying VM power control operations")
+            log.debug("Verrifying VM power control operations (reboot) for 'Running'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Running':
                     raise Exception("ERROR: Unexpected power state")
-                log.debug("VM %s is running" % vm_ref)
+                log.debug("VM %s is running after rebooting" % vm_ref)
             log.debug("Verrification complete: All VMs have rebooted")
 
-            log.debug("Test run %d of %d has completed successfully" %
-                      (i + 1, range(3)[-1] + 1))
+            log.debug("Test (reboot) run %d of %d has completed successfully" %
+                      (i + 1, 3))
 
             wait_for_vms_ips(session, vm_ref_list)
 
@@ -151,7 +151,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
         suspend/resume functionality through three test runs"""
         vm_ref_list = self._setup_vms(session)
         for i in range(3):
-            log.debug("Starting test run %d of %d" % (i + 1, range(3)[-1] + 1))
+            log.debug("Starting test (suspend) run %d of %d" % (i + 1, 3))
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
@@ -163,13 +163,13 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             task_list = [(lambda x=vm_ref: session.xenapi.Async.VM.suspend(x))
                          for vm_ref in vm_ref_list]
             start = time.time()
-            res = run_xapi_async_tasks(session, task_list, 1200)
+            run_xapi_async_tasks(session, task_list, 1200)
             suspend_time = time.time() - start
             log.debug(
                 "Suspend operation returned complete in %s seconds" % suspend_time)
 
             # Verify the VMs report a 'Suspended' power state
-            log.debug("Verrifying VM power control operations")
+            log.debug("Verrifying VM power control operations for 'Suspended'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Suspended':
                     raise Exception("ERROR: VM %s did not suspend" % vm_ref)
@@ -184,18 +184,18 @@ class VMOpsTestClass(testbase.OperationsTestClass):
                                                                              False,
                                                                              False))
                          for vm_ref in vm_ref_list]
-            res = run_xapi_async_tasks(session, task_list)
+            run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Running' power state
-            log.debug("Verrifying VM power control operations")
+            log.debug("Verrifying VM power control operations (suspend) for 'Running'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Running':
                     raise Exception("ERROR: VM %s did not resume" % vm_ref)
-                log.debug("VM %s is running" % vm_ref)
+                log.debug("VM %s is running after suspending" % vm_ref)
             log.debug("Verrification complete: All VMs have resumed")
 
-            log.debug("Test run %d of %d has completed successfully" %
-                      (i + 1, range(3)[-1] + 1))
+            log.debug("Test (suspend) run %d of %d has completed successfully" %
+                      (i + 1, 3))
 
             wait_for_vms_ips(session, vm_ref_list)
 
@@ -209,7 +209,7 @@ class VMOpsTestClass(testbase.OperationsTestClass):
         the master host and the master host"""
         vm_ref_list = self._setup_vms(session)
         for i in range(3):
-            log.debug("Starting test run %d of %d" % (i + 1, range(3)[-1] + 1))
+            log.debug("Starting test (relocation) run %d of %d" % (i + 1, 3))
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
@@ -223,19 +223,19 @@ class VMOpsTestClass(testbase.OperationsTestClass):
                                                                                 host_ref,
                                                                                 {'live': 'true'}))
                          for vm_ref in vm_ref_list]
-            res = run_xapi_async_tasks(session, task_list)
+            run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Running' power state
-            log.debug("Verrifying VM power control operations")
+            log.debug("Verrifying VM power control operations (relocation) for 'Running'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Running':
                     raise Exception("ERROR: Unexpected power state")
-                log.debug("VM %s is running" % vm_ref)
+                log.debug("VM %s is running after relocating" % vm_ref)
             log.debug(
                 "Verrification complete: All VMs have been relocated and are running")
 
-            log.debug("Test run %d of %d has completed successfully" %
-                      (i + 1, range(3)[-1] + 1))
+            log.debug("Test (relocation) run %d of %d has completed successfully" %
+                      (i + 1, 3))
 
             wait_for_vms_ips(session, vm_ref_list)
 

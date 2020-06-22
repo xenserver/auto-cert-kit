@@ -468,8 +468,6 @@ def wrapped_value_in_range(value, min_v, max_v, wrap=4 * G):
 
         return pre_range or post_range
 
-    return False
-
 
 class IperfTestStatsValidator(object):
 
@@ -650,7 +648,7 @@ def reboot_normally(session):
         # otherwise status.py will get wrong status then
         time.sleep(300)
         sys.exit(REBOOT_ERROR_CODE)
-    except Exception, e:
+    except:
         log.debug("ACK exit normally")
 
 
@@ -755,20 +753,21 @@ def eval_expr(expr, val):
     test_val = ' '.join(arr[1:])
 
     if condition == ">":
-        return val > test_val
-    if condition == "<":
-        return val < test_val
-    if condition == "=":
-        return val == test_val
-    if condition == "!=":
-        return val != test_val
-    if condition == ">=":
-        return val >= test_val
-    if condition == "<=":
-        return val <= test_val
-
-    raise Exception("Specified condition is not yet supported for comparison: %s" %
-                    condition)
+        res = val > test_val
+    elif condition == "<":
+        res = val < test_val
+    elif condition == "=":
+        res = val == test_val
+    elif condition == "!=":
+        res = val != test_val
+    elif condition == ">=":
+        res = val >= test_val
+    elif condition == "<=":
+        res = val <= test_val
+    else:
+        raise Exception("Specified condition is not yet supported for comparison: %s" %
+                        condition)
+    return res
 
 
 def create_network(session, name_label, description, other_config):
@@ -1162,7 +1161,6 @@ def get_vm_vif_ifs(session, vm_ref):
             if device not in ifs:
                 ifs[device] = {"vif": device, "mac": "", "ip": ""}
             ifs[device]["ip"] = ip
-            continue
 
     return ifs
 
@@ -1335,8 +1333,8 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, time
         log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
 
         try:
-            sshcmd = ssh.SSHCommand(
-                ip, cmd_str, log, username, timeout, password)
+            sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
+                                    {'log': log, 'timeout': timeout})
             result = sshcmd.read()
         except Exception, e:
             log.debug("Exception: %s" % str(e))
@@ -1427,7 +1425,7 @@ def destroy_vm(session, vm_ref, timeout=60):
             session.xenapi.VDI.destroy(vdi_ref)
         except XenAPI.Failure, exn:
             if exn.details[0] == 'HANDLE_INVALID':
-                pass
+                log.debug("Ignore XenAPI.Failure of HANDLE_INVALID")
             else:
                 raise exn
     # Finally, destroy the VM
@@ -1602,9 +1600,8 @@ def get_local_sr(session, host):
     for pbd_ref, pbd_rec in all_pbds.iteritems():
         if host in pbd_rec['host']:
             for sr_ref, sr_rec in all_srs.iteritems():
-                if 'Local storage' in sr_rec['name_label']:
-                    if pbd_rec['SR'] in sr_ref:
-                        return sr_ref
+                if 'Local storage' in sr_rec['name_label'] and pbd_rec['SR'] in sr_ref:
+                    return sr_ref
     raise Exception("No local SR attached to the master host")
 
 
@@ -1884,18 +1881,20 @@ def init_ifs_ip_addressing(session, vm_ref, vifs_info):
         device = "ethx%d" % id
         mac, ip, netmask, gw = vif_info[1], vif_info[2], vif_info[3], vif_info[4]
         if ip:
-            droid_add_static_ifcfg(
-                session, host_ref, vm_ref, mip, device, mac, ip, netmask, gw)
+            dev_info = {'iface': device, 'mac': mac, 'ip': ip, 'netmask': netmask, 'gw': gw}
+            droid_add_static_ifcfg(session, host_ref, vm_ref, mip, dev_info)
         else:
             droid_add_dhcp_ifcfg(session, host_ref, vm_ref, mip, device, mac)
 
 
-def droid_add_static_ifcfg(session, host, vm_ref, mip, iface, mac, ip, netmask, gw):
+def droid_add_static_ifcfg(session, host, vm_ref, mip, dev_info):
     """Set VM interface static ip in config file ifcfg-eth*"""
     cmd = b'''echo "TYPE=Ethernet\nNAME=%s\nDEVICE=%s\nHWADDR=%s\n''' \
         b'''IPADDR=%s\nNETMASK=%s\nGATEWAY=%s\nBOOTPROTO=none\nONBOOT=yes" ''' \
         b'''> "%s/ifcfg-%s" ''' \
-        % (iface, iface, mac, ip, netmask, gw, "/etc/sysconfig/network-scripts", iface)
+        % (dev_info['iface'], dev_info['iface'], dev_info['mac'], dev_info['ip'],
+           dev_info['netmask'], dev_info['gw'], "/etc/sysconfig/network-scripts",
+           dev_info['iface'])
     args = {'vm_ref': vm_ref,
             'mip': mip,
             'username': 'root',
@@ -2222,7 +2221,7 @@ def json_loads(json_data):
     return [data] if isinstance(data, dict) else data
 
 
-def call_ack_plugin(session, method, args={}, host=None, noJsonHook=False):
+def call_ack_plugin(session, method, args={}, host=None, no_json_hook=False):
     if not host:
         host = get_pool_master(session)
     log.debug("About to call plugin '%s' on host '%s' with args '%s'" %
@@ -2234,7 +2233,9 @@ def call_ack_plugin(session, method, args={}, host=None, noJsonHook=False):
                                           args)
     log.debug("Plugin Output: %s" % (
         "%s[...check plugin log for more]" % res[:1000] if res and len(res) > 1000 else res))
-    return (json.loads(res) if noJsonHook else json_loads(res)) if res else None
+    if res:
+        return json.loads(res) if no_json_hook else json_loads(res)
+    return None
 
 
 def get_hw_offloads(session, device):
@@ -2324,7 +2325,7 @@ def wait_for_dom0_device_ip(session, vm_ref, device, static_manager):
 def get_vm_interface(session, host, vm_ref, mip):
     """Use ip command to get all interface (eth*) information"""
 
-    # e.g. ifs["eth0"] = ["eth0", "ec:f4:bb:ce:91:9c", "10.62.114.80"]
+    # e.g. eth0: [eth0, ec:f4:bb:ce:91:9c, 10.62.114.80]
     ifs = {}
 
     # cmd output: "eth0: ec:f4:bb:ce:91:9c"
@@ -2412,7 +2413,7 @@ def check_test_thread_status(threads):
 
 
 def get_system_info_hwinfo(session):
-    return call_ack_plugin(session, 'get_system_info_hwinfo', noJsonHook=True)
+    return call_ack_plugin(session, 'get_system_info_hwinfo', no_json_hook=True)
 
 
 def get_system_info_tabular(session):
@@ -2449,22 +2450,22 @@ def get_local_storage_info(session):
     return devices
 
 
-def _convertToValidXmlElementName(str1):
+def _convert_to_valid_xml_element_name(str1):
     if str1 and not str1[0].isalpha():
         str1 = "_" + str1
     str1 = str1.replace(":", "_")
     return str1
 
 
-def _convertDictKeysToValidXmlTags(d):
-    return {_convertToValidXmlElementName(k): d[k] for k in d}
+def _convert_dict_keys_to_valid_xml_tags(d):
+    return {_convert_to_valid_xml_element_name(k): d[k] for k in d}
 
 
 def get_xs_info(session):
     """Returns a limited subset of info about the XenServer version"""
     master_ref = get_pool_master(session)
     info = session.xenapi.host.get_software_version(master_ref)
-    return _convertDictKeysToValidXmlTags(info)
+    return _convert_dict_keys_to_valid_xml_tags(info)
 
 
 def _get_type_and_value(entry):
@@ -2548,21 +2549,21 @@ def get_value(rec, key, default=""):
 
 
 def print_documentation(object_name):
-    print "--------- %s ---------" % bold(object_name)
+    print("--------- %s ---------" % bold(object_name))
     classes = enumerate_test_classes()
     for test_class_name, test_class in classes:
         arr = (object_name).split('.')
         if test_class_name == object_name:
             # get the class info
-            print format(test_class.__doc__)
-            print "%s: %s" % (bold('Prereqs'), test_class.required_config)
+            print(format(test_class.__doc__))
+            print("%s: %s" % (bold('Prereqs'), test_class.required_config))
             sys.exit(0)
         elif len(arr) == 3 and ".".join(arr[:2]) == test_class_name:
             # get the method info
-            print format(getattr(test_class, arr[2]).__doc__)
+            print(format(getattr(test_class, arr[2]).__doc__))
             sys.exit(0)
 
-    print "The test name specified (%s) was incorrect. Please specify the full test name." % object_name
+    print("The test name specified (%s) was incorrect. Please specify the full test name." % object_name)
     sys.exit(0)
 
 
@@ -2595,9 +2596,9 @@ def read_valid_lines(filename):
     return res
 
 
-def set_network_mtu(session, network_ref, MTU):
+def set_network_mtu(session, network_ref, mtu):
     """Utility function for setting a network's MTU. MTU should be a string"""
-    session.xenapi.network.set_MTU(network_ref, str(MTU))
+    session.xenapi.network.set_MTU(network_ref, str(mtu))
     pifs = session.xenapi.network.get_PIFs(network_ref)
     for pif in pifs:
         unplug_pif(session, pif)
@@ -2671,7 +2672,7 @@ def get_ack_version(session, host=None):
     try:
         return call_ack_plugin(session, 'get_ack_version', {}, host=host)
     except XenAPI.Failure, e:
-        log.debug("Failed to execute ack plugin call means ACK is not installed.")
+        log.debug("Failed to execute ack plugin call means ACK is not installed. Exception: %s" % str(e))
         return None
 
 

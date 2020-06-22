@@ -82,7 +82,7 @@ class TestClass(object):
         operations that require a reboot. The test runner
         will handle re-executing the current test case
         when booting has finished"""
-        return
+        pass
 
     def run(self, debug=False, test_name=None):
         """Method for running all the tests in a class"""
@@ -166,11 +166,10 @@ class TestClass(object):
                 log.debug(traceb)
                 if debug:
                     log.debug(
-                        "Running in debug mode - exiting due to failure: %s" % str(e))
+                        "Running in debug mode - exiting due to Exception class: %s" % str(e))
                     sys.exit(0)
             except:
                 traceb = traceback.format_exc()
-                exception = True
                 rec['status'] = 'done'
                 rec['result'] = 'fail'
                 rec['trackeback'] = traceb
@@ -178,7 +177,7 @@ class TestClass(object):
                 log.debug(traceb)
                 if debug:
                     log.debug(
-                        "Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
+                        "Running in debug mode - exiting due to exception: %s" % sys.exc_info()[0])
                     sys.exit(0)
 
             # cleanup occurs only when current test really done
@@ -190,7 +189,7 @@ class TestClass(object):
                     log.debug(traceb)
                     if debug:
                         log.debug(
-                            "Running in debug mode - exiting due to failure: %s" % sys.exc_info()[0])
+                            "Running in debug mode - exiting due to exception when cleanup: %s" % sys.exc_info()[0])
                         sys.exit(0)
 
                     log.debug("The general cleanup is failed")
@@ -475,8 +474,6 @@ class NetworkTestClass(TestClass):
             call_ack_plugin(self.session, 'set_network_backend_pool',
                             {'backend': 'bridge'})
             host_reboot(self.session)
-        # Nothing to do, just return
-        return
 
     def get_bondable_ifaces(self, iface):
         """ Given a particular interface, return a list of other network

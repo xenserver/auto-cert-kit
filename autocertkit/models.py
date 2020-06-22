@@ -376,15 +376,15 @@ class Device(object):
         self.udid = self.config['udid']  # Unique device id
 
         # We only care about child element nodes
-        childElems = [node for node in xml_device_node.childNodes
+        child_elems = [node for node in xml_device_node.childNodes
                       if node.nodeType == node.ELEMENT_NODE]
 
         # We expect there to be one child node 'certification_tests'
-        if len(childElems) != 1:
+        if len(child_elems) != 1:
             raise Exception(
-                "Error: unexpected XML format. Should only be one child node: %s" % childElems)
+                "Error: unexpected XML format. Should only be one child node: %s" % child_elems)
 
-        xml_cert_tests_node = childElems[0]
+        xml_cert_tests_node = child_elems[0]
 
         test_class_list = []
         for test_node in get_child_elems(xml_cert_tests_node):
@@ -410,11 +410,11 @@ class Device(object):
             if self.tag == "CPU":
                 return get_cpu_id(self.config['modelname'])
             if self.tag == "LS":
-                PCI_id = self.config['vendor'] + ":" + self.config["device"]
-                return PCI_id
+                pci_id = self.config['vendor'] + ":" + self.config["device"]
+                return pci_id
             if self.tag == "OP":
-                XS_id = "XenServer %s" % self.config['product_version']
-                return XS_id
+                xs_id = "XenServer %s" % self.config['product_version']
+                return xs_id
         except Exception, e:
             log.error("Exception occurred getting ID: '%s'" % str(e))
         return "Unknown ID"
@@ -434,11 +434,11 @@ class Device(object):
             if self.tag == "CPU":
                 return self.config['modelname']
             if self.tag == "LS":
-                LS_info = "Storage device using the %s driver" % self.config[
+                ls_info = "Storage device using the %s driver" % self.config[
                     'driver']
                 if 'PCI_description' in self.config:
-                    LS_info += "\n\t%s" % self.config['PCI_description']
-                return LS_info
+                    ls_info += "\n\t%s" % self.config['PCI_description']
+                return ls_info
             if self.tag == "OP":
                 build_id = "build %s" % self.config['build_number']
                 return build_id

@@ -287,12 +287,12 @@ def validate_param(value, possibles, arg_name):
         raise utils.InvalidArgument(arg_name, value, possibles)
 
 
-def parse_static_config(configParser, section):
+def parse_static_config(config_parser, section):
     """Parse a ini section specifying static networking config for droid VMs to use."""
     utils.log.debug("Read section '%s'" % section)
     config = {}
     for option in ['ip_start', 'ip_end', 'netmask', 'gw']:
-        config[option] = configParser.get(section, option)
+        config[option] = config_parser.get(section, option)
         utils.log.debug("Get option %s = '%s'" % (option, config[option]))
         if not config[option]:
             raise utils.InvalidArgument(

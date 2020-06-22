@@ -61,14 +61,12 @@ class TestGenerator(object):
         self.session = session
         self.config = config
         self.interface = interface
-        # if not self.TAG:
-        #    raise Exception("The TestGenerator class is generic. Please inherit for a specific device")
         self.prereq_check()
 
     def prereq_check(self):
         """Function for ensuring that specific prereq conditions are checked and raised before
         execution."""
-        return
+        pass
 
     def select_test_by_config(self, test_classes):
         """Select test classes to run by config"""
@@ -130,7 +128,6 @@ class TestGenerator(object):
             return {}
         devices = utils.get_master_network_devices(self.session)
         for device_rec in devices:
-            print device_rec
             if device_rec['Kernel_name'] == self.interface:
                 return device_rec
         raise Exception("Specified interface %s appears not to exist on master" %
@@ -403,32 +400,32 @@ XML_GENERATORS = [
 
 
 def print_documentation(object_name):
-    print "--------- %s ---------" % utils.bold(object_name)
-    print ""
+    print("--------- %s ---------" % utils.bold(object_name))
+    print("")
     classes = enumerate_all_test_classes()
     for test_class_name, test_class in classes:
         arr = (object_name).split('.')
         if test_class_name == object_name:
             # get the class info
-            print "%s: %s" % (utils.bold('Prereqs'),
-                              test_class.required_config)
-            print "%s: %s" % (utils.bold('Collects'), test_class.collects)
-            print ""
-            print utils.format(test_class.__doc__)
-            print ""
-            print "%s:" % (utils.bold('Tests'))
+            print("%s: %s" % (utils.bold('Prereqs'),
+                              test_class.required_config))
+            print("%s: %s" % (utils.bold('Collects'), test_class.collects))
+            print("")
+            print(utils.format(test_class.__doc__))
+            print("")
+            print("%s:" % (utils.bold('Tests')))
             inst = test_class(None, {})
             for method in inst.list_tests():
-                print method
-            print ""
+                print(method)
+            print("")
             sys.exit(0)
         elif len(arr) == 3 and ".".join(arr[:2]) == test_class_name:
             # get the method info
-            print utils.format(getattr(test_class, arr[2]).__doc__)
-            print ""
+            print(utils.format(getattr(test_class, arr[2]).__doc__))
+            print("")
             sys.exit(0)
 
-    print "The test name specified (%s) was incorrect. Please specify the full test name." % object_name
+    print("The test name specified (%s) was incorrect. Please specify the full test name." % object_name)
     sys.exit(0)
 
 
@@ -439,10 +436,10 @@ def enumerate_all_test_classes():
 
 
 def print_all_test_classes():
-    print "---------- %s ---------" % utils.bold("Test List")
+    print("---------- %s ---------" % utils.bold("Test List"))
     classes = enumerate_all_test_classes()
     for test_class_name, test_class in classes:
         obj = test_class('nonexistent_session', {})
         for test_name in obj.list_tests():
-            print "%s.%s" % (test_class_name, test_name)
+            print("%s.%s" % (test_class_name, test_name))
     sys.exit(0)

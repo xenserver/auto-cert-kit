@@ -116,7 +116,7 @@ class PerfTestClass(testbase.CPUTestClass):
 
         # retrieve the logs
         log.debug("%s test is complete, retrieving logs" % self.test)
-        res = self._call_plugin(session, vm_ref_list,
+        self._call_plugin(session, vm_ref_list,
                                 'retrieve_' + self.test + '_logs')
 
         return {'info': 'Test ran successfully'}
