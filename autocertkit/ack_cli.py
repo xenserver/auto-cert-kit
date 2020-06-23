@@ -63,7 +63,8 @@ def get_xapi_session(config):
 
 
 def parse_cmd_args():
-    parser = OptionParser(usage="%prog [options]", version="%prog @KIT_VERSION@")   # NOSONAR
+    parser = OptionParser(  # NOSONAR
+        usage="%prog [options]", version="%prog @KIT_VERSION@")   # NOSONAR
 
     parser.add_option("-d", "--debug",
                       dest="debug",

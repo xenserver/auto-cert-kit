@@ -1251,7 +1251,8 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
 
 
 def ping_with_retry(session, vm_ref, mip, dst_vm_ip, interface, timeout=20, retry=15):
-    loss_re = re.compile(""".* (?P<loss>[0-9]+)% packet loss, .*""", re.S)  # NOSONAR
+    loss_re = re.compile(
+        """.* (?P<loss>[0-9]+)% packet loss, .*""", re.S)  # NOSONAR
 
     cmd_str = "ping -I %s -w %d %s" % (interface, timeout, dst_vm_ip)
     cmd = binascii.hexlify(cmd_str)
@@ -1851,7 +1852,8 @@ def init_ifs_ip_addressing(session, vm_ref, vifs_info):
         device = "ethx%d" % id
         mac, ip, netmask, gw = vif_info[1], vif_info[2], vif_info[3], vif_info[4]
         if ip:
-            dev_info = {'iface': device, 'mac': mac, 'ip': ip, 'netmask': netmask, 'gw': gw}
+            dev_info = {'iface': device, 'mac': mac,
+                        'ip': ip, 'netmask': netmask, 'gw': gw}
             droid_add_static_ifcfg(session, host_ref, vm_ref, mip, dev_info)
         else:
             droid_add_dhcp_ifcfg(session, host_ref, vm_ref, mip, device, mac)
@@ -2641,7 +2643,8 @@ def get_ack_version(session, host=None):
     try:
         return call_ack_plugin(session, 'get_ack_version', {}, host=host)
     except XenAPI.Failure, e:
-        log.debug("Failed to execute ack plugin call means ACK is not installed. Exception: %s" % str(e))
+        log.debug(
+            "Failed to execute ack plugin call means ACK is not installed. Exception: %s" % str(e))
         return None
 
 

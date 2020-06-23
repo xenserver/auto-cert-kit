@@ -654,7 +654,8 @@ class IperfTestClass(testbase.NetworkTestClass):
         log.debug("About to run iperf test...")
         iperf_data = IperfTest(session, client, server, self.network_for_test,
                                self.get_static_manager(self.network_for_test),
-                               {'config': self.IPERF_ARGS, 'multicast_ip': self.MULTICAST_IP}
+                               {'config': self.IPERF_ARGS,
+                                   'multicast_ip': self.MULTICAST_IP}
                                ).run()
 
         return {'info': 'Test ran successfully',
@@ -968,7 +969,7 @@ class MulticastTestClass(IperfTestClass):
     IPERF_ARGS = {'format': 'm',
                   'thread_count': '4'}
 
-    MULTICAST_IP = '226.94.1.1' # NOSONAR
+    MULTICAST_IP = '226.94.1.1'  # NOSONAR
 
 
 class GROOffloadTestClass(testbase.NetworkTestClass):

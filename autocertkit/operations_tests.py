@@ -56,7 +56,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
         state a predefined number of times"""
         vm_ref_list = self._setup_vms(session)
         for i in range(3):
-            log.debug("Starting test (power control) run %d of %d" % (i + 1, 3))
+            log.debug("Starting test (power control) run %d of %d" %
+                      (i + 1, 3))
 
             # Make certain the VMs are available
             for vm_ref in vm_ref_list:
@@ -129,7 +130,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Running' power state
-            log.debug("Verrifying VM power control operations (reboot) for 'Running'")
+            log.debug(
+                "Verrifying VM power control operations (reboot) for 'Running'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Running':
                     raise Exception("ERROR: Unexpected power state")
@@ -187,7 +189,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Running' power state
-            log.debug("Verrifying VM power control operations (suspend) for 'Running'")
+            log.debug(
+                "Verrifying VM power control operations (suspend) for 'Running'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Running':
                     raise Exception("ERROR: VM %s did not resume" % vm_ref)
@@ -226,7 +229,8 @@ class VMOpsTestClass(testbase.OperationsTestClass):
             run_xapi_async_tasks(session, task_list)
 
             # Verify the VMs report a 'Running' power state
-            log.debug("Verrifying VM power control operations (relocation) for 'Running'")
+            log.debug(
+                "Verrifying VM power control operations (relocation) for 'Running'")
             for vm_ref in vm_ref_list:
                 if session.xenapi.VM.get_power_state(vm_ref) != 'Running':
                     raise Exception("ERROR: Unexpected power state")

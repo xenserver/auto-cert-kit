@@ -390,7 +390,7 @@ class TestClass(object):
 
     def get_netconf(self):
         """Return the network config dictionary, as provided by the user"""
-        return eval(self.config['netconf']) # NOSONAR
+        return eval(self.config['netconf'])  # NOSONAR
 
     def singlenicmode(self):
         return 'singlenic' in self.config.keys() and self.config['singlenic'] == 'true'
@@ -593,7 +593,7 @@ class PerformanceTest(TestClass):
         # retrieve the logs
         log.debug("%s test is complete, retrieving logs" % self.test)
         self._call_plugin(session, vm_ref_list,
-                                'retrieve_' + self.test + '_logs')
+                          'retrieve_' + self.test + '_logs')
 
         return {'info': 'Test ran successfully'}
 

@@ -377,7 +377,7 @@ class Device(object):
 
         # We only care about child element nodes
         child_elems = [node for node in xml_device_node.childNodes
-                      if node.nodeType == node.ELEMENT_NODE]
+                       if node.nodeType == node.ELEMENT_NODE]
 
         # We expect there to be one child node 'certification_tests'
         if len(child_elems) != 1:
@@ -566,8 +566,10 @@ class Device(object):
 
         self.print_results(stream, tests_passed, "Tests that passed:")
         self.print_results(stream, tests_failed_req, "Tests that failed:")
-        self.print_results(stream, tests_failed_noreq, "None required tests that failed:")
-        self.print_results(stream, tests_skipped_req + tests_skipped_noreq, "Tests that skipped:")
+        self.print_results(stream, tests_failed_noreq,
+                           "None required tests that failed:")
+        self.print_results(stream, tests_skipped_req +
+                           tests_skipped_noreq, "Tests that skipped:")
 
     def print_results(self, stream, res, header):
         if res:

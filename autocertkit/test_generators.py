@@ -166,12 +166,12 @@ class TestGenerator(object):
 
             test_methods = test_class(self.session, self.config).list_tests()
             for method in test_methods:
-                self.add_method_node(doc, skip_this, test_class_name, xcp_version, class_node, method)
+                self.add_method_node(
+                    doc, skip_this, test_class_name, xcp_version, class_node, method)
 
             cts_node.appendChild(class_node)
 
         xml_node.appendChild(device_node)
-
 
     def set_test_class_cap(self, test_class, xcp_version):
         if test_class.REQUIRED_FOR:
@@ -183,7 +183,6 @@ class TestGenerator(object):
                     test_class.caps.remove(utils.REQ_CAP)
                 return True
         return False
-
 
     def add_method_node(self, doc, skipthis, test_class_name, xcp_version, class_node, method):
         method_node = doc.createElement('test_method')
