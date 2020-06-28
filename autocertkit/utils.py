@@ -468,8 +468,6 @@ def wrapped_value_in_range(value, min_v, max_v, wrap=4 * G):
 
         return pre_range or post_range
 
-    return False
-
 
 class IperfTestStatsValidator(object):
 
@@ -589,49 +587,6 @@ def get_slave_control_domain(session):
     return _find_control_domain(session, slave_refs[0])
 
 
-def set_reboot_flag(tc_info=None, flag_loc=REBOOT_FLAG_FILE):
-    """Set an OS flag (i.e. touch a file) for when we're about to reboot.
-    This is so that, on host reboot, we can work out whether we should
-    run, and what the status of the kit is"""
-
-    ffile = open(flag_loc, 'w')
-    if tc_info:
-        ffile.write(str(tc_info))
-    ffile.close()
-
-
-def get_reboot_flag(flag=REBOOT_FLAG_FILE):
-    """Return a dictionary that contains information of when reboot was
-    initiated."""
-
-    if os.path.exists(flag):
-        ffile = open(flag, 'r')
-        flag_str = ffile.read().strip()
-        ffile.close()
-
-        if len(flag_str) > 0:
-            tc_info = eval(flag_str)
-            if isinstance(tc_info, dict):
-                return tc_info
-
-        return {'info': 'flag contains no previous running info.'}
-    else:
-        return None
-
-
-def get_reboot_flag_timestamp(flag=REBOOT_FLAG_FILE):
-    """Finding when reboot was initialised."""
-    if os.path.exists(flag):
-        time_str = time.ctime(os.path.getctime(flag))
-        return datetime(*(time.strptime(time_str, "%a %b %d %H:%M:%S %Y")[0:6]))
-    return None
-
-
-def clear_reboot_flag(flag=REBOOT_FLAG_FILE):
-    if os.path.exists(flag):
-        os.remove(flag)
-
-
 def reboot_all_hosts(session):
     master = get_pool_master(session)
     hosts = session.xenapi.host.get_all()
@@ -650,7 +605,7 @@ def reboot_normally(session):
         # otherwise status.py will get wrong status then
         time.sleep(300)
         sys.exit(REBOOT_ERROR_CODE)
-    except Exception, e:
+    except:
         log.debug("ACK exit normally")
 
 
@@ -755,20 +710,21 @@ def eval_expr(expr, val):
     test_val = ' '.join(arr[1:])
 
     if condition == ">":
-        return val > test_val
-    if condition == "<":
-        return val < test_val
-    if condition == "=":
-        return val == test_val
-    if condition == "!=":
-        return val != test_val
-    if condition == ">=":
-        return val >= test_val
-    if condition == "<=":
-        return val <= test_val
-
-    raise Exception("Specified condition is not yet supported for comparison: %s" %
-                    condition)
+        res = val > test_val
+    elif condition == "<":
+        res = val < test_val
+    elif condition == "=":
+        res = val == test_val
+    elif condition == "!=":
+        res = val != test_val
+    elif condition == ">=":
+        res = val >= test_val
+    elif condition == "<=":
+        res = val <= test_val
+    else:
+        raise Exception("Specified condition is not yet supported for comparison: %s" %
+                        condition)
+    return res
 
 
 def create_network(session, name_label, description, other_config):
@@ -817,32 +773,32 @@ def get_pifs_by_device(session, device, hosts=[]):
                         (device, hosts))
 
 
+def get_physical_pifs(session, pifs):
+    res = []
+    for pif in pifs:
+        pif_rec = session.xenapi.PIF.get_record(pif)
+        if pif_rec['physical']:
+            res.append(pif)
+        elif pif_rec['bond_master_of']:
+            for bond in pif_rec['bond_master_of']:
+                bond_pifs = session.xenapi.Bond.get_slaves(bond)
+                res = res + get_physical_pifs(session, bond_pifs)
+        elif pif_rec['VLAN_master_of'] != 'OpaqueRef:NULL':
+            log.debug("VLAN PIF found: %s." % pif_rec)
+            vlan_obj = session.xenapi.VLAN.get_record(
+                pif_rec['VLAN_master_of'])
+            res = res + \
+                get_physical_pifs(session, [vlan_obj['tagged_PIF']])
+        else:
+            raise Exception(
+                "Error: %s is not physical, bond or VLAN" % pif_rec)
+    return res
+
+
 def get_physical_devices_by_network(session, network):
     """Taking a network, enumerate the list of physical devices attached 
     to each component PIF. This may require some unwrapping (e.g. bonds)
     to determine all the consituent physical PIFs."""
-
-    def get_physical_pifs(session, pifs):
-        res = []
-        for pif in pifs:
-            pif_rec = session.xenapi.PIF.get_record(pif)
-            if pif_rec['physical']:
-                res.append(pif)
-            elif pif_rec['bond_master_of']:
-                for bond in pif_rec['bond_master_of']:
-                    bond_pifs = session.xenapi.Bond.get_slaves(bond)
-                    res = res + get_physical_pifs(session, bond_pifs)
-            elif pif_rec['VLAN_master_of'] != 'OpaqueRef:NULL':
-                log.debug("VLAN PIF found: %s." % pif_rec)
-                vlan_obj = session.xenapi.VLAN.get_record(
-                    pif_rec['VLAN_master_of'])
-                res = res + \
-                    get_physical_pifs(session, [vlan_obj['tagged_PIF']])
-            else:
-                raise Exception(
-                    "Error: %s is not physical, bond or VLAN" % pif_rec)
-        return res
-
     pifs = session.xenapi.network.get_PIFs(network)
     physical_pifs = get_physical_pifs(session, pifs)
 
@@ -1145,9 +1101,9 @@ def get_vm_vif_ifs(session, vm_ref):
         return ifs
 
     re_mac = re.compile(
-        r"""^%s/device/vif/(?P<device>[0-9]+)/mac\s*=\s*"(?P<mac>.*)"$""" % dom_root)
+        r"""^%s/device/vif/(?P<device>[0-9]+)/mac\s*=\s*"(?P<mac>.*)"$""" % dom_root)   # NOSONAR
     re_ip = re.compile(
-        r"""^%s/attr/vif/(?P<device>[0-9]+)/ipv4/(?P<index>[0-9]+)\s*=\s*"(?P<ip>.*)"$""" % dom_root)
+        r"""^%s/attr/vif/(?P<device>[0-9]+)/ipv4/(?P<index>[0-9]+)\s*=\s*"(?P<ip>.*)"$""" % dom_root)   # NOSONAR
     for line in res["stdout"].split('\n'):
         m = re_mac.match(line)
         if m:
@@ -1162,7 +1118,6 @@ def get_vm_vif_ifs(session, vm_ref):
             if device not in ifs:
                 ifs[device] = {"vif": device, "mac": "", "ip": ""}
             ifs[device]["ip"] = ip
-            continue
 
     return ifs
 
@@ -1296,7 +1251,8 @@ def ping(vm_ip, dst_vm_ip, interface, packet_size=1400,
 
 
 def ping_with_retry(session, vm_ref, mip, dst_vm_ip, interface, timeout=20, retry=15):
-    loss_re = re.compile(""".* (?P<loss>[0-9]+)% packet loss, .*""", re.S)
+    loss_re = re.compile(
+        """.* (?P<loss>[0-9]+)% packet loss, .*""", re.S)  # NOSONAR
 
     cmd_str = "ping -I %s -w %d %s" % (interface, timeout, dst_vm_ip)
     cmd = binascii.hexlify(cmd_str)
@@ -1335,8 +1291,8 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, time
         log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
 
         try:
-            sshcmd = ssh.SSHCommand(
-                ip, cmd_str, log, username, timeout, password)
+            sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
+                                    {'log': log, 'timeout': timeout})
             result = sshcmd.read()
         except Exception, e:
             log.debug("Exception: %s" % str(e))
@@ -1368,6 +1324,30 @@ def destroy_pif(session, pif):
     """Unplug and destroy pif"""
     unplug_pif(session, pif)
     session.xenapi.PIF.destroy(pif)
+
+
+def destroy_vm_vdi(session, vm_ref, timeout=60):
+    # Check that the VDI is not in-use
+    vbd_refs = session.xenapi.VM.get_VBDs(vm_ref)
+    for vbd_ref in vbd_refs:
+        vdi_ref = session.xenapi.VBD.get_VDI(vbd_ref)
+        log.debug("Destroying VDI %s" % vdi_ref)
+        try:
+            start = time.time()
+            ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
+            while 'destroy' not in ops_list:
+                time.sleep(2)
+                ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
+                if should_timeout(start, timeout):
+                    raise Exception("Cannot destroy VDI: VDI is still active")
+            # If the VDI is free, try to destroy it. Should pass the exception
+            # catch if it is a NULL VDI reference.
+            session.xenapi.VDI.destroy(vdi_ref)
+        except XenAPI.Failure, exn:
+            if exn.details[0] == 'HANDLE_INVALID':
+                log.debug("Ignore XenAPI.Failure of HANDLE_INVALID")
+            else:
+                raise exn
 
 
 def destroy_vm(session, vm_ref, timeout=60):
@@ -1409,27 +1389,8 @@ def destroy_vm(session, vm_ref, timeout=60):
 
     log.debug("VM %s is ready to be removed." % vm_ref)
 
-    # Check that the VDI is not in-use
-    vbd_refs = session.xenapi.VM.get_VBDs(vm_ref)
-    for vbd_ref in vbd_refs:
-        vdi_ref = session.xenapi.VBD.get_VDI(vbd_ref)
-        log.debug("Destroying VDI %s" % vdi_ref)
-        try:
-            start = time.time()
-            ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
-            while 'destroy' not in ops_list:
-                time.sleep(2)
-                ops_list = session.xenapi.VDI.get_allowed_operations(vdi_ref)
-                if should_timeout(start, timeout):
-                    raise Exception("Cannot destroy VDI: VDI is still active")
-            # If the VDI is free, try to destroy it. Should pass the exception
-            # catch if it is a NULL VDI reference.
-            session.xenapi.VDI.destroy(vdi_ref)
-        except XenAPI.Failure, exn:
-            if exn.details[0] == 'HANDLE_INVALID':
-                pass
-            else:
-                raise exn
+    destroy_vm_vdi(session, vm_ref, timeout)
+
     # Finally, destroy the VM
     log.debug("Destroying VM %s" % vm_ref)
     session.xenapi.VM.destroy(vm_ref)
@@ -1458,7 +1419,7 @@ def host_cleanup(session, host):
     default_route_key = 'default_routes'
     default_route_list = []
     if default_route_key in oc.keys():
-        default_routes = eval(oc[default_route_key])
+        default_routes = eval(oc[default_route_key])    # NOSONAR
         for rec in default_routes:
             route_obj = route.Route(**rec)
             default_route_list.append(route_obj)
@@ -1488,6 +1449,26 @@ def pool_wide_host_cleanup(session):
         host_cleanup(session, host)
 
 
+def pool_wide_vm_dom0_cleanup(session, tag, vm, oc):
+    # Cleanup any routes that are lying around
+    keys_to_clean = []
+    for k, v in oc.iteritems():
+        if k.startswith('route_clean_'):
+            # Call plugin
+            call_ack_plugin(session, 'remove_route',
+                            {
+                                'vm_ref': vm,
+                                'dest_ip': v,
+                            })
+            keys_to_clean.append(k)
+
+    if keys_to_clean:
+        for key in keys_to_clean:
+            del oc[key]
+
+        session.xenapi.VM.set_other_config(vm, oc)
+
+
 def pool_wide_vm_cleanup(session, tag):
     """Searches for VMs with a cleanup tag, and destroys"""
     vms = session.xenapi.VM.get_all()
@@ -1498,23 +1479,7 @@ def pool_wide_vm_cleanup(session, tag):
             continue
 
         if session.xenapi.VM.get_is_control_domain(vm):
-            # Cleanup any routes that are lying around
-            keys_to_clean = []
-            for k, v in oc.iteritems():
-                if k.startswith('route_clean_'):
-                    # Call plugin
-                    call_ack_plugin(session, 'remove_route',
-                                    {
-                                        'vm_ref': vm,
-                                        'dest_ip': v,
-                                    })
-                    keys_to_clean.append(k)
-
-            if keys_to_clean:
-                for key in keys_to_clean:
-                    del oc[key]
-
-                session.xenapi.VM.set_other_config(vm, oc)
+            pool_wide_vm_dom0_cleanup(session, tag, vm, oc)
 
 
 def pool_wide_network_sriov_cleanup(session, tag):
@@ -1530,6 +1495,18 @@ def pool_wide_network_sriov_cleanup(session, tag):
 
     need_reboot = not is_vf_disabled(session)
     return need_reboot
+
+
+def pool_wide_network_host_pif_cleanup(session, tag):
+    for host in session.xenapi.host.get_all():
+        for pif in session.xenapi.host.get_PIFs(host):
+            oc = session.xenapi.PIF.get_other_config(pif)
+            if oc.pop(tag, None):
+                log.debug("Pif to cleanup: %s from host %s" % (pif, host))
+                call_ack_plugin(session, 'flush_local_device',
+                                {'device': session.xenapi.PIF.get_device(pif)},
+                                host=host)
+                session.xenapi.PIF.set_other_config(pif, oc)
 
 
 def pool_wide_network_cleanup(session, tag):
@@ -1549,15 +1526,7 @@ def pool_wide_network_cleanup(session, tag):
             session.xenapi.network.destroy(network)
         elif session.xenapi.network.get_MTU(network) != '1500':
             set_network_mtu(session, network, '1500')
-    for host in session.xenapi.host.get_all():
-        for pif in session.xenapi.host.get_PIFs(host):
-            oc = session.xenapi.PIF.get_other_config(pif)
-            if oc.pop(tag, None):
-                log.debug("Pif to cleanup: %s from host %s" % (pif, host))
-                call_ack_plugin(session, 'flush_local_device',
-                                {'device': session.xenapi.PIF.get_device(pif)},
-                                host=host)
-                session.xenapi.PIF.set_other_config(pif, oc)
+    pool_wide_network_host_pif_cleanup(session, tag)
 
 
 def get_pool_management_device(session):
@@ -1602,9 +1571,8 @@ def get_local_sr(session, host):
     for pbd_ref, pbd_rec in all_pbds.iteritems():
         if host in pbd_rec['host']:
             for sr_ref, sr_rec in all_srs.iteritems():
-                if 'Local storage' in sr_rec['name_label']:
-                    if pbd_rec['SR'] in sr_ref:
-                        return sr_ref
+                if 'Local storage' in sr_rec['name_label'] and pbd_rec['SR'] in sr_ref:
+                    return sr_ref
     raise Exception("No local SR attached to the master host")
 
 
@@ -1884,18 +1852,21 @@ def init_ifs_ip_addressing(session, vm_ref, vifs_info):
         device = "ethx%d" % id
         mac, ip, netmask, gw = vif_info[1], vif_info[2], vif_info[3], vif_info[4]
         if ip:
-            droid_add_static_ifcfg(
-                session, host_ref, vm_ref, mip, device, mac, ip, netmask, gw)
+            dev_info = {'iface': device, 'mac': mac,
+                        'ip': ip, 'netmask': netmask, 'gw': gw}
+            droid_add_static_ifcfg(session, host_ref, vm_ref, mip, dev_info)
         else:
             droid_add_dhcp_ifcfg(session, host_ref, vm_ref, mip, device, mac)
 
 
-def droid_add_static_ifcfg(session, host, vm_ref, mip, iface, mac, ip, netmask, gw):
+def droid_add_static_ifcfg(session, host, vm_ref, mip, dev_info):
     """Set VM interface static ip in config file ifcfg-eth*"""
     cmd = b'''echo "TYPE=Ethernet\nNAME=%s\nDEVICE=%s\nHWADDR=%s\n''' \
         b'''IPADDR=%s\nNETMASK=%s\nGATEWAY=%s\nBOOTPROTO=none\nONBOOT=yes" ''' \
         b'''> "%s/ifcfg-%s" ''' \
-        % (iface, iface, mac, ip, netmask, gw, "/etc/sysconfig/network-scripts", iface)
+        % (dev_info['iface'], dev_info['iface'], dev_info['mac'], dev_info['ip'],
+           dev_info['netmask'], dev_info['gw'], "/etc/sysconfig/network-scripts",
+           dev_info['iface'])
     args = {'vm_ref': vm_ref,
             'mip': mip,
             'username': 'root',
@@ -2222,7 +2193,7 @@ def json_loads(json_data):
     return [data] if isinstance(data, dict) else data
 
 
-def call_ack_plugin(session, method, args={}, host=None, noJsonHook=False):
+def call_ack_plugin(session, method, args={}, host=None, no_json_hook=False):
     if not host:
         host = get_pool_master(session)
     log.debug("About to call plugin '%s' on host '%s' with args '%s'" %
@@ -2234,7 +2205,9 @@ def call_ack_plugin(session, method, args={}, host=None, noJsonHook=False):
                                           args)
     log.debug("Plugin Output: %s" % (
         "%s[...check plugin log for more]" % res[:1000] if res and len(res) > 1000 else res))
-    return (json.loads(res) if noJsonHook else json_loads(res)) if res else None
+    if res:
+        return json.loads(res) if no_json_hook else json_loads(res)
+    return None
 
 
 def get_hw_offloads(session, device):
@@ -2324,13 +2297,13 @@ def wait_for_dom0_device_ip(session, vm_ref, device, static_manager):
 def get_vm_interface(session, host, vm_ref, mip):
     """Use ip command to get all interface (eth*) information"""
 
-    # e.g. ifs["eth0"] = ["eth0", "ec:f4:bb:ce:91:9c", "10.62.114.80"]
+    # e.g. eth0: [eth0, ec:f4:bb:ce:91:9c, 10.62.114.80]
     ifs = {}
 
     # cmd output: "eth0: ec:f4:bb:ce:91:9c"
     cmd = b"""ip -o link | awk '{if($2 ~ /^eth/) print $2,$(NF-2)}'"""
     res = ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd)
-    mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")
+    mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")     # NOSONAR
     for line in res['stdout'].strip().split('\n'):
         match = mac_re.match(line)
         if match:
@@ -2340,7 +2313,7 @@ def get_vm_interface(session, host, vm_ref, mip):
     # cmd output: "eth0 10.62.114.80/21"
     cmd = b"""ip -o -f inet addr | awk '{if($2 ~ /^eth/) print $2,$4}'"""
     res = ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd)
-    ip_re = re.compile(r"(?P<device>.*) (?P<ip>.*)")
+    ip_re = re.compile(r"(?P<device>.*) (?P<ip>.*)")    # NOSONAR
     for line in res['stdout'].strip().split('\n'):
         match = ip_re.match(line)
         if match:
@@ -2412,17 +2385,14 @@ def check_test_thread_status(threads):
 
 
 def get_system_info_hwinfo(session):
-    return call_ack_plugin(session, 'get_system_info_hwinfo', noJsonHook=True)
+    return call_ack_plugin(session, 'get_system_info_hwinfo', no_json_hook=True)
 
 
 def get_system_info_tabular(session):
     return call_ack_plugin(session, 'get_system_info_tabular')
 
 
-def get_master_network_devices(session):
-    nics = call_ack_plugin(session, 'get_network_devices')
-    log.debug("Network Devices found on machine(Plugin): '%s'" % nics)
-
+def remove_invalid_keys(nics):
     # remove invalid keys of nic which violates xml, referring to
     # https://stackoverflow.com/questions/19677315/xml-tagname-starting-with-number-is-not-working
     for n in nics:
@@ -2430,6 +2400,13 @@ def get_master_network_devices(session):
             if k and k[0].isdigit():
                 n.pop(k)
                 log.debug("Remove invalid key %s from %s" % (k, n['PCI_name']))
+
+
+def get_master_network_devices(session):
+    nics = call_ack_plugin(session, 'get_network_devices')
+    log.debug("Network Devices found on machine(Plugin): '%s'" % nics)
+
+    remove_invalid_keys(nics)
 
     hwinfo_devs = get_system_info_hwinfo(session)
     if hwinfo_devs:
@@ -2449,22 +2426,22 @@ def get_local_storage_info(session):
     return devices
 
 
-def _convertToValidXmlElementName(str1):
+def _convert_to_valid_xml_element_name(str1):
     if str1 and not str1[0].isalpha():
         str1 = "_" + str1
     str1 = str1.replace(":", "_")
     return str1
 
 
-def _convertDictKeysToValidXmlTags(d):
-    return {_convertToValidXmlElementName(k): d[k] for k in d}
+def _convert_dict_keys_to_valid_xml_tags(d):
+    return {_convert_to_valid_xml_element_name(k): d[k] for k in d}
 
 
 def get_xs_info(session):
     """Returns a limited subset of info about the XenServer version"""
     master_ref = get_pool_master(session)
     info = session.xenapi.host.get_software_version(master_ref)
-    return _convertDictKeysToValidXmlTags(info)
+    return _convert_dict_keys_to_valid_xml_tags(info)
 
 
 def _get_type_and_value(entry):
@@ -2478,6 +2455,13 @@ def _get_type_and_value(entry):
     return r
 
 
+def copy_dict_items(src, dst, keys):
+    """Copy src dict items to dst and rename with new key"""
+    for skey, dkey in keys:
+        if skey in src:
+            dst[dkey] = src[skey]
+
+
 def get_system_info(session):
     """Returns some information of system and bios."""
 
@@ -2485,38 +2469,26 @@ def get_system_info(session):
     biosinfo = search_dmidecode(session, "BIOS Information")
     if biosinfo:
         entries = _get_type_and_value(biosinfo[0])
-        if 'Vendor' in entries:
-            rec['BIOS_vendor'] = entries['Vendor']
-        if 'Version' in entries:
-            rec['BIOS_version'] = entries['Version']
-        if 'Release Date' in entries:
-            rec['BIOS_release_date'] = entries['Release Date']
-        if 'BIOS Revision' in entries:
-            rec['BIOS_revision'] = entries['BIOS Revision']
+        copy_dict_items(entries, rec, [('Vendor', 'BIOS_vendor'),
+                                       ('Version', 'BIOS_version'),
+                                       ('Release Date', 'BIOS_release_date'),
+                                       ('BIOS Revision', 'BIOS_revision')])
 
     sysinfo = search_dmidecode(session, "System Information")
     if sysinfo:
         entries = _get_type_and_value(sysinfo[0])
-        if 'Manufacturer' in entries:
-            rec['system_manufacturer'] = entries['Manufacturer']
-        if 'Product Name' in entries:
-            rec['system_product_name'] = entries['Product Name']
-        if 'Serial Number' in entries:
-            rec['system_serial_number'] = entries['Serial Number']
-        if 'UUID' in entries:
-            rec['system_uuid'] = entries['UUID']
-        if 'Version' in entries:
-            rec['system_version'] = entries['Version']
-        if 'Family' in entries:
-            rec['system_family'] = entries['Family']
+        copy_dict_items(entries, rec, [('Manufacturer', 'system_manufacturer'),
+                                       ('Product Name', 'system_product_name'),
+                                       ('Serial Number', 'system_serial_number'),
+                                       ('UUID', 'system_uuid'),
+                                       ('Version', 'system_version'),
+                                       ('Family', 'system_family')])
 
     chassisinfo = search_dmidecode(session, "Chassis Information")
     if chassisinfo:
         entries = _get_type_and_value(chassisinfo[0])
-        if 'Type' in entries:
-            rec['chassis_type'] = entries['Type']
-        if 'Manufacturer' in entries:
-            rec['chassis_manufacturer'] = entries['Manufacturer']
+        copy_dict_items(entries, rec, [('Type', 'chassis_type'),
+                                       ('Manufacturer', 'chassis_manufacturer')])
 
     return rec
 
@@ -2548,21 +2520,21 @@ def get_value(rec, key, default=""):
 
 
 def print_documentation(object_name):
-    print "--------- %s ---------" % bold(object_name)
+    print("--------- %s ---------" % bold(object_name))
     classes = enumerate_test_classes()
     for test_class_name, test_class in classes:
         arr = (object_name).split('.')
         if test_class_name == object_name:
             # get the class info
-            print format(test_class.__doc__)
-            print "%s: %s" % (bold('Prereqs'), test_class.required_config)
+            print(format(test_class.__doc__))
+            print("%s: %s" % (bold('Prereqs'), test_class.required_config))
             sys.exit(0)
         elif len(arr) == 3 and ".".join(arr[:2]) == test_class_name:
             # get the method info
-            print format(getattr(test_class, arr[2]).__doc__)
+            print(format(getattr(test_class, arr[2]).__doc__))
             sys.exit(0)
 
-    print "The test name specified (%s) was incorrect. Please specify the full test name." % object_name
+    print("The test name specified (%s) was incorrect. Please specify the full test name." % object_name)
     sys.exit(0)
 
 
@@ -2595,9 +2567,9 @@ def read_valid_lines(filename):
     return res
 
 
-def set_network_mtu(session, network_ref, MTU):
+def set_network_mtu(session, network_ref, mtu):
     """Utility function for setting a network's MTU. MTU should be a string"""
-    session.xenapi.network.set_MTU(network_ref, str(MTU))
+    session.xenapi.network.set_MTU(network_ref, str(mtu))
     pifs = session.xenapi.network.get_PIFs(network_ref)
     for pif in pifs:
         unplug_pif(session, pif)
@@ -2671,7 +2643,8 @@ def get_ack_version(session, host=None):
     try:
         return call_ack_plugin(session, 'get_ack_version', {}, host=host)
     except XenAPI.Failure, e:
-        log.debug("Failed to execute ack plugin call means ACK is not installed.")
+        log.debug(
+            "Failed to execute ack plugin call means ACK is not installed. Exception: %s" % str(e))
         return None
 
 
@@ -2700,7 +2673,7 @@ def check_vm_ping_response(session, vm_ref, mip, count=3, timeout=300):
         # Make the local shell call
         log.debug("Checking for ping response from VM %s at %s" % (
             vm_ref, mip))
-        process = subprocess.Popen(call, stdout=subprocess.PIPE)
+        process = subprocess.Popen(call, stdout=subprocess.PIPE)    # NOSONAR
         stdout, stderr = process.communicate()
         response = str(stdout).strip()
 

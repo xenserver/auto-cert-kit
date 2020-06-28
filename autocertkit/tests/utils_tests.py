@@ -194,29 +194,6 @@ class ValidatePingResponses(unittest.TestCase):
         self.assertTrue(utils.valid_ping_response(response, max_loss=5))
 
 
-class RebootFlagTimestamps(unittest.TestCase):
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        if os.path.exists(self.tmpdir):
-            shutil.rmtree(self.tmpdir)
-
-    def test_set_flag(self):
-        flag = "%s/test_set_flag" % self.tmpdir
-        utils.set_reboot_flag(flag_loc=flag)
-        self.assertTrue(os.path.exists(flag))
-
-    def test_read_flag(self):
-        flag = "%s/test_read_flag" % self.tmpdir
-        ts = datetime.now()
-        utils.set_reboot_flag(flag_loc=flag)
-        fts = utils.get_reboot_flag_timestamp(flag)
-        fmt_str = "%Y-%m-%d %H:%M:%S"
-        self.assertEqual(fts.strftime(fmt_str), ts.strftime(fmt_str))
-
-
 class HostLibMethodsTests(unittest.TestCase):
     """
     Host related functions unit tests.

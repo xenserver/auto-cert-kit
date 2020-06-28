@@ -63,8 +63,8 @@ def get_xapi_session(config):
 
 
 def parse_cmd_args():
-    parser = OptionParser(
-        usage="%prog [options]", version="%prog @KIT_VERSION@")
+    parser = OptionParser(  # NOSONAR
+        usage="%prog [options]", version="%prog @KIT_VERSION@")   # NOSONAR
 
     parser.add_option("-d", "--debug",
                       dest="debug",
@@ -142,6 +142,12 @@ def parse_cmd_args():
         for k, v in kvp_rec.iteritems():
             config[k] = v
 
+    check_files(config)
+
+    return config
+
+
+def check_files(config):
     # Check if files exist
     file_opts = [("vpx_dlvm_file", "VPX DLVM file")]
     for opt, label in file_opts:
@@ -154,8 +160,6 @@ def parse_cmd_args():
             if vf_driver_pkg:
                 assert_file_exists(os.path.join(
                     INSTALL_DIR, vf_driver_pkg), "VF driver rpm package")
-
-    return config
 
 
 def kvp_string_to_rec(string):
@@ -196,83 +200,91 @@ def parse_netconf_file(filename):
     rec = {}
     for section in cp.sections():
         if section.startswith('eth'):
-            # Ethernet Interface
-            utils.log.debug("Ethernet Interface: '%s'" % section)
-
-            # Network ID is a label of the physical network the adapter has been connected to
-            # and should be uniform across all adapters.
-            network_id = cp.get(section, 'network_id')
-            utils.log.debug("Network IDs: '%s'" % network_id)
-            try:
-                network_id = int(network_id)
-            except:
-                raise utils.InvalidArgument('Network IDs for %s' % section, network_id,
-                                            'should be integer')
-
-            # Parse VLAN IDs
-            vlan_ids = ""
-            if cp.has_option(section, 'vlan_ids'):
-                vlan_ids = cp.get(section, 'vlan_ids')
-            utils.log.debug("VLAN IDs: '%s'" % vlan_ids)
-            try:
-                vlan_ids = [int(id.strip()) for id in vlan_ids.split(',')]
-            except:
-                raise utils.InvalidArgument('VLAN IDs for %s' % section, vlan_ids,
-                                            'should be integer with comma as delimiter if multiple')
-            # Ensure that the specified VLAN is valid
-            for vlan_id in vlan_ids:
-                if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
-                    raise utils.InvalidArgument('VLAN ID for %s' % section, vlan_id, '%d < x < %d' %
-                                                (MIN_VLAN, MAX_VLAN))
-
-            # VF driver info for SR-IOV test
-            vf_driver_name = ""
-            if cp.has_option(section, 'vf_driver_name'):
-                vf_driver_name = cp.get(section, 'vf_driver_name')
-            vf_driver_pkg = ""
-            if cp.has_option(section, 'vf_driver_pkg'):
-                vf_driver_pkg = cp.get(section, 'vf_driver_pkg')
-            utils.log.debug("VF Driver Name: '%s'" % vf_driver_name)
-            utils.log.debug("VF Driver Pkg: '%s'" % vf_driver_pkg)
-
-            # User is able to specify maxinum VF number per PF to test
-            max_vf_num = ""
-            if cp.has_option(section, 'max_vf_num'):
-                max_vf_num = cp.get(section, 'max_vf_num')
-            if max_vf_num:
-                try:
-                    max_vf_num = int(max_vf_num)
-                except:
-                    raise utils.InvalidArgument('Maxinum VF number for %s' % section, max_vf_num,
-                                                'should be integer')
-                if max_vf_num <= 1:
-                    raise utils.InvalidArgument('Maxinum VF number for %s' % section, max_vf_num,
-                                                'should be greater than 1')
-                max_vf_num = str(max_vf_num)
-            utils.log.debug(
-                "Maxinum VF number per PF to test: '%s'" % max_vf_num)
-
-            rec[section] = {'network_id': network_id, 'vlan_ids': vlan_ids,
-                            'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg,
-                            'max_vf_num': max_vf_num}
+            parse_section_iface(cp, rec, section)
         elif section == "static_management":
             rec[section] = parse_static_config(cp, section)
         elif section.startswith('static'):
-            # Definition of network properties (e.g. dhcp/static)
-            arr = section.split('_')
-            if len(arr) != 3:
-                raise utils.InvalidArgument('static addressing section', section,
-                                            'should be in format of "static_<network_id>_<vlan_id>"')
-            net = arr[1]
-            vlan = arr[2]
-            if not unicode(net.strip()).isdecimal() or not unicode(vlan.strip()).isdecimal():
-                raise utils.InvalidArgument('static addressing section', section,
-                                            'should be valid network and/or vlan to determine')
-            rec[section] = parse_static_config(cp, section)
+            parse_section_static_net(cp, rec, section)
         else:
             raise Exception("Error: Unknown section: '%s'" % section)
 
     return rec
+
+
+def parse_section_iface(cp, rec, section):
+    # Ethernet Interface
+    utils.log.debug("Ethernet Interface: '%s'" % section)
+
+    # Network ID is a label of the physical network the adapter has been connected to
+    # and should be uniform across all adapters.
+    network_id = cp.get(section, 'network_id')
+    utils.log.debug("Network IDs: '%s'" % network_id)
+    try:
+        network_id = int(network_id)
+    except:
+        raise utils.InvalidArgument('Network IDs for %s' % section, network_id,
+                                    'should be integer')
+
+    # Parse VLAN IDs
+    vlan_ids = ""
+    if cp.has_option(section, 'vlan_ids'):
+        vlan_ids = cp.get(section, 'vlan_ids')
+    utils.log.debug("VLAN IDs: '%s'" % vlan_ids)
+    try:
+        vlan_ids = [int(id.strip()) for id in vlan_ids.split(',')]
+    except:
+        raise utils.InvalidArgument('VLAN IDs for %s' % section, vlan_ids,
+                                    'should be integer with comma as delimiter if multiple')
+    # Ensure that the specified VLAN is valid
+    for vlan_id in vlan_ids:
+        if vlan_id > MAX_VLAN or vlan_id < MIN_VLAN:
+            raise utils.InvalidArgument('VLAN ID for %s' % section, vlan_id, '%d < x < %d' %
+                                        (MIN_VLAN, MAX_VLAN))
+
+    # VF driver info for SR-IOV test
+    vf_driver_name = ""
+    if cp.has_option(section, 'vf_driver_name'):
+        vf_driver_name = cp.get(section, 'vf_driver_name')
+    vf_driver_pkg = ""
+    if cp.has_option(section, 'vf_driver_pkg'):
+        vf_driver_pkg = cp.get(section, 'vf_driver_pkg')
+    utils.log.debug("VF Driver Name: '%s'" % vf_driver_name)
+    utils.log.debug("VF Driver Pkg: '%s'" % vf_driver_pkg)
+
+    # User is able to specify maxinum VF number per PF to test
+    max_vf_num = ""
+    if cp.has_option(section, 'max_vf_num'):
+        max_vf_num = cp.get(section, 'max_vf_num')
+    if max_vf_num:
+        try:
+            max_vf_num = int(max_vf_num)
+        except:
+            raise utils.InvalidArgument('Maxinum VF number for %s' % section, max_vf_num,
+                                        'should be integer')
+        if max_vf_num <= 1:
+            raise utils.InvalidArgument('Maxinum VF number for %s' % section, max_vf_num,
+                                        'should be greater than 1')
+        max_vf_num = str(max_vf_num)
+    utils.log.debug(
+        "Maxinum VF number per PF to test: '%s'" % max_vf_num)
+
+    rec[section] = {'network_id': network_id, 'vlan_ids': vlan_ids,
+                    'vf_driver_name': vf_driver_name, 'vf_driver_pkg': vf_driver_pkg,
+                    'max_vf_num': max_vf_num}
+
+
+def parse_section_static_net(cp, rec, section):
+    # Definition of network properties (e.g. dhcp/static)
+    arr = section.split('_')
+    if len(arr) != 3:
+        raise utils.InvalidArgument('static addressing section', section,
+                                    'should be in format of "static_<network_id>_<vlan_id>"')
+    net = arr[1]
+    vlan = arr[2]
+    if not unicode(net.strip()).isdecimal() or not unicode(vlan.strip()).isdecimal():
+        raise utils.InvalidArgument('static addressing section', section,
+                                    'should be valid network and/or vlan to determine')
+    rec[section] = parse_static_config(cp, section)
 
 
 def assert_file_exists(file_name, label):
@@ -287,12 +299,12 @@ def validate_param(value, possibles, arg_name):
         raise utils.InvalidArgument(arg_name, value, possibles)
 
 
-def parse_static_config(configParser, section):
+def parse_static_config(config_parser, section):
     """Parse a ini section specifying static networking config for droid VMs to use."""
     utils.log.debug("Read section '%s'" % section)
     config = {}
     for option in ['ip_start', 'ip_end', 'netmask', 'gw']:
-        config[option] = configParser.get(section, option)
+        config[option] = config_parser.get(section, option)
         utils.log.debug("Get option %s = '%s'" % (option, config[option]))
         if not config[option]:
             raise utils.InvalidArgument(
@@ -415,10 +427,7 @@ def generate_test_config(session, config, test_run_file):
     fh.close()
 
 
-@utils.log_exceptions
-def pre_flight_checks(session, config):
-    """Check for some of the common problems"""
-
+def pre_flight_check_host(session):
     # Check for a run in progress
     if check_for_process():
         raise Exception(
@@ -441,6 +450,12 @@ def pre_flight_checks(session, config):
         avail_storage = utils.find_storage_for_host(session, host)
         if not avail_storage:
             raise Exception("Error: host '%s' has no available storage.")
+
+
+@utils.log_exceptions
+def pre_flight_checks(session, config):
+    """Check for some of the common problems"""
+    pre_flight_check_host(session)
 
     # Check that we have at least two network adaptors, on the same network
     recs = config['netconf']

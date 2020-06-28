@@ -55,14 +55,14 @@ class SSHSession:
         self.log = log
         self.debug = False
         self.trans = None
-        for tries in range(3):
+        for retry in range(3):
             self.trans = None
             try:
                 self.connect(ip, username, password, timeout)
             except Exception, e:
                 log.error(traceback.format_exc())
                 desc = str(e)
-                log.error("SSH exception %s" % (desc))
+                log.error("SSH retry %d exception %s" % (retry, desc))
                 if string.find(desc, "Signature verification") > -1 or \
                         string.find(desc,
                                     "Error reading SSH protocol banner") > -1:
@@ -89,7 +89,7 @@ class SSHSession:
             # If we get here we have successfully opened a connection
             return
         # Even after retry(s) we didn't get a connection
-        self.reply = "SSH connection failed"
+        self.reply = "SSH connection all tries failed"
         self.toreply = 1
         self.close()
 
@@ -156,16 +156,13 @@ class SSHSession:
 class SSHCommand(SSHSession):
     """An SSH session guarded for target lockups."""
 
-    def __init__(self,
-                 ip,
-                 command,
-                 log,
-                 username="root",
-                 timeout=300,
-                 password=None,
-                 nowarn=False,
-                 nolog=False,
-                 combineStderr=False):
+    def __init__(self, ip, command, username, password, opt):
+        log = opt['log']
+        timeout = opt.get('timeout', 300)
+        nowarn = opt.get('nowarn', False)
+        nolog = opt.get('nolog', False)
+        combine_stderr = opt.get('combine_stderr', False)
+
         self.log = log
         if not nolog:
             log.debug("ssh %s@%s %s" % (username, ip, command))
@@ -182,13 +179,13 @@ class SSHCommand(SSHSession):
         try:
             self.client = self.open_session()
             self.client.settimeout(timeout)
-            self.client.set_combine_stderr(combineStderr)
+            self.client.set_combine_stderr(combine_stderr)
             self.client.exec_command(command)
             self.client.shutdown(1)
             self.hStdout = self.client.makefile()
-            self.hStderr = None if combineStderr else self.client.makefile_stderr()
+            self.hStderr = None if combine_stderr else self.client.makefile_stderr()
         except Exception, e:
-            self.reply = "SSH connection failed",
+            self.reply = "SSH command executed failed: %s" % str(e),
             self.toreply = 1
             self.close()
 
@@ -212,14 +209,17 @@ class SSHCommand(SSHSession):
             else:
                 reply += output
 
-            if not self.nolog:
-                self.log.debug("%s: %s" %
-                               (label, (output[:-1] if output and output[-1] == '\n' else output)))
+            self.log_output(label, output)
         return reply
 
-    def read(self, outFile=None, errFile=None):
+    def log_output(self, label, output):
+        if not self.nolog:
+            self.log.debug("%s: %s" %
+                           (label, (output[:-1] if output and output[-1] == '\n' else output)))
+
+    def read(self, out_file=None, err_file=None):
         """Process the output and result of the command.
-        @:param outFile/errFile: Whether to write stdout/stderr to the file
+        @:param out_file/err_file: Whether to write stdout/stderr to the file
             None (Default) : just return stdout/stderr content
             Not None : write stdout/stderr content to the file, which is used for large content
         @:return dict including exit status, stdout and stderr
@@ -231,8 +231,8 @@ class SSHCommand(SSHSession):
         self.exit_status = self.client.recv_exit_status()
         if not self.nolog:
             self.log.debug("returncode: %d" % self.exit_status)
-        self.stdout = self.read_file(self.hStdout, outFile)
-        self.stderr = self.read_file(self.hStderr, errFile, label="stderr") \
+        self.stdout = self.read_file(self.hStdout, out_file)
+        self.stderr = self.read_file(self.hStderr, err_file, label="stderr") \
             if self.hStderr else ""
 
         # Local clean up.

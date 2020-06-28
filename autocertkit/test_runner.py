@@ -134,6 +134,30 @@ def remove_child_nodes(parent_node):
             node.unlink()
 
 
+def recurse_add_records_to_node(topnode, record):
+    for k, v in record.iteritems():
+        node = dom.createElement(k)
+        topnode.appendChild(node)
+
+        if type(v) == dict:
+            # Set attributes for element
+            for key, value in v.iteritems():
+                log.debug("Value = %s Type=%s" %
+                          (str(value), str(type(value))))
+                if type(value) == dict:
+                    subnode = dom.createElement(key)
+                    node.appendChild(subnode)
+                    recurse_add_records_to_node(subnode, value)
+                elif type(value) == str:
+                    node.setAttribute(str(key), str(value))
+        elif type(v) == str or type(v) == int:
+            node.appendChild(dom.createTextNode(v))
+        else:
+            log.warning("Casting node value to string %s who's type is %s" % (
+                str(v), str(type(v))))
+            node.appendChild(dom.createTextNode(str(v)))
+
+
 def update_xml_with_result(dom, class_node, results):
     """Update an xml config file object with results returned by a class test"""
     log.debug("Result Record: %s" % results)
@@ -147,29 +171,6 @@ def update_xml_with_result(dom, class_node, results):
         method_node = dom.createElement('test_method')
         method_node.setAttribute('name', test_name)
         class_node.appendChild(method_node)
-
-        def recurse_add_records_to_node(topnode, record):
-            for k, v in record.iteritems():
-                node = dom.createElement(k)
-                topnode.appendChild(node)
-
-                if type(v) == dict:
-                    # Set attributes for element
-                    for key, value in v.iteritems():
-                        log.debug("Value = %s Type=%s" %
-                                  (str(value), str(type(value))))
-                        if type(value) == dict:
-                            subnode = dom.createElement(key)
-                            node.appendChild(subnode)
-                            recurse_add_records_to_node(subnode, value)
-                        elif type(value) == str:
-                            node.setAttribute(str(key), str(value))
-                elif type(v) == str or type(v) == int:
-                    node.appendChild(dom.createTextNode(v))
-                else:
-                    log.warning("Casting node value to string %s who's type is %s" % (
-                        str(v), str(type(v))))
-                    node.appendChild(dom.createTextNode(str(v)))
 
         recurse_add_records_to_node(method_node, result)
 
@@ -289,7 +290,8 @@ def get_test_class(fqtn):
 if __name__ == "__main__":
     # Main function entry point
 
-    parser = OptionParser(usage="%prog [-c] [-t]", version="%prog 0.1")
+    parser = OptionParser(  # NOSONAR
+        usage="%prog [-c] [-t]", version="%prog 0.1")  # NOSONAR
 
     parser.add_option("-t", "--test file",
                       dest="testfile",

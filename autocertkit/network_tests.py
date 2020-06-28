@@ -63,30 +63,22 @@ class IperfTest:
                  server_vm_ref,
                  network_ref,
                  static_manager,
-                 username='root',
-                 password=DEFAULT_PASSWORD,
-                 config=None,
-                 vm_info=None,
-                 multicast_ip="",
-                 max_retry_on_failure=3):
+                 opt):
 
         self.session = session
         self.server = server_vm_ref
         self.client = client_vm_ref
         self.network = network_ref
         self.static_manager = static_manager
-        self.username = username
-        self.password = password
-        self.multicast_ip = multicast_ip
-        self.max_retry_on_failure = max_retry_on_failure
+        self.username = opt.get('username', 'root')
+        self.password = opt.get('password', DEFAULT_PASSWORD)
+        self.multicast_ip = opt.get('multicast_ip', '')
+        self.max_retry_on_failure = opt.get('max_retry_on_failure', 3)
 
         # Interface and IP etc on server/client to (t)est and (m)anagement
-        self.vm_info = vm_info
+        self.vm_info = opt.get('vm_info', None)
 
-        if not config:
-            self.config = self.default_config
-        else:
-            self.config = config
+        self.config = opt.get('config', self.default_config)
 
         # Store pool master in order to make plugin calls
         self.host = get_pool_master(self.session)
@@ -184,7 +176,7 @@ class IperfTest:
                              {'vm_ref': self.client,
                               'mip': self.vm_info[self.client]['ip_m'],
                               'dest_ip': self.multicast_ip,
-                              'mask': '240.0.0.0',
+                              'mask': '240.0.0.0',  # NOSONAR
                               'device': self.vm_info[self.client]['iface_t'],
                               'src': self.vm_info[self.client]['ip_t']}
                              )
@@ -193,7 +185,7 @@ class IperfTest:
                              {'vm_ref': self.server,
                               'mip': self.vm_info[self.server]['ip_m'],
                               'dest_ip': self.multicast_ip,
-                              'mask': '240.0.0.0',
+                              'mask': '240.0.0.0',  # NOSONAR
                               'device': self.vm_info[self.server]['iface_t'],
                               'src': self.vm_info[self.server]['ip_t']}
                              )
@@ -591,8 +583,6 @@ class IperfTestClass(testbase.NetworkTestClass):
     def _setup_vms(self, session, network_refs):
         """Util function for returning VMs to run IPerf test on,
         can be subclassed to run different configurations"""
-        log.debug("Setting up VM - VM cross host test")
-
         # Setup default static manager with the available interfaces
         sms = {}
         for network_ref in network_refs:
@@ -662,12 +652,11 @@ class IperfTestClass(testbase.NetworkTestClass):
         log.debug("Server IPerf VM ref: %s" % server)
 
         log.debug("About to run iperf test...")
-        iperf_data = IperfTest(session, client, server,
-                               self.network_for_test,
-                               self.get_static_manager(
-                                   self.network_for_test),
-                               config=self.IPERF_ARGS,
-                               multicast_ip=self.MULTICAST_IP).run()
+        iperf_data = IperfTest(session, client, server, self.network_for_test,
+                               self.get_static_manager(self.network_for_test),
+                               {'config': self.IPERF_ARGS,
+                                   'multicast_ip': self.MULTICAST_IP}
+                               ).run()
 
         return {'info': 'Test ran successfully',
                 'data': iperf_data,
@@ -878,8 +867,6 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 
     def _setup_vms(self, session, net_refs):
         """Util function for returning VMs to run large MTU ping test on"""
-        log.debug("Setting up VM - VM cross host test")
-
         sms = {}
         for net_ref in net_refs:
             sms[net_ref] = self.get_static_manager(net_ref)
@@ -898,20 +885,19 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 
         # retrieve VM IPs
         vm1_dev, _, vm1_ip = get_context_vm_mif(vm1_ref)
-        log.debug("VM %s has IP %s (iface: %s)" % (vm1_ref, vm1_ip, vm1_dev))
+        log_str = "VM %s has IP %s (iface: %s)"
+        log.debug(log_str % (vm1_ref, vm1_ip, vm1_dev))
 
         vm2_dev, _, vm2_ip = get_context_vm_mif(vm2_ref)
-        log.debug("VM %s has IP %s (iface: %s)" % (vm2_ref, vm2_ip, vm2_dev))
+        log.debug(log_str % (vm2_ref, vm2_ip, vm2_dev))
 
         vm1_test_dev, vm1_test_mac, vm1_test_ip \
             = get_context_test_ifs(vm1_ref)[0]
-        log.debug("VM %s has IP %s (iface: %s)" %
-                  (vm1_ref, vm1_test_ip, vm1_test_dev))
+        log.debug(log_str % (vm1_ref, vm1_test_ip, vm1_test_dev))
 
         vm2_test_dev, vm2_test_mac, vm2_test_ip \
             = get_context_test_ifs(vm2_ref)[0]
-        log.debug("VM %s has IP %s (iface: %s)" %
-                  (vm2_ref, vm2_test_ip, vm2_test_dev))
+        log.debug(log_str % (vm2_ref, vm2_test_ip, vm2_test_dev))
 
         # Add explicit IP routes to ensure MTU traffic travels
         # across the correct interface.
@@ -948,6 +934,7 @@ class MTUPingTestClass(testbase.NetworkTestClass):
 
         log.debug("Attempt normal ping first...")
         ping_result = ping(vm1_ip, vm2_test_ip, vm1_test_dev)
+        log.debug("Normal result: %s" % ping_result)
 
         log.debug("Moving onto large MTU ping...")
         log.debug("Ping Arguments: %s" % self.PING_ARGS)
@@ -982,7 +969,7 @@ class MulticastTestClass(IperfTestClass):
     IPERF_ARGS = {'format': 'm',
                   'thread_count': '4'}
 
-    MULTICAST_IP = '226.94.1.1'
+    MULTICAST_IP = '226.94.1.1'  # NOSONAR
 
 
 class GROOffloadTestClass(testbase.NetworkTestClass):
@@ -1068,14 +1055,7 @@ class InterHostSRIOVTestClass(IperfTestClass):
             # choose 2 VM and perform IPerf test
             self.iperf_test(session, ret, vm_list[0], vm_list[1], direction)
 
-            # disable sriov
-            for i in vm_list:
-                destroy_vm(session, i)
-            log.debug("Disable VF begin")
-            # network_sriov may be synced to slave host, so here destroy all, rather than just sriov_net_ref
-            for i in session.xenapi.network_sriov.get_all():
-                log.debug("Destory network_sriov: %s" % i)
-                session.xenapi.network_sriov.destroy(i)
+            self._disable_vf(session, vm_list)
 
             if self.control == "enabled":
                 # need to reboot at first
@@ -1092,6 +1072,15 @@ class InterHostSRIOVTestClass(IperfTestClass):
             self.set_info(ret, 'Test ran successfully')
 
         return ret
+
+    def _disable_vf(self, session, vm_list):
+        for i in vm_list:
+            destroy_vm(session, i)
+        log.debug("Disable VF begin")
+        # network_sriov may be synced to slave host, so here destroy all, rather than just sriov_net_ref
+        for i in session.xenapi.network_sriov.get_all():
+            log.debug("Destory network_sriov: %s" % i)
+            session.xenapi.network_sriov.destroy(i)
 
     def _check_sriov_cap(self, session):
         device = self.config['device_config']['Kernel_name']
@@ -1138,8 +1127,6 @@ class InterHostSRIOVTestClass(IperfTestClass):
         return (False, net_ref, net_sriov_ref)
 
     def _setup_vms(self, session, network_refs):
-        log.debug("Setting up VM - VM cross host test")
-
         # Setup default static manager with the available interfaces
         sms = {}
         networks_slave, networks_master = network_refs[0], network_refs[1]
@@ -1180,24 +1167,14 @@ class InterHostSRIOVTestClass(IperfTestClass):
         log.debug("IPerf client VM ref: %s" % client)
 
         log.debug("About to run SR-IOV IPerf test...")
-        iperf_data = IperfTest(session, client, server,
-                               None, None,
-                               config=self.IPERF_ARGS).run()
+        iperf_data = IperfTest(session, client, server, None, None,
+                               {'config': self.IPERF_ARGS}).run()
 
         self.set_data(result, iperf_data)
 
     def ops_test(self, session, vms):
+        """It's an interface with default, can be overwritten in child class"""
         pass
-
-
-'''
-# Remove the test at present because of feature limit in CA-285893
-class IntraHostSRIOVTestClass1(InterHostSRIOVTestClass):
-    """Iperf test between VF (in VM1 on master) and VIF (in VM2 on master)"""
-
-    def deploy_droid_vms(self, session, vf_driver, network_refs, sms):
-        return deploy_two_droid_vms_for_sriov_intra_host_test_vf_to_vif(session, vf_driver, network_refs, sms)
-'''
 
 
 class IntraHostSRIOVTestClass1(InterHostSRIOVTestClass):

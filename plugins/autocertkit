@@ -280,8 +280,8 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, time
         log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
 
         try:
-            sshcmd = ssh.SSHCommand(
-                ip, cmd_str, log, username, timeout, password)
+            sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
+                                    {'log': log, 'timeout': timeout})
             result = sshcmd.read()
         except Exception, e:
             log.debug("Exception: %s" % str(e))

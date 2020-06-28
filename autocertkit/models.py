@@ -228,7 +228,7 @@ class DeviceTestClass(object):
     def get_caps(self):
         """ Return a list of caps supported by this
         device based on the tests that have passed/failed """
-        return eval(self.config['caps'])
+        return eval(self.config['caps'])    # NOSONAR
 
     def get_order(self):
         """Return the integer number specified by the test class to indicate
@@ -376,15 +376,15 @@ class Device(object):
         self.udid = self.config['udid']  # Unique device id
 
         # We only care about child element nodes
-        childElems = [node for node in xml_device_node.childNodes
-                      if node.nodeType == node.ELEMENT_NODE]
+        child_elems = [node for node in xml_device_node.childNodes
+                       if node.nodeType == node.ELEMENT_NODE]
 
         # We expect there to be one child node 'certification_tests'
-        if len(childElems) != 1:
+        if len(child_elems) != 1:
             raise Exception(
-                "Error: unexpected XML format. Should only be one child node: %s" % childElems)
+                "Error: unexpected XML format. Should only be one child node: %s" % child_elems)
 
-        xml_cert_tests_node = childElems[0]
+        xml_cert_tests_node = child_elems[0]
 
         test_class_list = []
         for test_node in get_child_elems(xml_cert_tests_node):
@@ -410,11 +410,11 @@ class Device(object):
             if self.tag == "CPU":
                 return get_cpu_id(self.config['modelname'])
             if self.tag == "LS":
-                PCI_id = self.config['vendor'] + ":" + self.config["device"]
-                return PCI_id
+                pci_id = self.config['vendor'] + ":" + self.config["device"]
+                return pci_id
             if self.tag == "OP":
-                XS_id = "XenServer %s" % self.config['product_version']
-                return XS_id
+                xs_id = "XenServer %s" % self.config['product_version']
+                return xs_id
         except Exception, e:
             log.error("Exception occurred getting ID: '%s'" % str(e))
         return "Unknown ID"
@@ -434,11 +434,11 @@ class Device(object):
             if self.tag == "CPU":
                 return self.config['modelname']
             if self.tag == "LS":
-                LS_info = "Storage device using the %s driver" % self.config[
+                ls_info = "Storage device using the %s driver" % self.config[
                     'driver']
                 if 'PCI_description' in self.config:
-                    LS_info += "\n\t%s" % self.config['PCI_description']
-                return LS_info
+                    ls_info += "\n\t%s" % self.config['PCI_description']
+                return ls_info
             if self.tag == "OP":
                 build_id = "build %s" % self.config['build_number']
                 return build_id
@@ -564,26 +564,17 @@ class Device(object):
 
                 stream.write("%s: %s\n" % (k, reqval))
 
-        if tests_passed:
-            stream.write("\nTests that passed:\n")
-            for test in tests_passed:
-                stream.write("%s\n" % test.name)
+        self.print_results(stream, tests_passed, "Tests that passed:")
+        self.print_results(stream, tests_failed_req, "Tests that failed:")
+        self.print_results(stream, tests_failed_noreq,
+                           "None required tests that failed:")
+        self.print_results(stream, tests_skipped_req +
+                           tests_skipped_noreq, "Tests that skipped:")
 
-        if tests_failed_req:
-            stream.write("\nTests that failed:\n")
-            for test in tests_failed_req:
-                stream.write("%s\n" % test.name)
-
-        if tests_failed_noreq:
-            stream.write("\nNone required tests that failed:\n")
-            for test in tests_failed_noreq:
-                stream.write("%s\n" % test.name)
-
-        if tests_skipped_req or tests_skipped_noreq:
-            stream.write("\nTests that skipped:\n")
-            for test in tests_skipped_req:
-                stream.write("%s\n" % test.name)
-            for test in tests_skipped_noreq:
+    def print_results(self, stream, res, header):
+        if res:
+            stream.write("\n" + header + "\n")
+            for test in res:
                 stream.write("%s\n" % test.name)
 
 
@@ -650,15 +641,7 @@ class AutoCertKitRun(object):
                 continue
             # Get the test class still to run
             tcs = device.get_test_classes_to_run()
-            for tc in tcs:
-                if tc_info and 'test_class' in tc_info and tc_info['test_class'] not in tc.get_name():
-                    continue
-                if tc_info and 'test_method' in tc_info and not tc.get_method_by_name(tc_info['test_method']):
-                    continue
-
-                # Append a tuple - (test_class, order)
-                # Order index will be used below for sorting.
-                tcs_to_run.append((tc, tc.get_order()))
+            self.get_next_test_classes(tcs_to_run, tcs, tc_info)
 
         if not tcs_to_run:
             if tc_info:
@@ -674,6 +657,17 @@ class AutoCertKitRun(object):
 
         # Return the test class at the top of the list
         return tcs_to_run.pop()[0]
+
+    def get_next_test_classes(self, tcs_to_run, tcs, tc_info):
+        for tc in tcs:
+            if tc_info and 'test_class' in tc_info and tc_info['test_class'] not in tc.get_name():
+                continue
+            if tc_info and 'test_method' in tc_info and not tc.get_method_by_name(tc_info['test_method']):
+                continue
+
+            # Append a tuple - (test_class, order)
+            # Order index will be used below for sorting.
+            tcs_to_run.append((tc, tc.get_order()))
 
     def get_next_test(self):
         """Get the next test class and method to run"""

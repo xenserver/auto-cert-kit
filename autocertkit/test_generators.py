@@ -61,14 +61,12 @@ class TestGenerator(object):
         self.session = session
         self.config = config
         self.interface = interface
-        # if not self.TAG:
-        #    raise Exception("The TestGenerator class is generic. Please inherit for a specific device")
         self.prereq_check()
 
     def prereq_check(self):
         """Function for ensuring that specific prereq conditions are checked and raised before
         execution."""
-        return
+        pass
 
     def select_test_by_config(self, test_classes):
         """Select test classes to run by config"""
@@ -130,7 +128,6 @@ class TestGenerator(object):
             return {}
         devices = utils.get_master_network_devices(self.session)
         for device_rec in devices:
-            print device_rec
             if device_rec['Kernel_name'] == self.interface:
                 return device_rec
         raise Exception("Specified interface %s appears not to exist on master" %
@@ -157,16 +154,8 @@ class TestGenerator(object):
 
         test_classes = self.get_test_classes()
         for test_class_name, test_class in test_classes:
-            skipthis = False
             xcp_version = utils.get_xcp_version(self.session)
-            if test_class.REQUIRED_FOR:
-                if utils.eval_expr(test_class.REQUIRED_FOR, xcp_version):
-                    if not utils.REQ_CAP in test_class.caps:
-                        test_class.caps.append(utils.REQ_CAP)
-                else:
-                    if utils.REQ_CAP in test_class.caps:
-                        test_class.caps.remove(utils.REQ_CAP)
-                    skipthis = True
+            skip_this = self.set_test_class_cap(test_class, xcp_version)
 
             class_node = doc.createElement('test_class')
             class_node.setAttribute('name', test_class_name)
@@ -177,42 +166,57 @@ class TestGenerator(object):
 
             test_methods = test_class(self.session, self.config).list_tests()
             for method in test_methods:
-                method_node = doc.createElement('test_method')
-                method_node.setAttribute('name', str(method))
-
-                # Result/Info fields
-                result_node = doc.createElement('result')
-                info_node = doc.createElement('info')
-                if skipthis:
-                    result_node.appendChild(doc.createTextNode('skip'))
-                    reason_node = doc.createElement('reason')
-                    reason_node.appendChild(doc.createTextNode('%s is not required for XCP %s.'
-                                                               % (test_class_name, xcp_version)))
-                    method_node.appendChild(reason_node)
-                else:
-                    result_node.appendChild(doc.createTextNode('NULL'))
-
-                method_node.appendChild(result_node)
-                method_node.appendChild(info_node)
-                testname_node = doc.createElement('test_name')
-                testname_node.appendChild(doc.createTextNode('%s.%s' %
-                                                             (test_class_name.split('.')[1], str(method))))
-                method_node.appendChild(testname_node)
-
-                status_node = doc.createElement('status')
-                if skipthis:
-                    status_node.appendChild(doc.createTextNode('done'))
-                else:
-                    status_node.appendChild(doc.createTextNode('init'))
-                control_node = doc.createElement('control')
-                method_node.appendChild(status_node)
-                method_node.appendChild(control_node)
-
-                class_node.appendChild(method_node)
+                self.add_method_node(
+                    doc, skip_this, test_class_name, xcp_version, class_node, method)
 
             cts_node.appendChild(class_node)
 
         xml_node.appendChild(device_node)
+
+    def set_test_class_cap(self, test_class, xcp_version):
+        if test_class.REQUIRED_FOR:
+            if utils.eval_expr(test_class.REQUIRED_FOR, xcp_version):
+                if not utils.REQ_CAP in test_class.caps:
+                    test_class.caps.append(utils.REQ_CAP)
+            else:
+                if utils.REQ_CAP in test_class.caps:
+                    test_class.caps.remove(utils.REQ_CAP)
+                return True
+        return False
+
+    def add_method_node(self, doc, skipthis, test_class_name, xcp_version, class_node, method):
+        method_node = doc.createElement('test_method')
+        method_node.setAttribute('name', str(method))
+
+        # Result/Info fields
+        result_node = doc.createElement('result')
+        info_node = doc.createElement('info')
+        if skipthis:
+            result_node.appendChild(doc.createTextNode('skip'))
+            reason_node = doc.createElement('reason')
+            reason_node.appendChild(doc.createTextNode('%s is not required for XCP %s.'
+                                                       % (test_class_name, xcp_version)))
+            method_node.appendChild(reason_node)
+        else:
+            result_node.appendChild(doc.createTextNode('NULL'))
+
+        method_node.appendChild(result_node)
+        method_node.appendChild(info_node)
+        testname_node = doc.createElement('test_name')
+        testname_node.appendChild(doc.createTextNode('%s.%s' %
+                                                     (test_class_name.split('.')[1], str(method))))
+        method_node.appendChild(testname_node)
+
+        status_node = doc.createElement('status')
+        if skipthis:
+            status_node.appendChild(doc.createTextNode('done'))
+        else:
+            status_node.appendChild(doc.createTextNode('init'))
+        control_node = doc.createElement('control')
+        method_node.appendChild(status_node)
+        method_node.appendChild(control_node)
+
+        class_node.appendChild(method_node)
 
 
 class NetworkAdapterTestGenerator(TestGenerator):
@@ -403,32 +407,32 @@ XML_GENERATORS = [
 
 
 def print_documentation(object_name):
-    print "--------- %s ---------" % utils.bold(object_name)
-    print ""
+    print("--------- %s ---------" % utils.bold(object_name))
+    print("")
     classes = enumerate_all_test_classes()
     for test_class_name, test_class in classes:
         arr = (object_name).split('.')
         if test_class_name == object_name:
             # get the class info
-            print "%s: %s" % (utils.bold('Prereqs'),
-                              test_class.required_config)
-            print "%s: %s" % (utils.bold('Collects'), test_class.collects)
-            print ""
-            print utils.format(test_class.__doc__)
-            print ""
-            print "%s:" % (utils.bold('Tests'))
+            print("%s: %s" % (utils.bold('Prereqs'),
+                              test_class.required_config))
+            print("%s: %s" % (utils.bold('Collects'), test_class.collects))
+            print("")
+            print(utils.format(test_class.__doc__))
+            print("")
+            print("%s:" % (utils.bold('Tests')))
             inst = test_class(None, {})
             for method in inst.list_tests():
-                print method
-            print ""
+                print(method)
+            print("")
             sys.exit(0)
         elif len(arr) == 3 and ".".join(arr[:2]) == test_class_name:
             # get the method info
-            print utils.format(getattr(test_class, arr[2]).__doc__)
-            print ""
+            print(utils.format(getattr(test_class, arr[2]).__doc__))
+            print("")
             sys.exit(0)
 
-    print "The test name specified (%s) was incorrect. Please specify the full test name." % object_name
+    print("The test name specified (%s) was incorrect. Please specify the full test name." % object_name)
     sys.exit(0)
 
 
@@ -439,10 +443,10 @@ def enumerate_all_test_classes():
 
 
 def print_all_test_classes():
-    print "---------- %s ---------" % utils.bold("Test List")
+    print("---------- %s ---------" % utils.bold("Test List"))
     classes = enumerate_all_test_classes()
     for test_class_name, test_class in classes:
         obj = test_class('nonexistent_session', {})
         for test_name in obj.list_tests():
-            print "%s.%s" % (test_class_name, test_name)
+            print("%s.%s" % (test_class_name, test_name))
     sys.exit(0)

@@ -48,8 +48,8 @@ def configure_log(name, path, to_stdout=True):
         fileh.setFormatter(formatter)
         log.addHandler(fileh)
     except IOError, e:
-        print "Error writing to file handler. Ignoring."
-        print str(e)
+        print("Error writing to file handler. Ignoring.")
+        print(str(e))
 
     if to_stdout:
         try:
@@ -57,8 +57,8 @@ def configure_log(name, path, to_stdout=True):
             sth.setLevel(logging.DEBUG)
             log.addHandler(sth)
         except IOError, e:
-            print "Error writing to stdout handler. Ignoring."
-            print str(e)
+            print("Error writing to stdout handler. Ignoring.")
+            print(str(e))
 
     return log
 

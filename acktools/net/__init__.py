@@ -8,7 +8,7 @@ def generate_mac():
     Care should be taken to ensure duplicates are not used.   
     """
     mac = [0x00, 0x16, 0x3e,
-           random.randint(0x00, 0x7f),
-           random.randint(0x00, 0xff),
-           random.randint(0x00, 0xff)]
+           random.randint(0x00, 0x7f),  # NOSONAR
+           random.randint(0x00, 0xff),  # NOSONAR
+           random.randint(0x00, 0xff)]  # NOSONAR
     return ':'.join(map(lambda x: "%02x" % x, mac))

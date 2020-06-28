@@ -77,7 +77,7 @@ def main():
 
     # Check for manifest file
     if not os.path.exists(TEST_FILE):
-        print "4:Manifest file has not been created. Have run the kit? (Has an error occured?)"
+        print("4:Manifest file has not been created. Have run the kit? (Has an error occured?)")
         sys.exit(0)
 
     # Check for the python process
@@ -88,24 +88,24 @@ def main():
     try:
         ack_run = models.parse_xml(TEST_FILE)
     except:
-        print "5:An error has occured reading. %s" % TEST_FILE
+        print("5:An error has occured reading. %s" % TEST_FILE)
         sys.exit(1)
 
     p, f, s, w, r = ack_run.get_status()
 
     if w+r == 0:
-        print "0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p, f, s)
+        print("0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p, f, s))
     elif not running and uptime_seconds <= 600 and r > 0:
-        print "3:Server rebooting... (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
-            p, f, s, w, r)
+        print("3:Server rebooting... (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
+            p, f, s, w, r))
     elif not running and uptime_seconds > 600:
-        print "1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Skipped: %d, Waiting:%d, Running:%d)" % (
-            p, f, s, w, r)
+        print("1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Skipped: %d, Waiting:%d, Running:%d)" % (
+            p, f, s, w, r))
         sys.exit(1)
     else:
         perc = float(p + f + s) / float(w + r + p + f + s) * 100
-        print "2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
-            perc, p, f, s, w, r)
+        print("2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
+            perc, p, f, s, w, r))
 
 
 if __name__ == "__main__":
