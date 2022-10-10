@@ -1204,6 +1204,18 @@ def remove_route(session, args):
 
 
 @log_exceptions
+def set_kernel_parameter(key, value, mip=None):
+    """
+    Delete all line which contains key in config file, and then write key=value to file,
+    Will take effect after reload(sysctl --sytstem) or reboot
+    """
+    conf_file = "/etc/sysctl.d/ack.conf"
+    cmd = "sed -i '/^%s=/d' %s; echo '%s=%s'>>%s" % (key, conf_file, key, value, conf_file)
+    call = [SSH, mip, cmd]
+    make_local_call(call)
+    
+
+@log_exceptions
 def reset_arp(session, args):
     """Ensure that the switch knows which interfaces to 
     communicate with the VM over. If sharing the same subnet
@@ -1248,9 +1260,7 @@ def reset_arp(session, args):
         vm_m_ip = validate_exists(args, 'mip')
 
         # Global ARP Ignore
-        cmd = "%s net.ipv4.conf.all.arp_ignore=1" % SYSCTL
-        call = [SSH, vm_m_ip, cmd]
-        make_local_call(call)
+        set_kernel_parameter("net.ipv4.conf.all.arp_ignore", 1, vm_m_ip)
 
         '''
         # Revert arp_ignore to default 0, otherwise DLVM (CentOS 7.2) no interface will reply arp query.
@@ -1261,20 +1271,24 @@ def reset_arp(session, args):
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
         '''
-
+        
         # In previous DLVM (CentOS 5), rp_filter is 0. If don't set in new DLVM, then Multicast test
         # will be failed using interfaces in same one subnet
         # Change global setting
-        cmd = "%s net.ipv4.conf.all.rp_filter=0; %s net.ipv4.conf.default.rp_filter=0" \
-              % (SYSCTL, SYSCTL)
-        call = [SSH, vm_m_ip, cmd]
-        make_local_call(call)
+        set_kernel_parameter("net.ipv4.conf.all.rp_filter", 0, vm_m_ip)
+        set_kernel_parameter("net.ipv4.conf.default.rp_filter", 0, vm_m_ip)
         # Change current existing interface
-        cmd = """for i in $(ip -o link | awk '{if($2 ~ "eth.+:") print $2}' | sed 's/:$//'); """ \
-              """do %s net.ipv4.conf.$i.rp_filter=0; done""" % SYSCTL
+        cmd = """ip -o link | awk '{if($2 ~ "eth.+:") print $2}' | sed 's/:$//'"""
         call = [SSH, vm_m_ip, cmd]
-        make_local_call(call)
+        iface_list = make_local_call(call)["stdout"].split()
+        for iface in iface_list:
+            config_key = "net.ipv4.conf.%s.rp_filter" % iface
+            set_kernel_parameter(config_key, 0, vm_m_ip)
 
+        # reload sysctl.conf variables
+        call = [SSH, vm_m_ip, SYSCTL, "--system"]
+        make_local_call(call)
+               
         # log arp
         call = [SSH, vm_m_ip, "cat", "/proc/net/arp"]
         make_local_call(call)
