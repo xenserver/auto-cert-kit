@@ -423,10 +423,13 @@ class VLANTestClass(testbase.NetworkTestClass):
 
         vm2_test_dev, _, vm2_test_ip = get_context_test_ifs(vm2_ref)[0]
 
+        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm1_ref, 'mip': get_context_vm_mip(vm1_ref)})
+        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm2_ref, 'mip': get_context_vm_mip(vm2_ref)})
+
         # Make certain the VMs are available
         for vm_ref in [vm1_ref, vm2_ref]:
             check_vm_ping_response(session, vm_ref, get_context_vm_mip(vm_ref))
-
+            
         # Run Ping Command
         ping_result = ping(vm1_ip, vm2_test_ip, vm2_test_dev)
         log.debug("Result: %s" % ping_result)
