@@ -1,4 +1,5 @@
-# Copyright (c) Citrix Systems Inc.
+# Copyright (c) 2005-2022 Citrix Systems Inc.
+# Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms,
@@ -253,7 +254,7 @@ def run_tests_from_file(test_file):
 
     if result:
         log.debug("Your hardware has passed all of the expected tests")
-        log.debug("Please upload %s to a Citrix Tracker submission." %
+        log.debug("Please upload %s to a XenServer Tracker submission." %
                   package_loc)
     else:
         log.debug("Error: Not all of the hardware tests passed certification.")
