@@ -1,0 +1,9 @@
+[Unit]
+Description=startupscript
+Before=network-online.target
+Wants=network-online.target
+[Service]
+ExecStart=/root/static-ip.sh
+StandardOutput=journal+console
+[Install]
+WantedBy=multi-user.target
