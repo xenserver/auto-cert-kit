@@ -1033,7 +1033,7 @@ def get_context():
 
 def clean_context():
     global __context
-    __context = {'vms': {}}
+    __context = {'vms': {}, 'arp_mode': '0'}
     return __context
 
 
@@ -1065,6 +1065,14 @@ def set_context_vm_ifs(vm_ref, ifs):
     if vm_ref not in vms:
         vms[vm_ref] = {}
     vms[vm_ref]['ifs'] = ifs
+
+
+def get_context_arp_mode():
+    return get_context()['arp_mode']
+
+
+def set_context_arp_mode(mode='0'):
+    get_context()['arp_mode'] = mode
 
 
 def get_context_test_ifs(vm_ref):
@@ -1773,6 +1781,8 @@ def deploy_common_droid_vms_on_hosts(session, host_refs, network_refs, vm_count,
 
     start_droid_vms(session, host_vm_list)
 
+    config_arp(session, all_vms)
+
     return host_vms
 
 
@@ -1920,9 +1930,6 @@ def init_droid_vm_first_run(session, vm_ref, vifs_info):
     call_ack_plugin(session, 'inject_ssh_key',
                     {'vm_ref': vm_ref, 'mip': mip, 'username': 'root',
                      'password': DEFAULT_PASSWORD})
-    # Ensure that we make sure the switch accesses IP addresses by
-    # their own interfaces (avoid interface forwarding).
-    call_ack_plugin(session, 'reset_arp', {'vm_ref': vm_ref, 'mip': mip})
     disable_vm_static_ip_service(session, get_context_vm_mip(vm_ref))
     init_ifs_ip_addressing(session, vm_ref, vifs_info)
 
@@ -1932,6 +1939,13 @@ def init_droid_vm_vifs(session, vm_ref, network_ref, sms, ids=[1]):
     vm_vifs_info = alloc_vifs_info(session, vm_ref, network_ref, sms, ids)
     init_ifs_ip_addressing(session, vm_ref, vm_vifs_info)
     return vm_vifs_info
+
+
+def config_arp(session, vms):
+    for vm in vms:
+        call_ack_plugin(session, 'reset_arp',
+            {'vm_ref': vm, 'mip': get_context_vm_mip(vm),
+             'mode': get_context_arp_mode()})
 
 
 def shutdown_droid_vms(session, vms, async=True):
@@ -2062,6 +2076,8 @@ def deploy_two_droid_vms_for_sriov_inter_host_test(session, vf_driver, network_r
     start_droid_vms(
         session, [(host_master_ref, vm1_ref), (host_slave_ref, vm2_ref)])
 
+    config_arp(session, [vm1_ref, vm2_ref])
+
     return vm1_ref, vm2_ref
 
 
@@ -2110,6 +2126,8 @@ def deploy_droid_vms_for_sriov_intra_host_test_vf_to_vf(session, vf_driver, netw
         vif_group[vm_ref] = vif_refs
 
     start_droid_vms(session, host_vm_list, False)
+
+    config_arp(session, vm_list)
 
     return vm_list, vif_list, vif_group
 

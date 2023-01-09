@@ -142,17 +142,6 @@ class IperfTest:
         """Ensure that the routing table is setup correctly in the client"""
         log.debug("Configuring routes...")
 
-        # Make a plugin call to ensure the server is going to recieve
-        # packets over the correct interface
-
-        self.plugin_call('reset_arp',
-                         {'vm_ref': self.client, 'mip': self.vm_info[self.client]['ip_m']
-                          })
-
-        self.plugin_call('reset_arp',
-                         {'vm_ref': self.server, 'mip': self.vm_info[self.server]['ip_m']
-                          })
-
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',
                          {'vm_ref': self.client,
@@ -423,9 +412,6 @@ class VLANTestClass(testbase.NetworkTestClass):
         log.debug("IP address for vm2 is %s" % vm2_ip)
 
         vm2_test_dev, _, vm2_test_ip = get_context_test_ifs(vm2_ref)[0]
-
-        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm1_ref, 'mip': get_context_vm_mip(vm1_ref)})
-        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm2_ref, 'mip': get_context_vm_mip(vm2_ref)})
 
         # Make certain the VMs are available
         for vm_ref in [vm1_ref, vm2_ref]:
