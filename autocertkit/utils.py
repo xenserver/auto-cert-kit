@@ -57,7 +57,7 @@ M = 1024 * K
 G = 1024 * M
 
 DROID_VM = 'droid_vm'
-DEFAULT_PASSWORD = 'citrix'
+DEFAULT_PASSWORD = 'xenserver'
 FOR_CLEANUP = "for_cleanup"
 DROID_TEMPLATE_TAG = "droid_vm_template"
 REBOOT_ERROR_CODE = 3
