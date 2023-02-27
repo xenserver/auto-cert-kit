@@ -2302,7 +2302,7 @@ def get_vm_interface(session, host, vm_ref, mip):
     ifs = {}
 
     # cmd output: "eth0: ec:f4:bb:ce:91:9c"
-    cmd = b"""ip -o link | awk '{if($2 ~ /^eth/) print $2,$(NF-2)}'"""
+    cmd = b"""ip -o link | awk '{if($2 ~ /^eth/) print $2,$17}'"""
     res = ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd)
     mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")     # NOSONAR
     for line in res['stdout'].strip().split('\n'):
