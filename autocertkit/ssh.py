@@ -60,7 +60,7 @@ class SSHSession:
             self.trans = None
             try:
                 self.connect(ip, username, password, timeout)
-            except Exception, e:
+            except Exception as e:
                 log.error(traceback.format_exc())
                 desc = str(e)
                 log.error("SSH retry %d exception %s" % (retry, desc))
@@ -110,7 +110,7 @@ class SSHSession:
             try:
                 self.trans.start_client()
                 goes = 0
-            except Exception, e:
+            except Exception as e:
                 goes = goes - 1
                 if goes > 0:
                     self.log.debug("Retrying SSHSession connection %d" % goes)
@@ -185,7 +185,7 @@ class SSHCommand(SSHSession):
             self.client.shutdown(1)
             self.hStdout = self.client.makefile()
             self.hStderr = None if combine_stderr else self.client.makefile_stderr()
-        except Exception, e:
+        except Exception as e:
             self.reply = "SSH command executed failed: %s" % str(e),
             self.toreply = 1
             self.close()

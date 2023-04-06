@@ -11,4 +11,4 @@ def generate_mac():
            random.randint(0x00, 0x7f),  # NOSONAR
            random.randint(0x00, 0xff),  # NOSONAR
            random.randint(0x00, 0xff)]  # NOSONAR
-    return ':'.join(map(lambda x: "%02x" % x, mac))
+    return ':'.join(["%02x" % x for x in mac])

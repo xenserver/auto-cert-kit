@@ -71,7 +71,7 @@ class TestGenerator(object):
 
     def select_test_by_config(self, test_classes):
         """Select test classes to run by config"""
-        if "run_classes" not in self.config.keys():
+        if "run_classes" not in list(self.config.keys()):
             return test_classes
 
         classes = self.config["run_classes"].split()
@@ -141,7 +141,7 @@ class TestGenerator(object):
 
         device_config = self.get_device_config()
         if device_config:
-            for k, v in device_config.iteritems():
+            for k, v in device_config.items():
                 device_node.setAttribute(k, v)
 
         # Set the unique device id
@@ -225,7 +225,7 @@ class NetworkAdapterTestGenerator(TestGenerator):
     TAG = 'NA'
 
     def prereq_check(self):
-        if 'static' in self.config.keys():
+        if 'static' in list(self.config.keys()):
             ip_manager = utils.StaticIPManager(self.config['static'])
             num_ips_provided = ip_manager.total_ips
 
@@ -243,11 +243,11 @@ class NetworkAdapterTestGenerator(TestGenerator):
                     min_ips_required, num_ips_provided))
 
     def filter_test_classes(self, test_classes):
-        utils.log.debug("Config Keys: %s" % self.config.keys())
+        utils.log.debug("Config Keys: %s" % list(self.config.keys()))
         # Handle the case where XenRT wants to not run the bonding test case
         # due to the fact the machines are not configured with two NICs
 
-        if "run_classes" in self.config.keys():
+        if "run_classes" in list(self.config.keys()):
             return self.select_test_by_config(test_classes)
 
         def append_filter(testname, dont_run):
@@ -265,7 +265,7 @@ class NetworkAdapterTestGenerator(TestGenerator):
                             in test_classes if not testclass.network_backend or
                             testclass.network_backend == 'vswitch']
 
-        if 'singlenic' in self.config.keys() and self.config['singlenic'] == "true":
+        if 'singlenic' in list(self.config.keys()) and self.config['singlenic'] == "true":
             dont_run = ["BondingTestClass", "MTUPingTestClass"]
             return [(testname, testclass) for testname, testclass
                     in test_classes if append_filter(testname, dont_run)]
@@ -278,7 +278,7 @@ class ProcessorTestGenerator(TestGenerator):
     TAG = 'CPU'
 
     def filter_test_classes(self, test_classes):
-        if "run_classes" in self.config.keys():
+        if "run_classes" in list(self.config.keys()):
             return self.select_test_by_config(test_classes)
 
         if 'CPU' in self.config['exclude']:
@@ -302,7 +302,7 @@ class StorageTestGenerator(TestGenerator):
         self.device = device
 
     def filter_test_classes(self, test_classes):
-        if "run_classes" in self.config.keys():
+        if "run_classes" in list(self.config.keys()):
             return self.select_test_by_config(test_classes)
 
         if 'LSTOR' in self.config['exclude']:
@@ -320,7 +320,7 @@ class OperationsTestGenerator(TestGenerator):
     TAG = 'OP'
 
     def filter_test_classes(self, test_classes):
-        if "run_classes" in self.config.keys():
+        if "run_classes" in list(self.config.keys()):
             return self.select_test_by_config(test_classes)
 
         if 'OPS' in self.config['exclude']:
@@ -408,20 +408,20 @@ XML_GENERATORS = [
 
 
 def print_documentation(object_name):
-    print("--------- %s ---------" % utils.bold(object_name))
+    print(("--------- %s ---------" % utils.bold(object_name)))
     print("")
     classes = enumerate_all_test_classes()
     for test_class_name, test_class in classes:
         arr = (object_name).split('.')
         if test_class_name == object_name:
             # get the class info
-            print("%s: %s" % (utils.bold('Prereqs'),
-                              test_class.required_config))
-            print("%s: %s" % (utils.bold('Collects'), test_class.collects))
+            print(("%s: %s" % (utils.bold('Prereqs'),
+                              test_class.required_config)))
+            print(("%s: %s" % (utils.bold('Collects'), test_class.collects)))
             print("")
-            print(utils.format(test_class.__doc__))
+            print((utils.format(test_class.__doc__)))
             print("")
-            print("%s:" % (utils.bold('Tests')))
+            print(("%s:" % (utils.bold('Tests'))))
             inst = test_class(None, {})
             for method in inst.list_tests():
                 print(method)
@@ -429,11 +429,11 @@ def print_documentation(object_name):
             sys.exit(0)
         elif len(arr) == 3 and ".".join(arr[:2]) == test_class_name:
             # get the method info
-            print(utils.format(getattr(test_class, arr[2]).__doc__))
+            print((utils.format(getattr(test_class, arr[2]).__doc__)))
             print("")
             sys.exit(0)
 
-    print("The test name specified (%s) was incorrect. Please specify the full test name." % object_name)
+    print(("The test name specified (%s) was incorrect. Please specify the full test name." % object_name))
     sys.exit(0)
 
 
@@ -444,10 +444,10 @@ def enumerate_all_test_classes():
 
 
 def print_all_test_classes():
-    print("---------- %s ---------" % utils.bold("Test List"))
+    print(("---------- %s ---------" % utils.bold("Test List")))
     classes = enumerate_all_test_classes()
     for test_class_name, test_class in classes:
         obj = test_class('nonexistent_session', {})
         for test_name in obj.list_tests():
-            print("%s.%s" % (test_class_name, test_name))
+            print(("%s.%s" % (test_class_name, test_name)))
     sys.exit(0)

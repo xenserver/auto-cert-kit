@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -31,6 +31,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+import sys
+sys.path.append("/opt/xensource/packages/files/auto-cert-kit/pypackages")
 import acktools
 from acktools import utils
 
@@ -114,9 +116,9 @@ def get_all_routes():
     entries currently found in the kernel"""
 
     output = get_route_table()
-    lines = output.split('\n')
+    lines = output.split('\\n')
 
-    if lines[0] != "Kernel IP routing table":
+    if lines[0] != "b'Kernel IP routing table":
         raise Exception("Error! Unexpected format: '%s'" % output)
 
     # Join the table lines
@@ -126,7 +128,7 @@ def get_all_routes():
     recs = utils.cli_table_to_recs(route_table)
 
     route_list = []
-    for rec in recs:
+    for rec in recs[:-1]:
 
         # Use keys from route table output
         route = Route(rec['Destination'],

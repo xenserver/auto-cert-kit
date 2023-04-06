@@ -1,9 +1,10 @@
 language: python
 python:
-    - "2.7"
+    - "3.6"
 
 install:
-    - "pip install -r requirements.txt"
+    - "python3 -m pip install --upgrade pip"
+    - "python3 -m pip install -r requirement.txt"
 
 script: 
     - nosetests -c .noserc autocertkit/tests/ acktools/ -v

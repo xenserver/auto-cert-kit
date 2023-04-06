@@ -142,17 +142,6 @@ class IperfTest:
         """Ensure that the routing table is setup correctly in the client"""
         log.debug("Configuring routes...")
 
-        # Make a plugin call to ensure the server is going to recieve
-        # packets over the correct interface
-
-        self.plugin_call('reset_arp',
-                         {'vm_ref': self.client, 'mip': self.vm_info[self.client]['ip_m']
-                          })
-
-        self.plugin_call('reset_arp',
-                         {'vm_ref': self.server, 'mip': self.vm_info[self.server]['ip_m']
-                          })
-
         # Make a plugin call to add a route to the client
         self.plugin_call('add_route',
                          {'vm_ref': self.client,
@@ -230,7 +219,7 @@ class IperfTest:
                 # Capture interface statistcs post test run
                 bytes_transferred = int(iperf_data['transfer'])
                 self.validate_stats(bytes_transferred)
-            except Exception, e:
+            except Exception as e:
                 traceb = traceback.format_exc()
                 log.warning(traceb)
                 fail_data["failed_attempt_%d" % (attempt_count)] = str(e)
@@ -313,7 +302,7 @@ class IperfTest:
         params = []
 
         def copy(param, arg_str):
-            if param in self.config.keys() and self.config[param]:
+            if param in list(self.config.keys()) and self.config[param]:
                 params.append(arg_str % self.config[param])
 
         copy('window_size', '-w %s')
@@ -347,7 +336,7 @@ class IperfTest:
             args = {}
 
             def copy(param):
-                if param in self.config.keys() and self.config[param]:
+                if param in list(self.config.keys()) and self.config[param]:
                     args[param] = self.config[param]
 
             copy('window_size')
@@ -423,9 +412,6 @@ class VLANTestClass(testbase.NetworkTestClass):
         log.debug("IP address for vm2 is %s" % vm2_ip)
 
         vm2_test_dev, _, vm2_test_ip = get_context_test_ifs(vm2_ref)[0]
-
-        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm1_ref, 'mip': get_context_vm_mip(vm1_ref)})
-        call_ack_plugin(session, 'reset_arp', {'vm_ref': vm2_ref, 'mip': get_context_vm_mip(vm2_ref)})
 
         # Make certain the VMs are available
         for vm_ref in [vm1_ref, vm2_ref]:
@@ -698,7 +684,7 @@ class PIFParamTestClass(IperfTestClass):
         log.debug(self.OFFLOAD_CONFIG)
         device = session.xenapi.PIF.get_device(pif)
         log.debug("Device: %s" % device)
-        for k, v in self.OFFLOAD_CONFIG.iteritems():
+        for k, v in self.OFFLOAD_CONFIG.items():
             set_hw_offload(session, device, k, v)
 
     def _verify_ethtool_offloads(self, session, device):
@@ -707,7 +693,7 @@ class PIFParamTestClass(IperfTestClass):
 
         hw_offloads = get_hw_offloads(session, device)
         log.debug("verify offloads...%s" % hw_offloads)
-        for k, v in self.OFFLOAD_CONFIG.iteritems():
+        for k, v in self.OFFLOAD_CONFIG.items():
             if k not in hw_offloads:
                 raise Exception("Cannot determine status of %s." % k)
             log.debug("Device: %s (%s offload: %s)" %

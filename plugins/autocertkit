@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -38,7 +38,7 @@
 import XenAPI
 import XenAPIPlugin
 import subprocess
-import xmlrpclib
+import xmlrpc
 import os
 import sys
 import shutil
@@ -50,10 +50,12 @@ import base64
 import tarfile
 import datetime
 import json
+sys.path.append("/opt/xensource/packages/files/auto-cert-kit")
 import hwinfo.tools.inspector as inspector
 import binascii
 import uuid
 
+sys.path.append("/opt/xensource/packages/files/auto-cert-kit/pypackages")
 from acktools.net import route
 import acktools.log
 
@@ -180,14 +182,14 @@ def log_exceptions(func):
     def decorated(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except XenAPI.Failure, e:
+        except XenAPI.Failure as e:
             log.error('%s: XenAPI.Failure: %s', func.__name__, str(e))
             raise
-        except PluginError, e:
+        except PluginError as e:
             log.error('%s: %s: %s', func.__name__,
                       e.__class__.__name__, str(e))
             raise
-        except Exception, e:
+        except Exception as e:
             log.error('%s: %s: %s', func.__name__,
                       e.__class__.__name__, str(e))
             raise
@@ -203,12 +205,12 @@ class Iface(object):
     def __init__(self, rec):
         self.validate_rec(rec)
 
-        for k, v in rec.iteritems():
+        for k, v in rec.items():
             setattr(self, k, v)
 
     def validate_rec(self, rec):
         for key in self.required_keys:
-            if key not in rec.keys():
+            if key not in list(rec.keys()):
                 raise Exception("Error: invalid input rec '%s'" % rec)
 
     def to_rec(self):
@@ -284,7 +286,7 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, time
             sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
                                     {'log': log, 'timeout': timeout})
             result = sshcmd.read()
-        except Exception, e:
+        except Exception as e:
             log.debug("Exception: %s" % str(e))
             # Sleep before next attempt
             time.sleep(20)
@@ -349,7 +351,7 @@ def get_vm_ips(session, vm_ref):
     guest_metrics_ref = session.xenapi.VM.get_guest_metrics(vm_ref)
     networks = session.xenapi.VM_guest_metrics.get_networks(guest_metrics_ref)
     res = {}
-    for k, v in networks.iteritems():
+    for k, v in networks.items():
         if k.endswith('ip'):
             res["eth%s" % (k.replace('/ip', ''))] = v
     return res
@@ -415,7 +417,7 @@ def run_ack_logrotate(session, args):
         shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
         call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
         res = make_local_call(call, False)
-    except Exception, e:
+    except Exception as e:
         return json_dumps(str(e))
     finally:
         configure_logging()
@@ -594,7 +596,7 @@ def shell_run_on_guest(session, vm_ref, mip, username, password, cmd):
 def shell_run_on_host(session, cmd):
     try:
         res = make_local_call([cmd], True, std_out=subprocess.PIPE, shell=True)
-    except Exception, e:
+    except Exception as e:
         log.debug("Exception: %s" % str(e))
         res = {"returncode": -1, "stdout": "", "stderr": ""}
     return res
@@ -609,7 +611,7 @@ def shell_run(session, args):
     username = validate_exists(args, 'username', "", False)
     password = validate_exists(args, 'password', "", False)
     cmd = validate_exists(args, 'cmd')
-    cmd = binascii.unhexlify(cmd)
+    cmd = binascii.unhexlify(cmd).decode()
 
     if vm_ref:
         res = shell_run_on_guest(session, vm_ref, mip, username, password, cmd)
@@ -625,7 +627,7 @@ def get_pci_id(bus_id):
     try:
         res = make_local_call(call)
         return res["stdout"].split()[2]
-    except Exception, e:
+    except Exception as e:
         log.debug("Exception: %s" % str(e))
 
 
@@ -634,12 +636,12 @@ def get_pci_description(bus_id):
     log.debug("Getting decription for PCI device at bus id: %s" % bus_id)
     devices = PCIDevices()
 
-    if bus_id not in devices.devs.keys():
+    if bus_id not in list(devices.devs.keys()):
         # Biosdevname returns shortened Bus IDs, so check that.
         # i.e. instead of '0000:02:00.1' --> '02:00.1'
         # remove front 5 characters.
         short_bus_id = bus_id[5:]
-        if short_bus_id not in devices.devs.keys():
+        if short_bus_id not in list(devices.devs.keys()):
             raise Exception("Error: the Bus ID '%s' cannot be found in the PCI database" %
                             short_bus_id)
         else:
@@ -662,7 +664,7 @@ def get_pci_subsystem(bus_id):
     try:
         res = make_local_call(call)
         return res["stdout"].split('\n')[1].strip()
-    except Exception, e:
+    except Exception as e:
         log.debug("Exception: %s" % str(e))
     return ""
 
@@ -724,7 +726,7 @@ def compat_biosdevname():
     devices = []
     pattern = re.compile(r'\d*:?[a-f0-9]+:[a-f0-9]+\.[a-f0-9]')
 
-    for eth, rec in devs.iteritems():
+    for eth, rec in devs.items():
         if pattern.match(rec['Bus Info']):
             log.debug("Found %s" % eth)
             devices.append(rec)
@@ -828,14 +830,14 @@ def _get_bus_paths(disks):
     bus_paths = {}
     for filename in os.listdir(device_path):
         fullpath = device_path + os.sep + filename
-        if os.path.islink(fullpath) and os.path.basename(os.readlink(fullpath)) in disks.keys():
+        if os.path.islink(fullpath) and os.path.basename(os.readlink(fullpath)) in list(disks.keys()):
             bus_paths[os.readlink(fullpath)] = disks[
                 os.path.basename(os.readlink(fullpath))]
 
     # paths in the list may not be the bus path but sym link to device.
     # If bus path does not include bus id, follow link to get bus path
     modified_bus_path = {}
-    for bus_path, sr in bus_paths.iteritems():
+    for bus_path, sr in bus_paths.items():
         path_tokens = bus_path.split(os.sep)
         _, pci_addr = get_dev_pci_addr(bus_path)
         if len(path_tokens) < 5 or not _is_bus_id(pci_addr):
@@ -924,7 +926,7 @@ def get_local_storage_devices(session, args):
         devices = PCIDevices()
 
         storage_devices = []
-        for bus_path, sr in bus_paths.iteritems():
+        for bus_path, sr in bus_paths.items():
 
             index, bus_id = get_dev_pci_addr(bus_path)
 
@@ -967,7 +969,7 @@ def get_local_storage_devices(session, args):
 
         return json_dumps(storage_devices)
 
-    except Exception, e:
+    except Exception as e:
         log.debug("Could not get local storage info. Exception: %s" % str(e))
         return json_dumps([{'Exception': 'StorageInfoNotAvailable', 'Exception_Info': str(e)}])
 
@@ -997,7 +999,7 @@ def get_hw_offloads_from_core(session, args):
     flag = int(make_local_call(
         ['cat', '/sys/class/net/%s/features' % eth_dev])['stdout'], 16)
 
-    for offload, offset in OFFLOAD_FLAGS_OFFSET.iteritems():
+    for offload, offset in OFFLOAD_FLAGS_OFFSET.items():
         if offset & flag:
             rec[offload] = 'on'
         else:
@@ -1012,12 +1014,12 @@ def get_hw_offloads(session, args):
     and whether they are on or off (as true or false)"""
     eth_dev = validate_exists(args, 'eth_dev')
     call = [ETHTOOL, '-k', eth_dev]
-    offloads = make_local_call(call)["stdout"].split('\n')
+    offloads = make_local_call(call)["stdout"].split('\\n')
     # Remove the item at the top of the list
     # "Offload parameters for ethX:"
     offloads.pop(0)
     rec = {}
-    for line in offloads:
+    for line in offloads[:-1]:
         arr = line.strip().split(': ')
         if len(arr) != 2:
             raise Exception("Unexpected format from ethtool -k " +
@@ -1102,20 +1104,20 @@ def iperf_test(session, args):
 
 def parse_proc_net_dev(data):
     """Taking the contents of /proc/net/dev parse to provide a record"""
-    lines = data.split('\n')
+    lines = data.split('\\n')
 
     header = lines[1]
     _, rx_cols, tx_cols = header.split("|")
-    rx_cols = map(lambda x: "rx_%s" % x, rx_cols.split())
-    tx_cols = map(lambda x: "tx_%s" % x, tx_cols.split())
+    rx_cols = ["rx_%s" % x for x in rx_cols.split()]
+    tx_cols = ["tx_%s" % x for x in tx_cols.split()]
     cols = rx_cols + tx_cols
 
     ifaces = {}
-    for line in lines[2:]:
+    for line in lines[2:-1]:
         if not line.find(":"):
             continue
         iface, data = line.split(":")
-        iface_data = dict(zip(cols, data.split()))
+        iface_data = dict(list(zip(cols, data.split())))
         ifaces[iface.strip()] = iface_data
 
     return ifaces
@@ -1225,6 +1227,7 @@ def reset_arp(session, args):
     to send traffic too."""
 
     vm_ref = validate_exists(args, 'vm_ref')
+    mode = validate_exists(args, 'mode', '0', False)
 
     log.debug("Reset ARP for VM %s" % vm_ref)
 
@@ -1260,8 +1263,12 @@ def reset_arp(session, args):
         # Handle the Droid VM case
         vm_m_ip = validate_exists(args, 'mip')
 
+        arp_ignore_value = 1 if mode == '0' else 0
+        rp_filter_value = 0 if mode == '0' else 1
+
         # Global ARP Ignore
-        set_kernel_parameter("net.ipv4.conf.all.arp_ignore", 1, vm_m_ip)
+        set_kernel_parameter("net.ipv4.conf.all.arp_ignore", arp_ignore_value , vm_m_ip)
+        set_kernel_parameter("net.ipv4.conf.default.arp_ignore", arp_ignore_value , vm_m_ip)
 
         '''
         # Revert arp_ignore to default 0, otherwise DLVM (CentOS 7.2) no interface will reply arp query.
@@ -1272,24 +1279,25 @@ def reset_arp(session, args):
         call = [SSH, vm_m_ip, cmd]
         make_local_call(call)
         '''
-        
+
         # In previous DLVM (CentOS 5), rp_filter is 0. If don't set in new DLVM, then Multicast test
         # will be failed using interfaces in same one subnet
         # Change global setting
-        set_kernel_parameter("net.ipv4.conf.all.rp_filter", 0, vm_m_ip)
-        set_kernel_parameter("net.ipv4.conf.default.rp_filter", 0, vm_m_ip)
+        set_kernel_parameter("net.ipv4.conf.all.rp_filter", rp_filter_value, vm_m_ip)
+        set_kernel_parameter("net.ipv4.conf.default.rp_filter", rp_filter_value, vm_m_ip)
+
         # Change current existing interface
         cmd = """ip -o link | awk '{if($2 ~ "eth.+:") print $2}' | sed 's/:$//'"""
         call = [SSH, vm_m_ip, cmd]
         iface_list = make_local_call(call)["stdout"].split()
         for iface in iface_list:
-            config_key = "net.ipv4.conf.%s.rp_filter" % iface
-            set_kernel_parameter(config_key, 0, vm_m_ip)
+            set_kernel_parameter("net.ipv4.conf.%s.arp_ignore" % iface, arp_ignore_value, vm_m_ip)
+            set_kernel_parameter("net.ipv4.conf.%s.rp_filter" % iface, rp_filter_value, vm_m_ip)
 
         # reload sysctl.conf variables
         call = [SSH, vm_m_ip, SYSCTL, "--system"]
         make_local_call(call)
-               
+
         # log arp
         call = [SSH, vm_m_ip, "cat", "/proc/net/arp"]
         make_local_call(call)
@@ -1353,9 +1361,9 @@ def get_iface_stats(session, args):
 
     rec = parse_proc_net_dev(data)
 
-    if iface_name not in rec.keys():
+    if iface_name not in list(rec.keys()):
         log.error("Error: could not find iface '%s' in stats (%s)" %
-                  (iface_name, rec.keys()))
+                  (iface_name, list(rec.keys())))
 
     device_stats = rec[iface_name]
 
@@ -1721,8 +1729,8 @@ def droid_template_import(session, args):
 
 
 def process_running(process_name):
-    process_list = make_local_call([PS, 'aux'])["stdout"].split('\n')
-    for process in process_list:
+    process_list = make_local_call([PS, 'aux'])["stdout"]
+    for process in process_list.split("\\n"):
         if process_name in process:
             log.debug("Process Found: %s" % process)
             return True
@@ -1730,13 +1738,15 @@ def process_running(process_name):
 
 
 def kill_processes(process_name):
-    process_list = make_local_call([PGREP, process_name])["stdout"].split('\n')
+    process_list = make_local_call([PGREP, process_name])["stdout"]
+    if process_list.startswith("b"):
+        process_list = process_list[2:]
     log.debug("Process List: %s" % process_list)
 
     pattern = "\d+"
     regex = re.compile(pattern)
 
-    for process in process_list:
+    for process in process_list.split("\\n"):
         if regex.match(process):
             make_local_call([KILL, '-9', process])
 
@@ -1776,9 +1786,9 @@ def run_dhclient(device):
     cmd_str = " ".join(cmd[1:])
 
     call = [PS, 'aux']
-    processes = make_local_call(call)["stdout"].split('\n')
+    processes = make_local_call(call)["stdout"]
 
-    for process in processes:
+    for process in processes.split('\\n'):
         if cmd_str in process:
             log.debug(process)
             arr = process.split()
@@ -2047,7 +2057,7 @@ def get_ack_version(session, args):
     if out['returncode']:
         return json_dumps(None)
     ver = [i.split(":")[-1]
-           for i in out['stdout'].split("\n") if i.startswith('Version')]
+           for i in out['stdout'].split("\\n") if i.startswith('Version')]
     if ver and len(ver) == 1:
         return json_dumps(ver[0].strip())
     raise Exception("Unable to parse ack version")

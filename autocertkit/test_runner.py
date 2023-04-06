@@ -136,13 +136,13 @@ def remove_child_nodes(parent_node):
 
 
 def recurse_add_records_to_node(topnode, record):
-    for k, v in record.iteritems():
+    for k, v in record.items():
         node = dom.createElement(k)
         topnode.appendChild(node)
 
         if type(v) == dict:
             # Set attributes for element
-            for key, value in v.iteritems():
+            for key, value in v.items():
                 log.debug("Value = %s Type=%s" %
                           (str(value), str(type(value))))
                 if type(value) == dict:
@@ -189,7 +189,7 @@ def run_tests_from_file(test_file):
 
     config = ack_model.get_global_config()
 
-    if "vpx_dlvm_file" in config.keys():
+    if "vpx_dlvm_file" in list(config.keys()):
         utils.vpx_dlvm_file = config["vpx_dlvm_file"]
 
     log.debug("ACK Model, finished: %s" % ack_model.is_finished())

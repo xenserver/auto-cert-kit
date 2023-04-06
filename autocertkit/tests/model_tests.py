@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import unittest
 import unittest_base
@@ -40,7 +40,7 @@ class ReportPrintsTests(unittest_base.DevTestCase):
         device_node = doc.createElement('device')
         device_node.setAttribute('udid', str(tg.get_uid()))
         device_node.setAttribute('tag', tg.TAG)
-        for k, v in self.device.iteritems():
+        for k, v in self.device.items():
             device_node.setAttribute(k, v)
         cts_node = doc.createElement('certification_tests')
         device_node.appendChild(cts_node)

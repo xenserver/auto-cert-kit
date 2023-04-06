@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import unittest
 import mock
@@ -42,7 +42,7 @@ class RouteObjectTests(unittest.TestCase):
         def validate_key(key):
             self.assertEqual(rec[key], self.route_rec[key])
 
-        for key in self.route_rec.keys():
+        for key in list(self.route_rec.keys()):
             validate_key(key)
 
 
