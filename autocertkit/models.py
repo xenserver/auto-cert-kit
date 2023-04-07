@@ -89,7 +89,7 @@ class Element(object):
         xml_node = dom.createElement(str(self.get_name()))
 
         # Set the elements XML attributes
-        for k, v in self.attr.iteritems():
+        for k, v in self.attr.items():
             xml_node.setAttribute(str(k), str(v))
 
         # Set the elements value
@@ -175,7 +175,7 @@ class DeviceTestClassMethod(object):
     def create_xml_node(self, dom):
         """Write this test method out to an xml node"""
         xml_node = dom.createElement('test_method')
-        for k, v in self.attr.iteritems():
+        for k, v in self.attr.items():
             xml_node.setAttribute(str(k), str(v))
 
         for elem in self.elems:
@@ -208,7 +208,7 @@ class DeviceTestClassMethod(object):
 
     def update(self, rec):
         """Update elements in this method object from a provided record"""
-        for k, v in rec.iteritems():
+        for k, v in rec.items():
             self.update_elem(k, v)
 
 
@@ -416,7 +416,7 @@ class Device(object):
             if self.tag == "OP":
                 xs_id = "XenServer %s" % self.config['product_version']
                 return xs_id
-        except Exception, e:
+        except Exception as e:
             log.error("Exception occurred getting ID: '%s'" % str(e))
         return "Unknown ID"
 
@@ -443,7 +443,7 @@ class Device(object):
             if self.tag == "OP":
                 build_id = "build %s" % self.config['build_number']
                 return build_id
-        except Exception, e:
+        except Exception as e:
             log.error("Exception occurred getting Description: '%s'" % str(e))
         return "Unknown Device"
 
@@ -460,7 +460,7 @@ class Device(object):
 
             if supported:
                 for cap in tcaps:
-                    if not cap in caps.keys():
+                    if not cap in list(caps.keys()):
                         # Only update, if not in rec. Since it's
                         # supported by this case, if a previous result
                         # has set the cap to false, we should not override
@@ -557,7 +557,7 @@ class Device(object):
                 stream.write("%s\n" % method.get_name())
         else:
             stream.write("Capabilities:\n")
-            for k, v in self.get_caps().iteritems():
+            for k, v in self.get_caps().items():
                 if v:
                     reqval = "Supported"
                 else:

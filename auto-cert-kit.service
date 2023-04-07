@@ -6,7 +6,7 @@ After=xapi.service
 [Service]
 Type=simple
 ExecStartPre=-/opt/xensource/bin/xapi-wait-init-complete 300
-ExecStart=/usr/bin/python /opt/xensource/packages/files/auto-cert-kit/test_runner.py -t /opt/xensource/packages/files/auto-cert-kit/test_run.conf
+ExecStart=/usr/bin/python3 /opt/xensource/packages/files/auto-cert-kit/test_runner.py -t /opt/xensource/packages/files/auto-cert-kit/test_run.conf
 RemainAfterExit=yes
 TimeoutStartSec=900
 SyslogIdentifier=auto-cert-kit

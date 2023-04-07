@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -49,7 +49,7 @@ def get_process_strings():
     ps = subprocess.Popen(
         ['ps', 'aux'], stdout=subprocess.PIPE).communicate()[0]
     process_strings = []
-    for line in ps.split('\n'):
+    for line in ps.decode().split('\n'):
         if 'ack_cli.py' in line or 'test_runner.py' in line:
             process_strings.append(line)
     return process_strings
@@ -89,24 +89,24 @@ def main():
     try:
         ack_run = models.parse_xml(TEST_FILE)
     except:
-        print("5:An error has occured reading. %s" % TEST_FILE)
+        print(("5:An error has occured reading. %s" % TEST_FILE))
         sys.exit(1)
 
     p, f, s, w, r = ack_run.get_status()
 
     if w+r == 0:
-        print("0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p, f, s))
+        print(("0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p, f, s)))
     elif not running and uptime_seconds <= 600 and r > 0:
-        print("3:Server rebooting... (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
-            p, f, s, w, r))
+        print(("3:Server rebooting... (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
+            p, f, s, w, r)))
     elif not running and uptime_seconds > 600:
-        print("1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Skipped: %d, Waiting:%d, Running:%d)" % (
-            p, f, s, w, r))
+        print(("1:Process not running. An error has occurred. (Passed:%d, Failed:%d, Skipped: %d, Waiting:%d, Running:%d)" % (
+            p, f, s, w, r)))
         sys.exit(1)
     else:
         perc = float(p + f + s) / float(w + r + p + f + s) * 100
-        print("2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
-            perc, p, f, s, w, r))
+        print(("2:Running - %d%% Complete (Passed:%d, Failed:%d, Skipped:%d, Waiting:%d, Running:%d)" % (
+            perc, p, f, s, w, r)))
 
 
 if __name__ == "__main__":

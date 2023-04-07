@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -44,7 +44,7 @@ def cli_table_to_recs(table_string):
     route_recs = []
     for line in lines:
         vals = line.split()
-        rec = dict(zip(header_line, vals))
+        rec = dict(list(zip(header_line, vals)))
         route_recs.append(rec)
 
     return route_recs

@@ -74,7 +74,7 @@ class TestClass(object):
         """Can be overriden by subclasses to perform
         extra initialisation"""
         # Make sure we only run this on test run.
-        if 'device_config' in self.config.keys():
+        if 'device_config' in list(self.config.keys()):
             self.generate_static_net_conf()
 
     def host_setup(self):
@@ -103,7 +103,7 @@ class TestClass(object):
                 continue
 
             # This assumes that we do not keep IPs across individual tests
-            for vlan, sm in self.static_managers.iteritems():
+            for vlan, sm in self.static_managers.items():
                 sm.release_all()
 
             # Release Alarm signal to prevent handled signal from previous test
@@ -169,7 +169,7 @@ class TestClass(object):
             self.copy_field(rec, res, 'reason', False)
             self.copy_field(rec, res, 'warning', False)
 
-        except Exception, e:
+        except Exception as e:
             traceb = traceback.format_exc()
             rec['status'] = 'done'
             rec['result'] = 'fail'
@@ -298,7 +298,7 @@ class TestClass(object):
 
         # Iterate through the network config structure to
         # see if we have any static managers to initialise.
-        for k, v in self.get_netconf().iteritems():
+        for k, v in self.get_netconf().items():
             # We only care about vlans on the physical network ID this test is
             # running on
 
@@ -312,12 +312,12 @@ class TestClass(object):
 
                 # We must assign this static manager to all of the network references
                 # which have the netid that has been specified.
-                if network_id in netid_rec.keys():
+                if network_id in list(netid_rec.keys()):
                     for iface in netid_rec[network_id]:
                         log.debug("Create static config for %s (%s)" %
                                   (iface, vlan))
                         key_name = "%s_%s" % (iface, vlan)
-                        assert key_name not in res.keys(), \
+                        assert key_name not in list(res.keys()), \
                             "Duplicate static IP addressing specified for %s (%s)" % (
                                 iface, vlan)
                         res[key_name] = sm
@@ -328,7 +328,7 @@ class TestClass(object):
         netconf = self.get_netconf()
         log.debug("Netconf: %s" % netconf)
         netid_rec = {}
-        for iface, rec in netconf.iteritems():
+        for iface, rec in netconf.items():
             if iface.startswith('eth'):
                 log.debug("iface: %s Rec: %s" % (iface, rec))
                 nid = rec['network_id']
@@ -375,7 +375,7 @@ class TestClass(object):
         iface = devices.pop()
 
         key = "%s_%s" % (iface, vlan)
-        if key in self.static_managers.keys():
+        if key in list(self.static_managers.keys()):
             return self.static_managers[key]
         else:
             return None
@@ -394,7 +394,7 @@ class TestClass(object):
         return eval(self.config['netconf'])  # NOSONAR
 
     def singlenicmode(self):
-        return 'singlenic' in self.config.keys() and self.config['singlenic'] == 'true'
+        return 'singlenic' in list(self.config.keys()) and self.config['singlenic'] == 'true'
 
     def get_equivalent_devices(self):
         """Return a list of interfaces presented by devices with the same PCI ID as
@@ -402,7 +402,7 @@ class TestClass(object):
 
         equiv_ifaces = intersection(get_equivalent_devices(self.session,
                                                            self.config['device_config']),
-                                    self.get_netconf().keys())
+                                    list(self.get_netconf().keys()))
 
         log.debug("Equivalent devices for %s: %s" % (self.config['device_config']['Kernel_name'],
                                                      equiv_ifaces))
@@ -412,7 +412,7 @@ class TestClass(object):
         equiv_devs = self.get_equivalent_devices()
         try:
             return filter_pif_devices(self.session, equiv_devs)
-        except Exception, e:
+        except Exception as e:
             log.error(
                 "Caught Exception - may be OK if running in single NIC mode.")
             log.error("Exception Occurred: %s" % str(e))
@@ -467,7 +467,7 @@ class NetworkTestClass(TestClass):
         for host_ref in host_refs:
             oc = self.session.xenapi.host.get_other_config(host_ref)
             default_routes_key = 'default_routes'
-            if default_routes_key not in oc.keys():
+            if default_routes_key not in list(oc.keys()):
                 routes = get_network_routes(self.session, host_ref)
                 route_recs = [route.get_record() for route in routes]
                 oc[default_routes_key] = str(route_recs)
@@ -497,9 +497,9 @@ class NetworkTestClass(TestClass):
         # Construct a list of interface names who have the same physical ID
         # as the provided interface.
 
-        blist = intersection([k for k, v in netconf.iteritems() if k.startswith('eth') and
+        blist = intersection([k for k, v in netconf.items() if k.startswith('eth') and
                               v['network_id'] == phy_id],
-                             netconf.keys())
+                             list(netconf.keys()))
 
         # Need to remove any occurances of the given interface, as we can't bond
         # with ourselves.
