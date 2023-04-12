@@ -51,7 +51,7 @@ class Session(XenObjectMock):
         self.__initGenericSession()
 
     def __initGenericSession(self, hosts=2, networks=1):
-        self.__networks = [Network(i) for i in xrange(networks)]
+        self.__networks = [Network(i) for i in range(networks)]
         self.__pool = Pool(hosts, self.__networks)
         self.__xenapi = XenapiMock(self)
 
@@ -155,7 +155,7 @@ class Pool(XenObjectMock):
 
     def __init__(self, hosts, networks):
         super(Pool, self).__init__()
-        self.__hosts = [Host(networks) for i in xrange(hosts)]
+        self.__hosts = [Host(networks) for i in range(hosts)]
 
     @property
     def hosts(self):
@@ -168,8 +168,8 @@ class Host(XenObjectMock):
     def __init__(self, networks):
         super(Host, self).__init__()
         self.__metrics = HostMetrics()
-        self.__pifs = [PIF(self, networks[i], i * 2) for i in xrange(len(networks))] + \
-            [PIF(self, networks[i], i * 2 + 1) for i in xrange(len(networks))]
+        self.__pifs = [PIF(self, networks[i], i * 2) for i in range(len(networks))] + \
+            [PIF(self, networks[i], i * 2 + 1) for i in range(len(networks))]
         for pif in self.__pifs:
             pif.network.addPIF(pif)
         self.__enabled = True
@@ -208,7 +208,7 @@ class Host(XenObjectMock):
         return self.__ack_version
 
     def startVMs(self, n=1):
-        self.__vms = self.__vms + [VM(self) for i in xrange(n)]
+        self.__vms = self.__vms + [VM(self) for i in range(n)]
 
     def killAllVMs(self):
         self.__vms = self.__vms[1:]
@@ -509,7 +509,7 @@ class AckPluginMethods(object):
         return json.dumps(self.__hostObj.dmidecode)
 
     def set_nic_device_status(self, args):
-        print args
+        print(args)
         pif = [p for p in self.__hostObj.PIFs if p.device == args['device']]
         pif[0].plugged = True if args['status'] == "up" else False
 

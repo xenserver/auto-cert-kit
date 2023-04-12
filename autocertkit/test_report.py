@@ -43,7 +43,7 @@ def count_by_result(class_recs, fn):
 
     test_matches = []
 
-    for class_name, (method_list, test_class_caps) in class_recs.iteritems():
+    for class_name, (method_list, test_class_caps) in class_recs.items():
         for method in method_list:
             if fn(method['result']):
                 test_matches.append("%s.%s" %

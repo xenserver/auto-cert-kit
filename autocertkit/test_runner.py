@@ -136,13 +136,13 @@ def remove_child_nodes(parent_node):
 
 
 def recurse_add_records_to_node(topnode, record):
-    for k, v in record.iteritems():
+    for k, v in record.items():
         node = dom.createElement(k)
         topnode.appendChild(node)
 
         if type(v) == dict:
             # Set attributes for element
-            for key, value in v.iteritems():
+            for key, value in v.items():
                 log.debug("Value = %s Type=%s" %
                           (str(value), str(type(value))))
                 if type(value) == dict:

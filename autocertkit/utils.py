@@ -48,7 +48,7 @@ import binascii
 import socket
 import struct
 import ctypes
-
+sys.path.append("/opt/xensource/packages/files/auto-cert-kit/pypackages")
 from acktools.net import route, generate_mac
 import acktools.log
 
@@ -183,10 +183,10 @@ def log_exceptions(func):
     def decorated(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except XenAPI.Failure, e:
+        except XenAPI.Failure as e:
             log.error('%s: XenAPI.Failure: %s', func.__name__, str(e))
             raise
-        except Exception, e:
+        except Exception as e:
             log.error('%s: %s: %s', func.__name__,
                       e.__class__.__name__, str(e))
             raise
@@ -262,7 +262,7 @@ class IPv4Addr(object):
     def aton(ip):
         try:
             return struct.unpack("!I", socket.inet_aton(ip))[0]
-        except Exception, e:
+        except Exception as e:
             raise Exception(
                 "The IP address %s is invalid, exception: %s"
                 % (ip, str(e)))
@@ -271,7 +271,7 @@ class IPv4Addr(object):
     def ntoa(n_ip):
         try:
             return socket.inet_ntoa(struct.pack('!I', n_ip))
-        except Exception, e:
+        except Exception as e:
             raise Exception(
                 "The IP address 0x%x is invalid, exception: %s"
                 % (n_ip, str(e)))
@@ -401,7 +401,7 @@ class IfaceStats(object):
         self.validate_args(rec)
 
         # Load all key/values into the class as attributes
-        for k, v in rec.iteritems():
+        for k, v in rec.items():
             try:
                 setattr(self, k, int(v))
             except ValueError:
@@ -532,7 +532,7 @@ class Iface(object):
     def __init__(self, rec):
         self.validate_rec(rec)
 
-        for k, v in rec.iteritems():
+        for k, v in rec.items():
             setattr(self, k, v)
 
     def validate_rec(self, rec):
@@ -567,7 +567,7 @@ def get_pool_master(session):
 
 def _find_control_domain(session, host_ref):
     vm_recs = session.xenapi.VM.get_all_records()
-    for vm_ref, vm_rec in vm_recs.iteritems():
+    for vm_ref, vm_rec in vm_recs.items():
         if vm_rec['is_control_domain'] and vm_rec['resident_on'] == host_ref:
             return vm_ref
     raise Exception(
@@ -632,8 +632,8 @@ def host_crash(session, do_cleanup=False):
     log.debug("Crashing host: %s" % host)
     #call_ack_plugin(session, 'force_crash_host')
     cmd = 'echo s > /proc/sysrq-trigger; sleep 5; echo c > /proc/sysrq-trigger'
-    cmd = binascii.hexlify(cmd)
-    call_ack_plugin(session, 'shell_run', {'cmd': cmd}, host)
+    cmd = binascii.hexlify(cmd.encode())
+    call_ack_plugin(session, 'shell_run', {'cmd': cmd.decode()}, host)
 
     # Once it is successful, host will be crashed hence code should not reach
     # here.
@@ -869,11 +869,11 @@ def get_test_sriov_network(session, network_label):
 
 
 def is_vf_disabled(session):
-    cmd = b"%s | grep 'Virtual Function' | wc -l" % LSPCI
-    cmd = binascii.hexlify(cmd)
+    cmd = "%s | grep 'Virtual Function' | wc -l" % LSPCI
+    cmd = binascii.hexlify(cmd.encode())
     sum = 0
     for host in session.xenapi.host.get_all():
-        res = call_ack_plugin(session, 'shell_run', {'cmd': cmd}, host)
+        res = call_ack_plugin(session, 'shell_run', {'cmd': cmd.decode()}, host)
         res = res.pop()
         log.debug("Found %s VF on host %s" % (res["stdout"], str(host)))
         sum += int(res["stdout"]) if int(res["returncode"]) == 0 else 1
@@ -883,11 +883,11 @@ def is_vf_disabled(session):
 
 
 def get_vf_driver_info(session, host, vm_ref, mip, device):
-    cmd = b"%s -i %s" % (ETHTOOL, device)
+    cmd = "%s -i %s" % (ETHTOOL, device)
     log.debug("get_vf_driver_info: %s" % cmd)
-    cmd = binascii.hexlify(cmd)
+    cmd = binascii.hexlify(cmd.encode())
     res = call_ack_plugin(session, 'shell_run',
-                          {'cmd': cmd, 'vm_ref': vm_ref, 'mip': mip,
+                          {'cmd': cmd.decode(), 'vm_ref': vm_ref, 'mip': mip,
                            'username': 'root', 'password': DEFAULT_PASSWORD},
                           host)
     ret = {}
@@ -1099,10 +1099,10 @@ def get_vm_vif_ifs(session, vm_ref):
     ifs = {}
     dom_root = "/local/domain/%s" % str(session.xenapi.VM.get_domid(vm_ref))
 
-    cmd = b'''xenstore-ls -f %s | grep -E "%s/device/vif/[0-9]+/mac|%s/attr/vif/[0-9]+/ipv4/[0-9]+"''' % (
+    cmd = 'xenstore-ls -f %s | grep -E "%s/device/vif/[0-9]+/mac|%s/attr/vif/[0-9]+/ipv4/[0-9]+"' % (
         dom_root, dom_root, dom_root)
-    args = {'cmd': binascii.hexlify(cmd)}
-    res = call_ack_plugin(session, 'shell_run', args,
+    args = binascii.hexlify(cmd.encode())
+    res = call_ack_plugin(session, 'shell_run', {'cmd': args.decode()},
                           session.xenapi.VM.get_resident_on(vm_ref))
     res = res.pop()
     if int(res["returncode"]) != 0:
@@ -1227,7 +1227,7 @@ def get_vm_ips(session, vm_ref):
         return {}
     networks = session.xenapi.VM_guest_metrics.get_networks(guest_metrics_ref)
     res = {}
-    for k, v in networks.iteritems():
+    for k, v in networks.items():
         if k.endswith('ip'):
             res["eth%s" % (k.replace('/ip', ''))] = v
     return res
@@ -1264,17 +1264,17 @@ def ping_with_retry(session, vm_ref, mip, dst_vm_ip, interface, timeout=20, retr
         """.* (?P<loss>[0-9]+)% packet loss, .*""", re.S)  # NOSONAR
 
     cmd_str = "ping -I %s -w %d %s" % (interface, timeout, dst_vm_ip)
-    cmd = binascii.hexlify(cmd_str)
+    cmd = binascii.hexlify(cmd_str.encode())
     for i in range(retry):
         log.debug("ping_with_retry %d/%d: %s" % (i, retry, cmd_str))
 
         if session.xenapi.VM.get_is_control_domain(vm_ref):
-            args = {'cmd': cmd}
+            args = {'cmd': cmd.decode()}
         else:
             args = {'vm_ref': vm_ref, 'mip': mip,
                     'username': 'root',
                     'password': DEFAULT_PASSWORD,
-                    'cmd': cmd}
+                    'cmd': cmd.decode()}
         res = call_ack_plugin(session, 'shell_run', args,
                               session.xenapi.VM.get_resident_on(vm_ref))
         result = res.pop()["stdout"]
@@ -1303,7 +1303,7 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, time
             sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
                                     {'log': log, 'timeout': timeout})
             result = sshcmd.read()
-        except Exception, e:
+        except Exception as e:
             log.debug("Exception: %s" % str(e))
             # Sleep before next attempt
             time.sleep(20)
@@ -1352,7 +1352,7 @@ def destroy_vm_vdi(session, vm_ref, timeout=60):
             # If the VDI is free, try to destroy it. Should pass the exception
             # catch if it is a NULL VDI reference.
             session.xenapi.VDI.destroy(vdi_ref)
-        except XenAPI.Failure, exn:
+        except XenAPI.Failure as exn:
             if exn.details[0] == 'HANDLE_INVALID':
                 log.debug("Ignore XenAPI.Failure of HANDLE_INVALID")
             else:
@@ -1387,7 +1387,7 @@ def destroy_vm(session, vm_ref, timeout=60):
         # Due to timing issue this may fail as it tries to shutdown halted VM.
         try:
             session.xenapi.VM.hard_shutdown(vm_ref)
-        except Exception, e:
+        except Exception as e:
             log.error(str(e))
             log.debug(
                 "Failed to hard shutdown VM. Trying again in a few seconds.")
@@ -1461,7 +1461,7 @@ def pool_wide_host_cleanup(session):
 def pool_wide_vm_dom0_cleanup(session, tag, vm, oc):
     # Cleanup any routes that are lying around
     keys_to_clean = []
-    for k, v in oc.iteritems():
+    for k, v in oc.items():
         if k.startswith('route_clean_'):
             # Call plugin
             call_ack_plugin(session, 'remove_route',
@@ -1577,9 +1577,9 @@ def get_local_sr(session, host):
     """Returns the ref object the local SR on the master host"""
     all_pbds = session.xenapi.PBD.get_all_records()
     all_srs = session.xenapi.SR.get_all_records()
-    for pbd_ref, pbd_rec in all_pbds.iteritems():
+    for pbd_ref, pbd_rec in all_pbds.items():
         if host in pbd_rec['host']:
-            for sr_ref, sr_rec in all_srs.iteritems():
+            for sr_ref, sr_rec in all_srs.items():
                 if 'Local storage' in sr_rec['name_label'] and pbd_rec['SR'] in sr_ref:
                     return sr_ref
     raise Exception("No local SR attached to the master host")
@@ -1640,7 +1640,7 @@ def find_droid_templates(session):
     """Returns a list of droid VM template refs"""
     refs = []
     vms = session.xenapi.VM.get_all_records()
-    for ref, rec in vms.iteritems():
+    for ref, rec in vms.items():
         if DROID_TEMPLATE_TAG in rec['other_config'] \
                 and rec['is_a_template']:
             refs.append(ref)
@@ -1872,17 +1872,18 @@ def init_ifs_ip_addressing(session, vm_ref, vifs_info):
 
 def droid_add_static_ifcfg(session, host, vm_ref, mip, dev_info):
     """Set VM interface static ip in config file ifcfg-eth*"""
-    cmd = b'''echo "TYPE=Ethernet\nNAME=%s\nDEVICE=%s\nHWADDR=%s\n''' \
-        b'''IPADDR=%s\nNETMASK=%s\nGATEWAY=%s\nBOOTPROTO=none\nONBOOT=yes" ''' \
-        b'''> "%s/ifcfg-%s" ''' \
+    cmd = '''echo "TYPE=Ethernet\nNAME=%s\nDEVICE=%s\nHWADDR=%s\n''' \
+        '''IPADDR=%s\nNETMASK=%s\nGATEWAY=%s\nBOOTPROTO=none\nONBOOT=yes" ''' \
+        '''> "%s/ifcfg-%s" ''' \
         % (dev_info['iface'], dev_info['iface'], dev_info['mac'], dev_info['ip'],
            dev_info['netmask'], dev_info['gw'], "/etc/sysconfig/network-scripts",
            dev_info['iface'])
+    cmd = binascii.hexlify(cmd.encode())
     args = {'vm_ref': vm_ref,
             'mip': mip,
             'username': 'root',
             'password': DEFAULT_PASSWORD,
-            'cmd': binascii.hexlify(cmd)}
+            'cmd': cmd.decode()}
     res = call_ack_plugin(session, 'shell_run', args, host)
     res = res.pop()
     if int(res["returncode"]) != 0:
@@ -1891,13 +1892,14 @@ def droid_add_static_ifcfg(session, host, vm_ref, mip, dev_info):
 
 def droid_add_dhcp_ifcfg(session, host, vm_ref, mip, iface, mac):
     """Set VM interface dhcp in config file ifcfg-eth*"""
-    cmd = b'''echo "NAME=%s\nDEVICE=%s\nHWADDR=%s\nBOOTPROTO=dhcp\nONBOOT=yes" > "%s/ifcfg-%s"''' \
+    cmd = 'echo "NAME=%s\nDEVICE=%s\nHWADDR=%s\nBOOTPROTO=dhcp\nONBOOT=yes" > "%s/ifcfg-%s"' \
         % (iface, iface, mac, "/etc/sysconfig/network-scripts", iface)
+    cmd = binascii.hexlify(cmd.encode())
     args = {'vm_ref': vm_ref,
             'mip': mip,
             'username': 'root',
             'password': DEFAULT_PASSWORD,
-            'cmd': binascii.hexlify(cmd)}
+            'cmd': cmd.decode()}
     res = call_ack_plugin(session, 'shell_run', args, host)
     res = res.pop()
     if int(res["returncode"]) != 0:
@@ -1959,7 +1961,7 @@ def shutdown_droid_vms(session, vms, async=True):
                                   for vm_ref in vms],
                                  180)
 
-        except TimeoutFunctionException, e:
+        except TimeoutFunctionException as e:
             log.debug("Timed out while shutdowning VMs: %s" % e)
     else:
         for i in vms:
@@ -1979,7 +1981,7 @@ def start_droid_vms(session, vms, async=True):
                                   for host_ref, vm_ref in vms],
                                  180)
 
-        except TimeoutFunctionException, e:
+        except TimeoutFunctionException as e:
             # Temporary ignore time out to start VM.
             # If VM failed to start, test will fail while checking IPs.
             log.debug("Timed out while starting VMs: %s" % e)
@@ -2191,20 +2193,20 @@ class TimeoutFunction:
 def json_loads(json_data):
     def process_dict_keys(d):
         new_d = {}
-        for key in d.iterkeys():
+        for key in d.keys():
             new_key = str(key.replace(" ", "_"))
             new_d[new_key] = d[key]
         return new_d
 
     def process_values(item):
-        if isinstance(item, unicode):
+        if isinstance(item, str):
             item = str(item)
         elif isinstance(item, list):
             for elem in item:
                 elem = process_values(elem)
         elif isinstance(item, dict):
             item = process_dict_keys(item)
-            for key in item.iterkeys():
+            for key in item.keys():
                 item[key] = str(item[key])
         return item
 
@@ -2415,7 +2417,7 @@ def remove_invalid_keys(nics):
     # remove invalid keys of nic which violates xml, referring to
     # https://stackoverflow.com/questions/19677315/xml-tagname-starting-with-number-is-not-working
     for n in nics:
-        for k in n.keys():
+        for k, _ in list(n.items()):
             if k and k[0].isdigit():
                 n.pop(k)
                 log.debug("Remove invalid key %s from %s" % (k, n['PCI_name']))
@@ -2514,7 +2516,7 @@ def get_system_info(session):
 
 def set_dict_attributes(node, config):
     """Take a dict object, and set xmlnode attributes accordingly"""
-    for k, v in config.iteritems():
+    for k, v in config.items():
         node.setAttribute(str(k), str(v))
 
 
@@ -2661,7 +2663,7 @@ def get_ack_version(session, host=None):
     """Return the version string corresponding to the cert kit on a particular host"""
     try:
         return call_ack_plugin(session, 'get_ack_version', {}, host=host)
-    except XenAPI.Failure, e:
+    except XenAPI.Failure as e:
         log.debug(
             "Failed to execute ack plugin call means ACK is not installed. Exception: %s" % str(e))
         return None
@@ -2670,7 +2672,7 @@ def get_ack_version(session, host=None):
 def combine_recs(rec1, rec2):
     """Utility function for combining two records into one."""
     rec = dict(rec1)
-    for k, v in rec2.iteritems():
+    for k, v in rec2.items():
         if k in rec.keys():
             raise Exception(
                 "Cannot combine these recs, and keys overalp (%s)" % k)

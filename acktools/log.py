@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -48,7 +48,7 @@ def configure_log(name, path, to_stdout=True):
             '%%(asctime)-8s %s: %%(levelname)-8s %%(filename)s:%%(lineno)-10d %%(message)s' % name)
         fileh.setFormatter(formatter)
         log.addHandler(fileh)
-    except IOError, e:
+    except IOError as e:
         print("Error writing to file handler. Ignoring.")
         print(str(e))
 
@@ -57,7 +57,7 @@ def configure_log(name, path, to_stdout=True):
             sth = logging.StreamHandler(sys.__stdout__)
             sth.setLevel(logging.DEBUG)
             log.addHandler(sth)
-        except IOError, e:
+        except IOError as e:
             print("Error writing to stdout handler. Ignoring.")
             print(str(e))
 
