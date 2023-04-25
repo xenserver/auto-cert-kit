@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -38,7 +38,7 @@
 import XenAPI
 import XenAPIPlugin
 import subprocess
-import xmlrpclib
+import xmlrpc
 import os
 import sys
 import shutil
@@ -50,10 +50,12 @@ import base64
 import tarfile
 import datetime
 import json
+sys.path.append("/opt/xensource/packages/files/auto-cert-kit")
 import hwinfo.tools.inspector as inspector
 import binascii
 import uuid
 
+sys.path.append("/opt/xensource/packages/files/auto-cert-kit/pypackages")
 from acktools.net import route
 import acktools.log
 
@@ -180,14 +182,14 @@ def log_exceptions(func):
     def decorated(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except XenAPI.Failure, e:
+        except XenAPI.Failure as e:
             log.error('%s: XenAPI.Failure: %s', func.__name__, str(e))
             raise
-        except PluginError, e:
+        except PluginError as e:
             log.error('%s: %s: %s', func.__name__,
                       e.__class__.__name__, str(e))
             raise
-        except Exception, e:
+        except Exception as e:
             log.error('%s: %s: %s', func.__name__,
                       e.__class__.__name__, str(e))
             raise
@@ -203,7 +205,7 @@ class Iface(object):
     def __init__(self, rec):
         self.validate_rec(rec)
 
-        for k, v in rec.iteritems():
+        for k, v in rec.items():
             setattr(self, k, v)
 
     def validate_rec(self, rec):
@@ -284,7 +286,7 @@ def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, time
             sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
                                     {'log': log, 'timeout': timeout})
             result = sshcmd.read()
-        except Exception, e:
+        except Exception as e:
             log.debug("Exception: %s" % str(e))
             # Sleep before next attempt
             time.sleep(20)
@@ -349,7 +351,7 @@ def get_vm_ips(session, vm_ref):
     guest_metrics_ref = session.xenapi.VM.get_guest_metrics(vm_ref)
     networks = session.xenapi.VM_guest_metrics.get_networks(guest_metrics_ref)
     res = {}
-    for k, v in networks.iteritems():
+    for k, v in networks.items():
         if k.endswith('ip'):
             res["eth%s" % (k.replace('/ip', ''))] = v
     return res
@@ -415,7 +417,7 @@ def run_ack_logrotate(session, args):
         shutil.copyfile(LOGROTATE_CONF_LOC, ack_logrotate_dconf)
         call = ['/usr/sbin/logrotate', '-f', ack_logrotate_dconf]
         res = make_local_call(call, False)
-    except Exception, e:
+    except Exception as e:
         return json_dumps(str(e))
     finally:
         configure_logging()
@@ -448,10 +450,10 @@ def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
     """Function wrapper for making a simple call to shell"""
     if logging:
         log.debug("make_local_call: %s" % (" ".join(call)))
-    process = subprocess.Popen(call, stdout=std_out, shell=shell)
+    process = subprocess.Popen(call, stdout=std_out, shell=shell, universal_newlines=True)
     stdout, stderr = process.communicate()
-    res = {"returncode": process.returncode, "stdout": str(
-        stdout).strip(), "stderr": str(stderr).strip()}
+    res = {"returncode": process.returncode, "stdout": 
+        stdout.strip(), "stderr": str(stderr).strip()}
     if logging:
         log.debug("returncode: %d" % process.returncode)
         log.debug("stdout: %s" % str(stdout))
@@ -594,7 +596,7 @@ def shell_run_on_guest(session, vm_ref, mip, username, password, cmd):
 def shell_run_on_host(session, cmd):
     try:
         res = make_local_call([cmd], True, std_out=subprocess.PIPE, shell=True)
-    except Exception, e:
+    except Exception as e:
         log.debug("Exception: %s" % str(e))
         res = {"returncode": -1, "stdout": "", "stderr": ""}
     return res
@@ -609,7 +611,7 @@ def shell_run(session, args):
     username = validate_exists(args, 'username', "", False)
     password = validate_exists(args, 'password', "", False)
     cmd = validate_exists(args, 'cmd')
-    cmd = binascii.unhexlify(cmd)
+    cmd = binascii.unhexlify(cmd).decode()
 
     if vm_ref:
         res = shell_run_on_guest(session, vm_ref, mip, username, password, cmd)
@@ -625,7 +627,7 @@ def get_pci_id(bus_id):
     try:
         res = make_local_call(call)
         return res["stdout"].split()[2]
-    except Exception, e:
+    except Exception as e:
         log.debug("Exception: %s" % str(e))
 
 
@@ -662,7 +664,7 @@ def get_pci_subsystem(bus_id):
     try:
         res = make_local_call(call)
         return res["stdout"].split('\n')[1].strip()
-    except Exception, e:
+    except Exception as e:
         log.debug("Exception: %s" % str(e))
     return ""
 
@@ -724,7 +726,7 @@ def compat_biosdevname():
     devices = []
     pattern = re.compile(r'\d*:?[a-f0-9]+:[a-f0-9]+\.[a-f0-9]')
 
-    for eth, rec in devs.iteritems():
+    for eth, rec in devs.items():
         if pattern.match(rec['Bus Info']):
             log.debug("Found %s" % eth)
             devices.append(rec)
@@ -835,7 +837,7 @@ def _get_bus_paths(disks):
     # paths in the list may not be the bus path but sym link to device.
     # If bus path does not include bus id, follow link to get bus path
     modified_bus_path = {}
-    for bus_path, sr in bus_paths.iteritems():
+    for bus_path, sr in bus_paths.items():
         path_tokens = bus_path.split(os.sep)
         _, pci_addr = get_dev_pci_addr(bus_path)
         if len(path_tokens) < 5 or not _is_bus_id(pci_addr):
@@ -924,7 +926,7 @@ def get_local_storage_devices(session, args):
         devices = PCIDevices()
 
         storage_devices = []
-        for bus_path, sr in bus_paths.iteritems():
+        for bus_path, sr in bus_paths.items():
 
             index, bus_id = get_dev_pci_addr(bus_path)
 
@@ -967,7 +969,7 @@ def get_local_storage_devices(session, args):
 
         return json_dumps(storage_devices)
 
-    except Exception, e:
+    except Exception as e:
         log.debug("Could not get local storage info. Exception: %s" % str(e))
         return json_dumps([{'Exception': 'StorageInfoNotAvailable', 'Exception_Info': str(e)}])
 
@@ -997,7 +999,7 @@ def get_hw_offloads_from_core(session, args):
     flag = int(make_local_call(
         ['cat', '/sys/class/net/%s/features' % eth_dev])['stdout'], 16)
 
-    for offload, offset in OFFLOAD_FLAGS_OFFSET.iteritems():
+    for offload, offset in OFFLOAD_FLAGS_OFFSET.items():
         if offset & flag:
             rec[offload] = 'on'
         else:
@@ -1106,8 +1108,8 @@ def parse_proc_net_dev(data):
 
     header = lines[1]
     _, rx_cols, tx_cols = header.split("|")
-    rx_cols = map(lambda x: "rx_%s" % x, rx_cols.split())
-    tx_cols = map(lambda x: "tx_%s" % x, tx_cols.split())
+    rx_cols = ["rx_%s" % x for x in rx_cols.split()]
+    tx_cols = ["tx_%s" % x for x in tx_cols.split()]
     cols = rx_cols + tx_cols
 
     ifaces = {}
@@ -1115,7 +1117,7 @@ def parse_proc_net_dev(data):
         if not line.find(":"):
             continue
         iface, data = line.split(":")
-        iface_data = dict(zip(cols, data.split()))
+        iface_data = dict(list(zip(cols, data.split())))
         ifaces[iface.strip()] = iface_data
 
     return ifaces

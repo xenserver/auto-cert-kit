@@ -219,7 +219,7 @@ class IperfTest:
                 # Capture interface statistcs post test run
                 bytes_transferred = int(iperf_data['transfer'])
                 self.validate_stats(bytes_transferred)
-            except Exception, e:
+            except Exception as e:
                 traceb = traceback.format_exc()
                 log.warning(traceb)
                 fail_data["failed_attempt_%d" % (attempt_count)] = str(e)
@@ -684,7 +684,7 @@ class PIFParamTestClass(IperfTestClass):
         log.debug(self.OFFLOAD_CONFIG)
         device = session.xenapi.PIF.get_device(pif)
         log.debug("Device: %s" % device)
-        for k, v in self.OFFLOAD_CONFIG.iteritems():
+        for k, v in self.OFFLOAD_CONFIG.items():
             set_hw_offload(session, device, k, v)
 
     def _verify_ethtool_offloads(self, session, device):
@@ -693,7 +693,7 @@ class PIFParamTestClass(IperfTestClass):
 
         hw_offloads = get_hw_offloads(session, device)
         log.debug("verify offloads...%s" % hw_offloads)
-        for k, v in self.OFFLOAD_CONFIG.iteritems():
+        for k, v in self.OFFLOAD_CONFIG.items():
             if k not in hw_offloads:
                 raise Exception("Cannot determine status of %s." % k)
             log.debug("Device: %s (%s offload: %s)" %

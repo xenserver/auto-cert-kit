@@ -103,7 +103,7 @@ class TestClass(object):
                 continue
 
             # This assumes that we do not keep IPs across individual tests
-            for vlan, sm in self.static_managers.iteritems():
+            for vlan, sm in self.static_managers.items():
                 sm.release_all()
 
             # Release Alarm signal to prevent handled signal from previous test
@@ -169,7 +169,7 @@ class TestClass(object):
             self.copy_field(rec, res, 'reason', False)
             self.copy_field(rec, res, 'warning', False)
 
-        except Exception, e:
+        except Exception as e:
             traceb = traceback.format_exc()
             rec['status'] = 'done'
             rec['result'] = 'fail'
@@ -298,7 +298,7 @@ class TestClass(object):
 
         # Iterate through the network config structure to
         # see if we have any static managers to initialise.
-        for k, v in self.get_netconf().iteritems():
+        for k, v in self.get_netconf().items():
             # We only care about vlans on the physical network ID this test is
             # running on
 
@@ -328,7 +328,7 @@ class TestClass(object):
         netconf = self.get_netconf()
         log.debug("Netconf: %s" % netconf)
         netid_rec = {}
-        for iface, rec in netconf.iteritems():
+        for iface, rec in netconf.items():
             if iface.startswith('eth'):
                 log.debug("iface: %s Rec: %s" % (iface, rec))
                 nid = rec['network_id']
@@ -412,7 +412,7 @@ class TestClass(object):
         equiv_devs = self.get_equivalent_devices()
         try:
             return filter_pif_devices(self.session, equiv_devs)
-        except Exception, e:
+        except Exception as e:
             log.error(
                 "Caught Exception - may be OK if running in single NIC mode.")
             log.error("Exception Occurred: %s" % str(e))
@@ -497,7 +497,7 @@ class NetworkTestClass(TestClass):
         # Construct a list of interface names who have the same physical ID
         # as the provided interface.
 
-        blist = intersection([k for k, v in netconf.iteritems() if k.startswith('eth') and
+        blist = intersection([k for k, v in netconf.items() if k.startswith('eth') and
                               v['network_id'] == phy_id],
                              netconf.keys())
 

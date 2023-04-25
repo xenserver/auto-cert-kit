@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -47,7 +47,7 @@ running = False
 
 def get_process_strings():
     ps = subprocess.Popen(
-        ['ps', 'aux'], stdout=subprocess.PIPE).communicate()[0]
+        ['ps', 'aux'], stdout=subprocess.PIPE, universal_newlines=True).communicate()[0]
     process_strings = []
     for line in ps.split('\n'):
         if 'ack_cli.py' in line or 'test_runner.py' in line:

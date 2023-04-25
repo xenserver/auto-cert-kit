@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Copyright (c) 2005-2022 Citrix Systems Inc.
 # Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
@@ -38,7 +38,7 @@
 import utils
 import sys
 import os
-import ConfigParser
+import configparser
 
 import testbase
 import inspect
@@ -51,7 +51,7 @@ from status import check_for_process
 import test_report
 import test_runner
 from optparse import OptionParser
-from exceptions import *
+import builtins as exceptions
 
 MIN_VLAN = 0
 MAX_VLAN = 4096
@@ -140,7 +140,7 @@ def parse_cmd_args():
 
     if options.optionstr:
         kvp_rec = kvp_string_to_rec(options.optionstr)
-        for k, v in kvp_rec.iteritems():
+        for k, v in kvp_rec.items():
             config[k] = v
 
     check_files(config)
@@ -155,7 +155,7 @@ def check_files(config):
         if opt in config.keys():
             assert_file_exists(os.path.join(INSTALL_DIR, config[opt]), label)
 
-    for key, value in config['netconf'].iteritems():
+    for key, value in config['netconf'].items():
         if key.startswith('eth'):
             vf_driver_pkg = value['vf_driver_pkg']
             if vf_driver_pkg:
@@ -196,7 +196,7 @@ def parse_netconf_file(filename):
     """
     utils.log.debug("Parse network config file: %s" % filename)
 
-    cp = ConfigParser.ConfigParser()
+    cp = configparser.ConfigParser()
     cp.read(filename)
     rec = {}
     for section in cp.sections():
@@ -282,7 +282,7 @@ def parse_section_static_net(cp, rec, section):
                                     'should be in format of "static_<network_id>_<vlan_id>"')
     net = arr[1]
     vlan = arr[2]
-    if not unicode(net.strip()).isdecimal() or not unicode(vlan.strip()).isdecimal():
+    if not str(net.strip()).isdecimal() or not str(vlan.strip()).isdecimal():
         raise utils.InvalidArgument('static addressing section', section,
                                     'should be valid network and/or vlan to determine')
     rec[section] = parse_static_config(cp, section)
@@ -461,7 +461,7 @@ def pre_flight_checks(session, config):
     # Check that we have at least two network adaptors, on the same network
     recs = config['netconf']
     ifaces = {}
-    for k, v in recs.iteritems():
+    for k, v in recs.items():
         if k.startswith('eth'):
             ifaces[k] = v['network_id']
 
@@ -479,8 +479,8 @@ def pre_flight_checks(session, config):
             len(ifaces.keys()), ifaces.keys()))
 
     # If less than 2 interfaces share the same network, raise an exception
-    for k, v in ifaces.iteritems():
-        if ifaces.values().count(v) < 2:
+    for k, v in ifaces.items():
+        if list(ifaces.values()).count(v) < 2:
             raise Exception("Error: ethernet device %s on network %s is defined in the network config but does not have a matching partner. \
                 Please review the nework configuration and minumum requirements of this kit." % (k, v))
 

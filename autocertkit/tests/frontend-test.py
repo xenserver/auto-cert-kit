@@ -1,11 +1,11 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import unittest
 import sys
 import os
 import os.path
 import random
-import exceptions
+import builtins as exceptions
 import tempfile
 import shutil
 

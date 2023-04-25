@@ -141,7 +141,7 @@ class TestGenerator(object):
 
         device_config = self.get_device_config()
         if device_config:
-            for k, v in device_config.iteritems():
+            for k, v in device_config.items():
                 device_node.setAttribute(k, v)
 
         # Set the unique device id
