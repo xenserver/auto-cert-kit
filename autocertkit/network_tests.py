@@ -267,31 +267,22 @@ class IperfTest:
                 test_ip = self.vm_info[self.server]['ip_t']
                 protocol = ''
 
-            cmd_str = "iperf -s -D %s -B %s < /dev/null >&/dev/null" \
+            cmd_str = "iperf3 -s -D %s -B %s < /dev/null >&/dev/null" \
                       % (protocol, test_ip)
             ssh_command(mip, self.username, self.password, cmd_str)
 
     def parse_iperf_line(self, data):
         """Take a CSV line from iperf, parse, returning a dictionary"""
-        lines = data.strip().split('\n')
-        log.debug("Iperf Lines: %s" % lines)
-        arr = lines[0].split(',')
+        log.debug("Iperf data: %s" % data)
+        arr = json.loads(data)
         rec = {}
-        rec['datetime'] = arr[0]
-        rec['client_ip'] = arr[1]
-        rec['client_port'] = arr[2]
-        rec['server_ip'] = arr[3]
-        rec['server_port'] = arr[4]
-        rec['id'] = arr[5]
-        rec['interval'] = arr[6]
-        rec['transfer'] = arr[7]
-        rec['bandwidth'] = arr[8]
-        # The the case where iperf returned information, it will seperate it from the csv format
-        # by a new line character. We would like to capture this information, and pass it
-        # back to the called. So insert into the record field 'info'.
-        if len(lines) > 1:
-            # Join any extra lines back together again
-            rec['info'] = " ".join(lines[1:])
+        rec['datetime'] = arr['start']['timestamp']['time']
+        rec['client_ip'] = arr['start']['connected'][0]['local_host']
+        rec['client_port'] = arr['start']['connected'][0]['local_port']
+        rec['server_ip'] = arr['start']['connected'][0]['remote_host']
+        rec['server_port'] = arr['start']['connected'][0]['remote_port']
+        rec['interval'] = arr['end']['sum_received']['seconds']
+        rec['transfer'] = arr['end']['sum_received']['bytes']
         return rec
 
     def plugin_call(self, method, args):
@@ -317,7 +308,7 @@ class IperfTest:
             test_ip = self.vm_info[self.server]['ip_t']
             protocol = ''
 
-        cmd_str = "iperf -y csv %s %s -m -B %s -c %s" % \
+        cmd_str = "iperf -J %s %s -B %s -c %s" % \
                   (protocol, " ".join(params),
                    self.vm_info[self.client]['ip_t'], test_ip)
         return cmd_str

@@ -10,8 +10,9 @@ dnf --enablerepo=powertools install perl-Readonly -y
 # setup firewall port for 4/tcp/udp and 5001/tcp/udp
 firewall-cmd --zone=public --add-port=4/tcp --permanent
 firewall-cmd --zone=public --add-port=4/udp --permanent
-firewall-cmd --zone=public --add-port=5001/tcp --permanent
-firewall-cmd --zone=public --add-port=5001/udp --permanent
+# open port for iperf3
+firewall-cmd --zone=public --add-port=5201/tcp --permanent
+firewall-cmd --zone=public --add-port=5201/udp --permanent
 firewall-cmd --reload
 firewall-cmd --state
 

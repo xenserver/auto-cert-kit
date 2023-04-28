@@ -93,7 +93,7 @@ ETHTOOL = "/sbin/ethtool"
 DHCLIENT = "/sbin/dhclient"
 
 SSH = "/usr/bin/ssh"
-IPERF = "/usr/bin/iperf"
+IPERF = "/usr/bin/iperf3"
 LMBENCH = "/usr/bin/lmbench"
 
 FOR_CLEANUP = "for_cleanup"
@@ -109,7 +109,7 @@ LOG_LOC = '/var/log/auto-cert-kit-plugin.log'
 SSH_PUBLIC_KEY = '/root/.ssh/id_rsa.pub'
 SSH_HOST_KEYS = '/root/.ssh/known_hosts'
 
-IPERF_RPM = "iperf-2.0.10-1.el7.x86_64.rpm"
+IPERF_RPM = "iperf3-3.1.3-1.fc24.x86_64.rpm"
 LMBENCH_RPM = "lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm"
 IOZONE_RPM = "iozone-3.471-1.el7.x86_64.rpm"
 BONNIE_RPM = "bonnie++-1.96-1.el7.rf.x86_64.rpm"
@@ -1081,7 +1081,7 @@ def iperf_test(session, args):
     buffer_length = validate_exists(args, 'buffer_length', False)
     thread_count = validate_exists(args, 'thread_count', False)
 
-    call = [IPERF, '-y', 'csv']
+    call = [IPERF, '-J']
 
     def copy(param, cmd_arg):
         if param:
@@ -1093,9 +1093,6 @@ def iperf_test(session, args):
     copy(buffer_length, '-l')
     copy(thread_count, '-P')
     copy(dst_host, '-c')
-
-    # Print MTU size
-    call.append('-m')
 
     return json_dumps(make_local_call(call)["stdout"])
 
