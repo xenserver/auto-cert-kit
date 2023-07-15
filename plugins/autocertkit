@@ -38,15 +38,11 @@
 import XenAPI
 import XenAPIPlugin
 import subprocess
-import xmlrpc
 import os
 import sys
 import shutil
 import time
-import logging
-import logging.handlers
 import re
-import base64
 import tarfile
 import datetime
 import json
@@ -74,7 +70,7 @@ INSTALL_DIR = '/opt/xensource/packages/files/auto-cert-kit'
 
 if INSTALL_DIR not in sys.path:
     sys.path.insert(0, INSTALL_DIR)
-import ssh  # nopep8
+from common import *
 
 
 XE = '/opt/xensource/bin/xe'
@@ -150,7 +146,7 @@ def configure_logging():
 
 
 configure_logging()
-
+set_logger(log)
 
 def release_logging():
     global log
@@ -272,30 +268,6 @@ def get_from_xensource_inventory(key):
 
 
 ############# SSH KEY SETUP ##########################
-@log_exceptions
-def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, timeout=900):
-    """execute an SSH command using the parimiko library, return both
-    exit code, stdout and stderr."""
-    if dbg_str:
-        log.debug(dbg_str)
-
-    for i in range(0, attempts):
-        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
-
-        try:
-            sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
-                                    {'log': log, 'timeout': timeout})
-            result = sshcmd.read()
-        except Exception as e:
-            log.debug("Exception: %s" % str(e))
-            # Sleep before next attempt
-            time.sleep(20)
-        else:
-            return result
-
-    log.debug("Max attempt reached %d/%d" % (attempts, attempts))
-    return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
-
 
 def install_ssh_key(session, vm_ref, ip, username, password):
     """Install Dom0 public key in droid VM"""
@@ -446,25 +418,6 @@ def install_iperf(session, vm_ref, ip, username, password):
     ssh_command(ip, username, password, cmd_str)["stdout"]
 
 
-def make_local_call(call, logging=True, std_out=subprocess.PIPE, shell=False):
-    """Function wrapper for making a simple call to shell"""
-    if logging:
-        log.debug("make_local_call: %s" % (" ".join(call)))
-    process = subprocess.Popen(call, stdout=std_out, shell=shell, universal_newlines=True)
-    stdout, stderr = process.communicate()
-    res = {"returncode": process.returncode, "stdout": 
-        stdout.strip(), "stderr": str(stderr).strip()}
-    if logging:
-        log.debug("returncode: %d" % process.returncode)
-        log.debug("stdout: %s" % str(stdout))
-        log.debug("stderr: %s" % str(stderr))
-        if res["returncode"] != 0:
-            msg = "ERR: Could not make local call %s" % ' '.join(call)
-            log.error(msg)
-
-    return res
-
-
 @log_exceptions
 def upload_file(session, vm_ref, ip, username, password, file):
     """upload one file to VM"""
@@ -550,6 +503,9 @@ def deploy_iperf(session, args):
                 i = i + 1  # Increment counter
                 if i == limit:
                     raise PluginError("Plugin Error: Cannot deploy Iperf")
+    else:
+        call = fr'''rpm -q iperf || rpm -i {INSTALL_DIR}/{IPERF_RPM}'''
+        make_local_call(call, shell=True)
 
     log.debug("iPerf installation completed")
     return json_dumps("OK")
@@ -2050,7 +2006,7 @@ def get_kernel_version(session, args):
 @log_exceptions
 def get_ack_version(session, args):
     """Check ACK version using `rpm -qi`"""
-    call = ['rpm', '-qi', 'xenserver-auto-cert-kit']
+    call = ['rpm', '-qi', 'auto-cert-kit']
     out = make_local_call(call)
     if out['returncode']:
         return json_dumps(None)
