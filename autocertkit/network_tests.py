@@ -81,9 +81,6 @@ class IperfTest:
 
         self.config = opt.get('config', self.default_config)
 
-        # Store pool master in order to make plugin calls
-        self.host = get_pool_master(self.session)
-
         self.timeout = 60
 
         # Validate the references and setup run method
@@ -234,11 +231,16 @@ class IperfTest:
     def deploy_iperf(self):
         """deploy iPerf on both client and server"""
         def deploy(vm_ref):
-            self.plugin_call('deploy_iperf',
-                             {'vm_ref': vm_ref,
-                              'mip': self.vm_info[vm_ref]['ip_m'],
-                              'username': self.username,
-                              'password': self.password})
+            host = None
+            if self.session.xenapi.VM.get_is_control_domain(vm_ref):
+                host = self.session.xenapi.VM.get_resident_on(vm_ref)
+
+            call_ack_plugin(self.session, 'deploy_iperf',
+                            {'vm_ref': vm_ref,
+                             'mip': self.vm_info[vm_ref]['ip_m'],
+                             'username': self.username,
+                             'password': self.password},
+                            host)
 
         deploy(self.client)
         deploy(self.server)
@@ -296,7 +298,7 @@ class IperfTest:
 
     def plugin_call(self, method, args):
         """Make a plugin call to autocertkit"""
-        return call_ack_plugin(self.session, method, args, self.host)
+        return call_ack_plugin(self.session, method, args)
 
     def get_iperf_client_cmd(self):
         params = []

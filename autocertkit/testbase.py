@@ -556,7 +556,8 @@ class PerformanceTest(TestClass):
             threads.append(create_test_thread(lambda vm=vm_ref: TimeoutFunction(ssh_command(get_context_vm_mip(vm),
                                                                                             self.username,
                                                                                             self.password,
-                                                                                            self.cmd_str),
+                                                                                            self.cmd_str,
+                                                                                            timeout=self.timeout),
                                                                                 self.timeout, '%s test timed out %d' % (self.test, self.timeout))))
         return threads
 

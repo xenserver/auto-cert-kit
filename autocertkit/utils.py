@@ -30,13 +30,11 @@
 # SUCH DAMAGE.
 
 """A module for utility functions shared with multiple test cases"""
-import logging
 import subprocess
 import datetime
 import XenAPI
 import sys
 import time
-import ssh
 import signal
 from datetime import datetime
 
@@ -48,6 +46,8 @@ import binascii
 import socket
 import struct
 import ctypes
+
+from common import *
 sys.path.append("/opt/xensource/packages/files/auto-cert-kit/pypackages")
 from acktools.net import route, generate_mac
 import acktools.log
@@ -93,6 +93,7 @@ def configure_logging():
 
 
 configure_logging()
+set_logger(log)
 
 
 def release_logging():
@@ -1289,31 +1290,6 @@ def ping_with_retry(session, vm_ref, mip, dst_vm_ip, interface, timeout=20, retr
     return False
 
 
-@log_exceptions
-def ssh_command(ip, username, password, cmd_str, dbg_str=None, attempts=10, timeout=900):
-    """execute an SSH command using the parimiko library, return both
-    exit code, stdout and stderr."""
-    if dbg_str:
-        log.debug(dbg_str)
-
-    for i in range(0, attempts):
-        log.debug("Attempt %d/%d: %s" % (i, attempts, cmd_str))
-
-        try:
-            sshcmd = ssh.SSHCommand(ip, cmd_str, username, password,
-                                    {'log': log, 'timeout': timeout})
-            result = sshcmd.read()
-        except Exception as e:
-            log.debug("Exception: %s" % str(e))
-            # Sleep before next attempt
-            time.sleep(20)
-        else:
-            return result
-
-    log.debug("Max attempt reached %d/%d" % (attempts, attempts))
-    return {"returncode": -1, "stdout": "", "stderr": "An unkown error has occured!"}
-
-
 def plug_pif(session, pif):
     """ Plug given pif"""
     log.debug("Plugging PIF: %s" % pif)
@@ -2322,7 +2298,7 @@ def get_vm_interface(session, host, vm_ref, mip):
     ifs = {}
 
     # cmd output: "eth0: ec:f4:bb:ce:91:9c"
-    cmd = b"""ip -o link | awk '{if($2 ~ /^eth/) print $2,$17}'"""
+    cmd = """ip -o link | awk '{if($2 ~ /^eth/) print $2,$17}'"""
     res = ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd)
     mac_re = re.compile(r"(?P<device>.*): (?P<mac>.*)")     # NOSONAR
     for line in res['stdout'].strip().split('\n'):
@@ -2332,7 +2308,7 @@ def get_vm_interface(session, host, vm_ref, mip):
             ifs[device] = [device, mac, '']
 
     # cmd output: "eth0 10.62.114.80/21"
-    cmd = b"""ip -o -f inet addr | awk '{if($2 ~ /^eth/) print $2,$4}'"""
+    cmd = """ip -o -f inet addr | awk '{if($2 ~ /^eth/) print $2,$4}'"""
     res = ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd)
     ip_re = re.compile(r"(?P<device>.*) (?P<ip>.*)")    # NOSONAR
     for line in res['stdout'].strip().split('\n'):
