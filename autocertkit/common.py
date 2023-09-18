@@ -1,5 +1,4 @@
-# Copyright (c) 2023-07-20 Cloud Software Group Holdings, Inc.
-# All rights reserved.
+# Copyright (c) 2023 Cloud Software Group, Inc.
 #
 # Redistribution and use in source and binary forms,
 # with or without modification, are permitted provided
