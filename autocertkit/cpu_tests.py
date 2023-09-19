@@ -1,6 +1,5 @@
 # Copyright (c) 2005-2022 Citrix Systems Inc.
-# Copyright (c) 2022-12-01 Cloud Software Group Holdings, Inc.
-# All rights reserved.
+# Copyright (c) 2023 Cloud Software Group, Inc.
 #
 # Redistribution and use in source and binary forms,
 # with or without modification, are permitted provided
