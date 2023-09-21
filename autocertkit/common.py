@@ -104,7 +104,10 @@ EOF
 
         with open(f'/tmp/{fcmd}', 'w') as f:
             f.write(cmd)
-        self.put_file(f'/tmp/{fcmd}')
+        res = self.put_file(f'/tmp/{fcmd}')
+        if res['returncode']:
+            os.remove(f'/tmp/{fcmd}')
+            raise Exception(f'{SCP} failed, maybe {self.ip} is not yet ready.')
 
         self.run_cmd(fr'sh {fcmd} >{fout} 2>{ferr}; echo "$?" >{frc}')
 
