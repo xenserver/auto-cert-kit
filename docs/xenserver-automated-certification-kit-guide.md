@@ -5,18 +5,20 @@
 <br>
 
 
-Published Mar 2023  
-V1.3.16 Edition
+Published Oct 2023  
+V8.3.4 Edition
 
 <br>
 
 #### Table of Contents
 
+- [XenServer 8 Stream Automated Certification Kit Guide](#xenserver-8-stream-automated-certification-kit-guide)
+      - [Table of Contents](#table-of-contents)
   - [Introduction](#introduction)
   - [Prerequisites](#prerequisites)
   - [XenServer Installation](#xenserver-installation)
-  - [ACK Installation](#ack-installation)
-  - [ACK Operation](#ack-operation)
+  - [Server Certification Kit Installation](#server-certification-kit-installation)
+  - [Server Certification Kit Operation](#server-certification-kit-operation)
     - [Setting up the network configuration](#setting-up-the-network-configuration)
     - [Management Network](#management-network)
     - [Configuring the kit to use static IP addresses](#configuring-the-kit-to-use-static-ip-addresses)
@@ -34,7 +36,7 @@ V1.3.16 Edition
 
 ## Introduction
 
-The Automated Certification Kit (ACK) is an automated test harness for certifying servers, network cards and local storage devices for use with XenServer.
+The Server Certification Kit is an automated test harness for certifying servers, network cards and local storage devices for use with XenServer.
 
 The kit is designed to run automatically once the user has correctly configured their server, and external environment according to the instructions given below.
 
@@ -60,7 +62,7 @@ If you are interested in contributing improvements to the kit, then please take 
 > - To certify the Multicast feature, please make sure the network device in the test environment supports Multicast.
 > - To certify the SR-IOV feature, please make sure both the network adapter and the server support it.
 
-- **Installation** - Installation of the ACK must be performed on both the pool coordinator and the pool member machines.  
+- **Installation** - Installation of the server certification kit must be performed on both the pool coordinator and the pool member machines.  
 - **VLANs** - For the devices under test, at least on VLAN must be configured on the switch and specified in the network config file.  
 - **Large MTU** – For network adaptor testing, ports on the switch must be configured correctly in order to allow packets of size 9000 bytes to be passed through without fragmentation.  
 
@@ -116,18 +118,18 @@ Then need to create a VM template, which will be used in the test for generating
 
 2.After Rocky 8 Linux installed successful, please Install latest XenServer-LinuxGuestTools first.  
 
-- Download: <a href="https://www.citrix.com/downloads/citrix-hypervisor/">XenServer downloads page.</a>
--	Install: <a href="https://docs.citrix.com/en-us/citrix-hypervisor/vms/linux.html#install-citrix-vm-tools-for-linux">Install XenServer VM Tools for Linux.</a>  
+- Download: <a href="https://www.xenserver.com/downloads">XenServer downloads page.</a>
+-	Install: <a href="https://docs.xenserver.com/en-us/citrix-hypervisor/vms/linux.html#install-citrix-vm-tools-for-linux">Install XenServer VM Tools for Linux.</a>  
 
-3.You can get scripts from ACK ISO file, which can be used for setting up VM, please refer below example for getting and using those scripts.  
-&emsp;&emsp;&emsp;1.Download ACK ISO file from HCL website and put it on Rocky 8 Linux VM in /root.   
-&emsp;&emsp;&emsp;2.Mount ACK ISO, copy  **xenserver-auto-cert-kit-<version>.el7.noarch.rpm** from IOS/ Packages folder to local disk, please refer below example.  
+3.You can get scripts from Server Certification Kit ISO file, which can be used for setting up VM, please refer below example for getting and using those scripts.  
+&emsp;&emsp;&emsp;1.Download Server Certification Kit ISO file from HCL website and put it on Rocky 8 Linux VM in /root.   
+&emsp;&emsp;&emsp;2.Mount Server Certification Kit ISO, copy  **xenserver-auto-cert-kit-<version>.el7.noarch.rpm** from IOS/ Packages folder to local disk, please refer below example.  
 
 ```
 # mkdir /mnt/iso
-# mount -t iso9660 -o loop /root/xenserver-auto-cert-kit.iso /mnt/iso/
+# mount -t iso9660 -o loop /root/xenserver-server-cert-kit-xs8.iso /mnt/iso/
 ```
-Here as example, I used ACK ISO version 1.3.13, so if you use another version, should replace 1.3.13-1 to your ACK version, you can also check the file as below screenshot and then copy this file to “/root”.  
+Here as example, I used Server Certification Kit ISO version 1.3.13, so if you use another version, should replace 1.3.13-1 to your server certification kit version, you can also check the file as below screenshot and then copy this file to “/root”.  
 &emsp;&emsp;&emsp;<img src=ack_img/ack14.png>  
 
 ```
@@ -185,21 +187,21 @@ For the automated certification kit to run successfully, there are currently the
 
 <br>
 
-## ACK Installation
+## Server Certification Kit Installation
 
-Once the above environment has been set up, please download the xs-auto-cert-kit-< version >.iso supplemental pack as provided by XenServer, and copy the ISO onto the /root directory of the Dom0 filesystem residing on the pool coordinator host. Use the following command to install ACK into all hosts in the pool:
+Once the above environment has been set up, please download the xenserver-server-cert-kit-xs8.iso supplemental pack as provided by XenServer, and copy the ISO onto the /root directory of the Dom0 filesystem residing on the pool coordinator host. Use the following command to install server certification kit into all hosts in the pool:
 
-    xe update-upload file-name=”/root/xs-auto-cert-kit.iso”   
+    xe update-upload file-name=”/root/xenserver-server-cert-kit-xs8.iso”   
 
-The command returns the update UUID of ACK package on successful upload.
+The command returns the update UUID of server certification kit package on successful upload.
 
-    xe update-apply uuid=<update uuid of ACK> --multiple  
+    xe update-apply uuid=<update uuid of server certification kit> --multiple  
 
-Upload "vpx-dlvm.xva” file to the ACK home folder on all hosts "/opt/xensource/packages/files/auto-cert-kit" .
+Upload "vpx-dlvm.xva” file to the server certification kit home folder on all hosts "/opt/xensource/packages/files/auto-cert-kit" .
 
 <br>
 
-## ACK Operation
+## Server Certification Kit Operation
 
 To run the certification tests, please run the following commands:
 
@@ -212,9 +214,9 @@ For any of the options the user is required to specify a network configuration (
 
     python ack_cli.py -n network.conf
 
-There is an example file located in the ACK's root directory (networkconf.example). The purpose of this file is to show all available configuration items for both network interfaces and static IP addressing.
+There is an example file located in the server certification kit's root directory (networkconf.example). The purpose of this file is to show all available configuration items for both network interfaces and static IP addressing.
 
-Once executed, the ACK will then generate and execute a list of tests for each device on the pool coordinator host that should be certified.
+Once executed, the server certification kit will then generate and execute a list of tests for each device on the pool coordinator host that should be certified.
 
 You can also run the kit in debug mode, with the argument -d. This will cause the kit to exit on exception, rather than continue to run the remaining tests.
 
@@ -271,19 +273,19 @@ See below for a description of the keys:
 - **network_id** - ID of the logical network on layer 2
 - **vlan_ids** - VLAN ID used in the test, delimited by comma if multiple IDs present.
 - **vf_driver_name** - Driver name of the SR-IOV VF to be used by the Droid VM
-  If the key is specified, ACK will write the value, denoted as `<name>`, into file /etc/modulesload.d/`<name>`.conf of the Droid VM. Then the VM is able to load it automatically during booting.If the key is not specified or its value is empty, it indicates that the VF driver is already able to be loaded automatically.
+  If the key is specified, server certification kit will write the value, denoted as `<name>`, into file /etc/modulesload.d/`<name>`.conf of the Droid VM. Then the VM is able to load it automatically during booting.If the key is not specified or its value is empty, it indicates that the VF driver is already able to be loaded automatically.
 - **vf_driver_pkg** -  Name of the driver package (.rpm) for the SR-IOV VF. The package is located under /opt/xensource/packages/files/auto-cert-kit/ of the  pool coordinator host.
-If the key is specified, ACK will upload the specified driver to the Droid VM and install.
+If the key is specified, server certification kit will upload the specified driver to the Droid VM and install.
 If the key is not specified or its value is empty, it indicates the driver has already been installed in the Droid VM.
 
 
 > **Note**:
 >
-> The Droid VM used by ACK is /opt/xensource/packages/files/auto-cert-kit/vpxdlvm.xva, which is based on upstream CentOS 7.2 X86_64 and kernel version is 3.10.0. The specified .rpm package must be applicable to the Droid VM in use.
+> The Droid VM used by server certification kits is /opt/xensource/packages/files/auto-cert-kit/vpxdlvm.xva, which is based on upstream Rocky 8.6 or 8 latest. The specified .rpm package must be applicable to the Droid VM in use.
 
 <br>
 
-The preceding configuration allows for the ACK to use any of the devices that it wished for the various tests constituting the kit – however the same results could be achieved by specifying the following configuration:
+The preceding configuration allows for the server certification kit to use any of the devices that it wished for the various tests constituting the kit – however the same results could be achieved by specifying the following configuration:
 
     [eth1]
     network_id = 0
@@ -430,7 +432,7 @@ There is another section “static management” supplied, it can be used if int
 
 <br>
 
-Depending on the set of tests being executed by the kit, a host reboot may be required. This means that unless you are executing the kit from the host's physical console you will no longer see the progress of the kit after the reboot. If this happens, then you can follow the logs being generated at /var/log/auto-cert-kit.log, however you can also query the test kit status by running the status.py module (located in the ACK install directory).
+Depending on the set of tests being executed by the kit, a host reboot may be required. This means that unless you are executing the kit from the host's physical console you will no longer see the progress of the kit after the reboot. If this happens, then you can follow the logs being generated at /var/log/auto-cert-kit.log, however you can also query the test kit status by running the status.py module (located in the server certification kit install directory).
 
 The module will return one of the following results:
 
@@ -462,7 +464,7 @@ More specific result information and test exceptions can be found in the XML fil
 
     /opt/xensource/packages/files/auto-cert-kit/test_run.conf
 
-Debug logging is currently printed to stdout, as well as the ACK's log file which is found in /var/log/auto-cert-kit.log. This log file is collected automatically as part of a XenServer status report (which is required for submission). 
+Debug logging is currently printed to stdout, as well as the server certification kit's log file which is found in /var/log/auto-cert-kit.log. This log file is collected automatically as part of a XenServer status report (which is required for submission). 
 <br>
 
 ## Submitting results and logs  
@@ -487,9 +489,9 @@ However, if there is a failure such that the ack-submission package is not creat
 
 <br>
 
-Xenserver is aware of the following limitations in the ACK at present:
+Xenserver is aware of the following limitations in the server certification kit at present:
 
-- SR-IOV tests in ACK are able to test the maximum VFs per single port/PF, but not all ports/PFs combined if the network adapter has multiple ports.
+- SR-IOV tests in server certification kit are able to test the maximum VFs per single port/PF, but not all ports/PFs combined if the network adapter has multiple ports.
 
 <br>
 
@@ -565,8 +567,8 @@ This test is to verify whether your NICs can support SR-IOV feature, and it’s 
 - Whether the server (including CPU, BIOS, firmware, and PCI bus) supports SR-IOV?
 - Whether correct network adapter driver (for PF) has been installed in XenServer?
 - Whether correct VF driver is specified in network.conf, and RPM file is already uploaded to folder /opt/xensource/packages/files/auto-cert-kit/ of pool coordinator host?
-- Whether the VF driver is applicable to the Droid VM used by ACK?
-If you are not sure whether the driver is applicable, you can import Droid VM into XenServer, start it, install VF driver manually and perform manual verification test at first before running ACK. Below is command to import Droid VM:  
+- Whether the VF driver is applicable to the Droid VM used by server certification kit?
+If you are not sure whether the driver is applicable, you can import Droid VM into XenServer, start it, install VF driver manually and perform manual verification test at first before running server certification kit. Below is command to import Droid VM:  
 ```  
   # cd /opt/xensource/packages/files/auto-cert-kit/
   # xe vm-import filename=vpx-dlvm.xva    
@@ -574,8 +576,8 @@ If you are not sure whether the driver is applicable, you can import Droid VM in
 
 
 - Whether there is sufficient memory and IP addresses available in your test environment? This is concerned because IntraHostSRIOVTestClass2 for SR-IOV will tests the maximum VFs support of one PF.  
-  With an example, assume the maximum VFs is 63, which means ACK will create 11 Droid VMs and pass through all the 63 VFs to them evenly. It’s calculable that 11GB memories and 74 (63 VF interfaces + 11 management interfaces) IP addresses are required.  
-  Due to hardware limitations or other reasons, you may not want to test so many VFs even if your NIC supports it. In this case, you are able to specify the maximum VFs to test using key max_vf_num. In the following example, ACK will test only 16 VFs instead of original maximum.  
+  With an example, assume the maximum VFs is 63, which means server certification kit will create 11 Droid VMs and pass through all the 63 VFs to them evenly. It’s calculable that 11GB memories and 74 (63 VF interfaces + 11 management interfaces) IP addresses are required.  
+  Due to hardware limitations or other reasons, you may not want to test so many VFs even if your NIC supports it. In this case, you are able to specify the maximum VFs to test using key max_vf_num. In the following example, server certification kit will test only 16 VFs instead of original maximum.  
 ```
   [eth0]
   network_id = 0
