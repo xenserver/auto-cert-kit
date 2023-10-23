@@ -1,6 +1,6 @@
 <p><div class="content-wrapper"></p>  
 
-# XenServer 8 Stream Automated Certification Kit Guide
+# XenServer 8 Server Certification Kit Guide
 
 <br>
 
@@ -12,7 +12,7 @@ V8.3.4 Edition
 
 #### Table of Contents
 
-- [XenServer 8 Stream Automated Certification Kit Guide](#xenserver-8-stream-automated-certification-kit-guide)
+- [XenServer 8 Server Certification Kit Guide](#xenserver-8-server-certification-kit-guide)
       - [Table of Contents](#table-of-contents)
   - [Introduction](#introduction)
   - [Prerequisites](#prerequisites)
@@ -189,7 +189,7 @@ For the automated certification kit to run successfully, there are currently the
 
 ## Server Certification Kit Installation
 
-Once the above environment has been set up, please download the xenserver-server-cert-kit-xs8.iso supplemental pack as provided by XenServer, and copy the ISO onto the /root directory of the Dom0 filesystem residing on the pool coordinator host. Use the following command to install server certification kit into all hosts in the pool:
+The XenServer certification kit needs to be run with the latest version of the corresponding XenServer Release. Make sure that XenServer 8 has been updated to the latest version before testing. Once the above environment has been set up, please download the xenserver-server-cert-kit-xs8.iso supplemental pack as provided by XenServer, and copy the ISO onto the /root directory of the Dom0 filesystem residing on the pool coordinator host. Use the following command to install server certification kit into all hosts in the pool:
 
     xe update-upload file-name=”/root/xenserver-server-cert-kit-xs8.iso”   
 
