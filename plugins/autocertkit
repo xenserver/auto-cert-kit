@@ -92,6 +92,7 @@ DHCLIENT = "/sbin/dhclient"
 SSH = "/usr/bin/ssh"
 IPERF = "/usr/bin/iperf"
 LMBENCH = "/usr/bin/lmbench"
+TCPDUMP = "/usr/sbin/tcpdump"
 
 FOR_CLEANUP = "for_cleanup"
 
@@ -110,6 +111,7 @@ IPERF_RPM = "iperf-2.0.10-1.el7.x86_64.rpm"
 LMBENCH_RPM = "lmbench-3.0-0.a7.1.el7.rf.x86_64.rpm"
 IOZONE_RPM = "iozone-3.471-1.el7.x86_64.rpm"
 BONNIE_RPM = "bonnie++-1.96-1.el7.rf.x86_64.rpm"
+TCPDUMP_RPM = "tcpdump-4.9.3-3.el8.x86_64.rpm"
 
 OFFLOAD_CODES = {'udp-fragmentation-offload': 'ufo',
                  'scatter-gather': 'sg',
@@ -400,6 +402,101 @@ def run_ack_logrotate(session, args):
         log.debug(msg)
 
     return json_dumps(msg)
+
+
+############### TCPDUMP Setup #########################
+
+def install_tcpdump(session, vm_ref, ip, username, password):
+    """Install tcpdump rpm on a droid vm"""
+    call = ['/usr/bin/scp',
+            "-o", "StrictHostKeyChecking=no",
+            "/opt/xensource/packages/files/auto-cert-kit/%s" % TCPDUMP_RPM,
+            'root@%s:' % ip]
+    log.debug(call)
+    make_local_call(call)
+    cmd_str = "rpm -i /root/%s" % TCPDUMP_RPM
+    log.debug(cmd_str)
+    ssh_command(ip, username, password, cmd_str)["stdout"]
+
+@log_exceptions
+def deploy_tcpdump(session, args):
+    """Install tcpdump on a specified VM"""
+    log.debug("deploy tcpdump plugin call")
+    vm_ref = validate_exists(args, 'vm_ref')
+
+    if not session.xenapi.VM.get_is_control_domain(vm_ref):
+        mip = validate_exists(args, 'mip')
+        username = validate_exists(args, 'username')
+        password = validate_exists(args, 'password')
+        # Only setup tcpdump if not control domain
+        # - that already has tcpdump installed.
+        i = 0
+        limit = 10
+        while i < limit:
+            try:
+                install_tcpdump(session, vm_ref, mip, username, password)
+                break
+            except:
+                log.debug(
+                    "Exception raised attempting to deploy tcpdump. Attempt %d" % i)
+                time.sleep(8)  # Sleep 8 seconds
+                i = i + 1  # Increment counter
+                if i == limit:
+                    raise PluginError("Plugin Error: Cannot deploy tcpdump")
+    else:
+        call = fr'''rpm -q tcpdump || rpm -i {INSTALL_DIR}/{TCPDUMP_RPM}'''
+        make_local_call(call, shell=True)
+
+    log.debug("tcpdump installation completed")
+    return json_dumps("OK")
+
+@log_exceptions
+def start_tcpdump_server(session, args):
+    """Start up tcpdump on the server. """
+
+    ip = validate_exists(args, 'ip')
+    iface = validate_exists(args, 'iface')
+
+    kill_processes('tcpdump')
+
+    # Check for tcpdump existence
+    if not process_running(TCPDUMP):
+        log.debug("tcpdump is not running - start process")
+
+        # Start tcpdump - need to ensure we don't block
+        call = "nohup /usr/sbin/tcpdump -s 128 -n -i %s src host %s -w tcpdump.pcap &" % (iface, ip)
+        log.debug("About to start tcpdump server (%s)" % call)
+        subprocess.Popen(call, shell=True)
+        log.debug("Call executed")
+
+    else:
+        raise Exception("ERR: did not kill all tcpdump processes")
+    
+    return json_dumps("OK")
+
+@log_exceptions
+def kill_tcpdump_server(session, args):
+    """ Kill tcpdump on the server. """
+    kill_processes('tcpdump')
+
+    # Check for tcpdump existence
+    if not process_running(TCPDUMP):
+        log.debug("Call executed")
+    else:
+        raise Exception("ERR: did not kill tcpdump process")
+    
+    return json_dumps("OK")
+    
+@log_exceptions
+def get_tcpdump_data(session, args):
+    """ Get tcpdump data, actually the lengths. """
+    call = "tcpdump -r tcpdump.pcap -n | grep -o 'length [0-9]*' | awk '{sum += $2} END {print sum}'"
+    tcpdump_res = make_local_call(call, shell=True)["stdout"].split('\n')
+    call = "rm -rf tcpdump.pcap"
+    make_local_call(call, shell=True)
+    log.debug(tcpdump_res)
+    return json_dumps(tcpdump_res)
+
 
 ############### IPERF Setup #########################
 
@@ -2055,6 +2152,10 @@ if __name__ == '__main__':
                            'deploy_lmbench': deploy_lmbench,
                            'deploy_iozone': deploy_iozone,
                            'deploy_bonnie': deploy_bonnie,
+                           'deploy_tcpdump': deploy_tcpdump,
+                           'start_tcpdump_server': start_tcpdump_server,
+                           'kill_tcpdump_server': kill_tcpdump_server,
+                           'get_tcpdump_data': get_tcpdump_data,
                            'get_network_backend': get_network_backend,
                            'set_network_backend_pool': set_network_backend_pool,
                            'set_network_backend': set_network_backend,

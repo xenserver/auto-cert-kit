@@ -6,6 +6,7 @@ dnf update -y
 dnf install perl -y
 dnf --enablerepo=powertools install perl-List-MoreUtils -y
 dnf --enablerepo=powertools install perl-Readonly -y
+dnf install tcpdump -y
 
 # setup firewall port for 4/tcp/udp and 5001/tcp/udp
 firewall-cmd --zone=public --add-port=4/tcp --permanent

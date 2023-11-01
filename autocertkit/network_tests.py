@@ -115,7 +115,7 @@ class IperfTest:
         self.stats_rec = {self.client: self.get_iface_stats(self.client),
                           self.server: self.get_iface_stats(self.server)}
 
-    def validate_stats(self, bytes_sent):
+    def validate_stats(self, bytes_sent, bytes_tcpdump):
         # Load previous
         client_stats = self.stats_rec[self.client]
         server_stats = self.stats_rec[self.server]
@@ -130,9 +130,9 @@ class IperfTest:
         itsv_srv = IperfTestStatsValidator(server_stats, server_now_stats)
 
         log.debug("Validate Client tx_bytes")
-        itsv_cli.validate_bytes(bytes_sent, 'tx_bytes')
+        itsv_cli.validate_bytes(bytes_sent, bytes_tcpdump, 'tx_bytes')
         log.debug("Validate Server rx_bytes")
-        itsv_srv.validate_bytes(bytes_sent, 'rx_bytes')
+        itsv_srv.validate_bytes(bytes_sent, bytes_tcpdump, 'rx_bytes')
 
     def configure_routes(self):
         """Ensure that the routing table is setup correctly in the client"""
@@ -191,6 +191,8 @@ class IperfTest:
 
         self.run_iperf_server()
         log.debug("IPerf deployed and server started")
+        
+        self.deploy_tcpdump()
 
         attempt_count = 0
         fail_data = {}
@@ -206,15 +208,25 @@ class IperfTest:
                                                   self.timeout,
                                                   'iPerf test timed out %d' % self.timeout)
 
+                # Run tcpdump on the server
+                self.run_tcpdump_server()
+                
                 # Run the iperf tests
                 iperf_data = iperf_test_inst()
 
                 # Wait for seconds to let all packs reach iperf server
                 time.sleep(3)
+                
+                # Stop tcpdump
+                self.stop_tcpdump_server()
+                
+                # Get traffic volume from tcpdump
+                bytes_tcpdump = self.parse_tcpdump_data()
+                log.debug("bytes_tcpdump: %d" % bytes_tcpdump)
 
                 # Capture interface statistcs post test run
                 bytes_transferred = int(iperf_data['transfer'])
-                self.validate_stats(bytes_transferred)
+                self.validate_stats(bytes_transferred, bytes_tcpdump)
             except Exception as e:
                 traceb = traceback.format_exc()
                 log.warning(traceb)
@@ -243,7 +255,94 @@ class IperfTest:
 
         deploy(self.client)
         deploy(self.server)
+    
+    def deploy_tcpdump(self):
+        """deploy tcpdump on both client and server"""
+        def deploy(vm_ref):
+            host = None
+            if self.session.xenapi.VM.get_is_control_domain(vm_ref):
+                host = self.session.xenapi.VM.get_resident_on(vm_ref)
 
+            call_ack_plugin(self.session, 'deploy_tcpdump',
+                            {'vm_ref': vm_ref,
+                             'mip': self.vm_info[vm_ref]['ip_m'],
+                             'username': self.username,
+                             'password': self.password},
+                            host)
+
+        deploy(self.server)
+        
+    def run_tcpdump_server(self):
+        self.stop_tcpdump_server()
+        log.debug("Starting tcpdump on server")
+        if self.session.xenapi.VM.get_is_control_domain(self.server):
+            host_ref = self.session.xenapi.VM.get_resident_on(self.server)
+            log.debug("Host ref = %s" % host_ref)
+            args = {'ip': self.vm_info[self.client]['ip_t'], 'iface': self.vm_info[self.server]['iface_t']}
+            call_ack_plugin(self.session,
+                            'start_tcpdump_server',
+                            args,
+                            host=host_ref)
+        else:
+            mip = self.vm_info[self.server]['ip_m']
+            iface = self.vm_info[self.server]['iface_t']
+            test_ip = self.vm_info[self.client]['ip_t']
+
+            cmd_str = "nohup tcpdump -s 128 -n -i %s src host %s -w tcpdump.pcap &" \
+                      % (iface, test_ip)
+            ssh_command(mip, self.username, self.password, cmd_str)
+
+    def stop_tcpdump_server(self):
+        log.debug("Kill tcpdump on server")
+        if self.session.xenapi.VM.get_is_control_domain(self.server):
+            host_ref = self.session.xenapi.VM.get_resident_on(self.server)
+            log.debug("Host ref = %s" % host_ref)
+            call_ack_plugin(self.session,
+                            'kill_tcpdump_server',
+                            {},
+                            host=host_ref)
+        else:           
+            mip = self.vm_info[self.server]['ip_m']
+            cmd_str = "pgrep tcpdump"
+            pid_list = ssh_command(mip, self.username, self.password, cmd_str)["stdout"].split('\n')
+            pattern = "\d+"
+            regex = re.compile(pattern)
+
+            for process in pid_list:
+                if regex.match(process):
+                    cmd_str = "kill -9 %s" % process
+                    ssh_command(mip, self.username, self.password, cmd_str)
+
+    def parse_tcpdump_data(self):
+        log.debug("Parse tcpdump data")
+        tcpdump_res = []
+        if self.session.xenapi.VM.get_is_control_domain(self.server):
+            host_ref = self.session.xenapi.VM.get_resident_on(self.server)
+            log.debug("Host ref = %s" % host_ref)
+            tcpdump_res = call_ack_plugin(self.session,
+                            'get_tcpdump_data',
+                            {},
+                            host=host_ref)
+        else:           
+            mip = self.vm_info[self.server]['ip_m']
+            cmd_str = "tcpdump -r tcpdump.pcap -n | grep -o 'length [0-9]*' | awk '{sum += $2} END {print sum}'"
+            
+            # The format of tcpdump_res may contain lines like:
+            # reading from file tcpdump.pcap, link-type EN10MB (Ethernet)
+            # 12427
+            tcpdump_res = ssh_command(mip, self.username, self.password, cmd_str)["stdout"].split('\n')
+            # delete the tcpdump file
+            cmd_str = "rm -rf tcpdump.pcap"
+            ssh_command(mip, self.username, self.password, cmd_str)
+            
+        log.debug(tcpdump_res)
+        # if tcpdump fails, it would not affect the test. Just let the test continue.
+        if (tcpdump_res) and (tcpdump_res[-1].isdigit()):
+            return int(tcpdump_res[-1])
+        else:
+            log.debug("Parse tcpdump data failed!")
+            return 0
+    
     def get_iface_stats(self, vm_ref):
         # Make plugin call to get statistics
         return get_iface_statistics(self.session, vm_ref, self.vm_info[vm_ref]['ip_m'], self.vm_info[vm_ref]['iface_t'])

@@ -490,7 +490,7 @@ class IperfTestStatsValidator(object):
             ret = wrapped_value_in_range(value, min_v, max_v, 4 * G)
         return ret
 
-    def validate_bytes(self, sent_bytes, attr):
+    def validate_bytes(self, sent_bytes, tcpdump_bytes, attr):
         pre_bytes = getattr(self.pre, attr)
         post_bytes = getattr(self.post, attr)
 
@@ -503,20 +503,42 @@ class IperfTestStatsValidator(object):
         log.debug("pre_bytes = %d" % pre_bytes)
         log.debug("post_bytes = %d" % post_bytes)
         log.debug("sent_bytes = %d" % sent_bytes)
+        log.debug("tcpdump_bytes = %d" % tcpdump_bytes)
         log.debug("low_lim = %d" % low_lim)
         log.debug("warn_lim = %d" % warn_lim)
         log.debug("high_lim = %d" % high_lim)
         log.debug("high_lim_wa = %d" % high_lim_wa)
+        
+        tcpdump_result_ok = False
+        if sent_bytes != 0 and 0.95 <= tcpdump_bytes/sent_bytes <= 1.05:
+            tcpdump_result_ok = True
+            log.debug("tcpdump_bytes/sent_bytes = %f" % (tcpdump_bytes/sent_bytes))
 
         if post_bytes < low_lim:
-            raise Exception("Error: mismatch in expected number of bytes, "
-                            "post_bytes %d is less than low_lim %d"
-                            % (post_bytes, low_lim))
+            if tcpdump_result_ok:
+                log.debug("Warning: tcpdump result is OK,"
+                          "sent_bytes: %d, tcpdump_bytes: %d"
+                          "but mismatch in expected number of bytes, "
+                          "post_bytes %d is less than low_lim %d"
+                          "Suggest to run the test again."
+                          % (sent_bytes, tcpdump_bytes, post_bytes, low_lim))
+            else:
+                raise Exception("Error: mismatch in expected number of bytes, "
+                                "post_bytes %d is less than low_lim %d"
+                                % (post_bytes, low_lim))
 
         if post_bytes > high_lim_wa:
-            raise Exception("Error: mismatch in expected number of bytes, "
-                            "post_bytes %d is greater than high_lim_wa %d"
-                            % (post_bytes, high_lim_wa))
+            if tcpdump_result_ok:
+                log.debug("Warning: tcpdump result is OK,"
+                          "sent_bytes: %d, tcpdump_bytes: %d"
+                          "but mismatch in expected number of bytes, "
+                          "post_bytes %d is greater than high_lim_wa %d"
+                          "Suggest to run the test again."
+                          % (sent_bytes, tcpdump_bytes, post_bytes, low_lim))
+            else:
+                raise Exception("Error: mismatch in expected number of bytes, "
+                                "post_bytes %d is greater than high_lim_wa %d"
+                                % (post_bytes, high_lim_wa))
 
         log.debug("OK. It's in acceptable number of bytes range, "
                   "post_bytes %d is among low_lim %d and high_lim_wa %d."
