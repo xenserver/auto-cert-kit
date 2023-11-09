@@ -406,18 +406,6 @@ def run_ack_logrotate(session, args):
 
 ############### TCPDUMP Setup #########################
 
-def install_tcpdump(session, vm_ref, ip, username, password):
-    """Install tcpdump rpm on a droid vm"""
-    call = ['/usr/bin/scp',
-            "-o", "StrictHostKeyChecking=no",
-            "/opt/xensource/packages/files/auto-cert-kit/%s" % TCPDUMP_RPM,
-            'root@%s:' % ip]
-    log.debug(call)
-    make_local_call(call)
-    cmd_str = "rpm -i /root/%s" % TCPDUMP_RPM
-    log.debug(cmd_str)
-    ssh_command(ip, username, password, cmd_str)["stdout"]
-
 @log_exceptions
 def deploy_tcpdump(session, args):
     """Install tcpdump on a specified VM"""
@@ -434,7 +422,7 @@ def deploy_tcpdump(session, args):
         limit = 10
         while i < limit:
             try:
-                install_tcpdump(session, vm_ref, mip, username, password)
+                install_rpm(session, vm_ref, mip, username, password, TCPDUMP_RPM)
                 break
             except:
                 log.debug(
@@ -464,7 +452,7 @@ def start_tcpdump_server(session, args):
         log.debug("tcpdump is not running - start process")
 
         # Start tcpdump - need to ensure we don't block
-        call = "nohup /usr/sbin/tcpdump -s 128 -n -i %s src host %s -w tcpdump.pcap &" % (iface, ip)
+        call = "nohup %s -s 128 -n -i %s src host %s -w tcpdump.pcap &" % (TCPDUMP, iface, ip)
         log.debug("About to start tcpdump server (%s)" % call)
         subprocess.Popen(call, shell=True)
         log.debug("Call executed")
