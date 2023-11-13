@@ -432,7 +432,7 @@ def deploy_tcpdump(session, args):
                 if i == limit:
                     raise PluginError("Plugin Error: Cannot deploy tcpdump")
     else:
-        call = fr'''rpm -q tcpdump || rpm -i {INSTALL_DIR}/{TCPDUMP_RPM}'''
+        call = fr'''rpm -q tcpdump || rpm -U {INSTALL_DIR}/{TCPDUMP_RPM}'''
         make_local_call(call, shell=True)
 
     log.debug("tcpdump installation completed")
@@ -497,7 +497,7 @@ def install_iperf(session, vm_ref, ip, username, password):
             'root@%s:' % ip]
     log.debug(call)
     make_local_call(call)
-    cmd_str = "rpm -i /root/%s" % IPERF_RPM
+    cmd_str = "rpm -U /root/%s" % IPERF_RPM
     log.debug(cmd_str)
     ssh_command(ip, username, password, cmd_str)["stdout"]
 
@@ -525,7 +525,7 @@ def install_rpms(session, vm_ref, ip, username, password, rpms):
     for rpm in rpms:
         upload_file(session, vm_ref, ip, username, password, rpm)
     rpm_paths = ["/root/%s" % i for i in rpms]
-    cmd = "rpm -i %s --nosignature" % ' '.join(rpm_paths)
+    cmd = "rpm -U %s --nosignature" % ' '.join(rpm_paths)
     run_command(session, vm_ref, ip, username, password, cmd)
 
 
@@ -588,7 +588,7 @@ def deploy_iperf(session, args):
                 if i == limit:
                     raise PluginError("Plugin Error: Cannot deploy Iperf")
     else:
-        call = fr'''rpm -q iperf || rpm -i {INSTALL_DIR}/{IPERF_RPM}'''
+        call = fr'''rpm -q iperf || rpm -U {INSTALL_DIR}/{IPERF_RPM}'''
         make_local_call(call, shell=True)
 
     log.debug("iPerf installation completed")
