@@ -174,6 +174,69 @@ def update_xml_with_result(dom, class_node, results):
 
         recurse_add_records_to_node(method_node, result)
 
+def get_failed_cases(test_file):
+    tm_failed = []
+    devices = models.create_models(test_file)
+    for device in devices:
+        tm_failed += device.get_failed_test_methods()
+    return tm_failed
+
+def get_rerun_cases(test_file):
+    tm_rerun = []
+    devices = models.create_models(test_file)
+    for device in devices:
+        tm_rerun += device.get_rerun_test_methods()
+    return tm_rerun
+
+def set_rerun_status(failed_cases, test_file):
+    for case in failed_cases:
+        test_class = case[0]
+        test_method = case[1]
+        method_name = test_method.get_name()
+        
+        # Actually, the only purpose of the "start" status is to indicate the test
+        # has been rerun. (Function need_rerun() uses the status)
+        rerun_status = {'test_name': method_name, 'rerun_status': 'start'}
+        
+        # Set the test status to waiting(init)
+        # So that the test can be scheduled
+        waiting_status = {'test_name': method_name, 'status': 'init'}
+        test_result = {'test_name': method_name, 'result': 'NULL'}
+        test_class.update([rerun_status, waiting_status, test_result])
+        test_class.save(test_file)
+
+def rerun_failed_cases(session, test_file):
+    failed_cases = get_failed_cases(test_file)
+    if failed_cases:
+        names = [tm.get_name() for tm in failed_cases]
+        log.debug("About to run the methods below: %s " % names)
+        set_rerun_status(failed_cases, test_file)
+        # Reboot to run_tests_from_file
+        reboot_normally(session)
+    
+def set_rerun_result(test_file):
+    # During the test, there is reboot, 
+    # so all the data must be collected/saved from/to the test_file
+    rerun_cases = get_rerun_cases(test_file)
+    failed_cases = get_failed_cases(test_file)
+    passed_rerun_cases = list(set(rerun_cases) - set(failed_cases))
+    failed_rerun_cases = list(set(rerun_cases) & set(failed_cases))
+    for case in passed_rerun_cases:
+        test_class = case[0]
+        test_method = case[1]
+        method_name = test_method.get_name()
+        rerun_status = {'test_name': method_name, 'rerun_status': 'passed'}
+        test_class.update([rerun_status])
+        test_class.save(test_file)
+        
+    for case in failed_rerun_cases:
+        test_class = case[0]
+        test_method = case[1]
+        method_name = test_method.get_name()
+        rerun_status = {'test_name': method_name, 'rerun_status': 'failed'}
+        test_class.update([rerun_status])        
+        test_class.save(test_file)
+    
 
 @log_exceptions
 def run_tests_from_file(test_file):
@@ -194,8 +257,7 @@ def run_tests_from_file(test_file):
     log.debug("ACK Model, finished: %s" % ack_model.is_finished())
 
     while not ack_model.is_finished():
-        log.debug("Test Run Status: P %d, F %d, S %d, W %d, R %d" %
-                  (ack_model.get_status()))
+        log.debug("Test Run Status: %s" % ack_model.get_status())
 
         next_test_class, next_test_method = ack_model.get_next_test()
         if not next_test_method:
@@ -229,6 +291,7 @@ def run_tests_from_file(test_file):
             test_inst.unset_superior(result)
 
         # Update the python objects with results
+        log.debug("%s result: %s" % (method_name, results))
         next_test_class.update(results)
         # Save the updated test class back to the config file
         next_test_class.save(test_file)
@@ -236,6 +299,16 @@ def run_tests_from_file(test_file):
         if reboot:
             reboot_normally(session)
 
+    # CA-37474: Sometimes test cases failed due to bad network (e.g. cannot get the ip from DHCP server)
+    # It's a waste of time either for customers to rerun the test manually or for us to help them to triage.
+    # If we accept the rerun results by customers regardless, why not make this rerun automatically.
+    if ack_model.need_rerun():
+        log.debug("Test Run Status: %s" % ack_model.get_status())
+        rerun_failed_cases(session, test_file)
+    else:
+        # Rerun finished or no need to rerun
+        set_rerun_result(test_file)
+    
     log.debug("Logging out of xapi session %s" % session.handle)
     session.xenapi.session.local_logout()
 

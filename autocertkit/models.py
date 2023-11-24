@@ -166,6 +166,22 @@ class DeviceTestClassMethod(object):
     def is_running(self):
         """ This method is still running. """
         return self._match_key('status', 'running')
+    
+    def is_rerun_waiting(self):
+        """ This method is waiting to rerun. """
+        return self._match_key('rerun_status', 'init')
+    
+    def is_rerun_started(self):
+        """ This method is started to rerun. """
+        return self._match_key('rerun_status', 'start')
+    
+    def is_rerun_passed(self):
+        """ This method is passed by rerun. """
+        return self._match_key('rerun_status', 'passed')
+    
+    def is_rerun_failed(self):
+        """ This method is failed again. """
+        return self._match_key('rerun_status', 'failed')
 
     def is_done(self):
         """ This method has done. """
@@ -479,6 +495,26 @@ class Device(object):
             if not test_class.is_finished():
                 tcs_to_run.append(test_class)
         return tcs_to_run
+    
+    def get_failed_test_methods(self):
+        """Return a list of test methods which were failed."""
+        tm_failed = []
+        for test_class in self.test_classes:
+            for test_method in test_class.get_methods():
+                if test_method.has_failed():
+                    tm = (test_class, test_method)
+                    tm_failed.append(tm)
+        return tm_failed
+    
+    def get_rerun_test_methods(self):
+        """Return a list of test methods which have been rerun."""
+        tm_rerun = []
+        for test_class in self.test_classes:
+            for test_method in test_class.get_methods():
+                if test_method.is_rerun_started():
+                    tm = (test_class, test_method)
+                    tm_rerun.append(tm)
+        return tm_rerun
 
     def group_test_classes_by_status(self):
         """"Group test classes by status"""
@@ -521,8 +557,26 @@ class Device(object):
                          if tm.is_waiting()]
         tests_running = [tm for tm in self.get_test_methods()
                          if tm.is_running()]
+        tests_rerun_waiting = [tm for tm in self.get_test_methods()
+                         if tm.has_failed() and tm.is_rerun_waiting()]
+        tests_rerun_passed = [tm for tm in self.get_test_methods()
+                         if tm.is_rerun_passed()]
+        tests_rerun_failed = [tm for tm in self.get_test_methods()
+                         if tm.is_rerun_failed()]
+        tests_rerun_started = [tm for tm in self.get_test_methods()
+                         if tm.is_rerun_started()]
 
-        return len(tests_passed), len(tests_failed), len(tests_skipped), len(tests_waiting), len(tests_running)
+
+        return {'passed': len(tests_passed),
+                'failed': len(tests_failed),
+                'skipped': len(tests_skipped),
+                'waiting': len(tests_waiting),
+                'running': len(tests_running),
+                'rerun_waiting': len(tests_rerun_waiting),
+                'rerun_passed': len(tests_rerun_passed),
+                'rerun_failed': len(tests_rerun_failed),
+                'rerun_started': len(tests_rerun_started),
+                }
 
     def print_report(self, stream):
         """Write a report for the device specified"""
@@ -544,6 +598,10 @@ class Device(object):
                              if test_method.has_skipped()]
         tests_skipped_noreq = [test_method for test_method in self.get_test_methods(True)
                                if test_method.has_skipped()]
+        tests_rerun_passed = [test_method for test_method in self.get_test_methods()
+                        if test_method.is_rerun_passed()]
+        tests_rerun_failed_req = [test_method for test_method in self.get_test_methods(False)
+                            if test_method.is_rerun_failed()]
 
         if not self.has_passed():
             stream.write(
@@ -570,6 +628,12 @@ class Device(object):
                            "None required tests that failed:")
         self.print_results(stream, tests_skipped_req +
                            tests_skipped_noreq, "Tests that skipped:")
+        
+        # Rerun test results
+        if tests_rerun_passed:
+            self.print_results(stream, tests_rerun_passed, "Tests that passed by rerunning:")
+        if tests_rerun_failed_req:
+            self.print_results(stream, tests_rerun_failed_req, "Tests failed again in rerun:")
 
     def print_results(self, stream, res, header):
         if res:
@@ -613,19 +677,46 @@ class AutoCertKitRun(object):
         skipped = 0
         waiting = 0
         running = 0
+        rerun_waiting = 0
+        rerun_passed = 0
+        rerun_failed = 0
+        rerun_started = 0
         for device in self.devices:
-            p, f, s, w, r = device.get_status()
-            passed = passed + p
-            failed = failed + f
-            skipped = skipped + s
-            waiting = waiting + w
-            running = running + r
-        return passed, failed, skipped, waiting, running
+            status = device.get_status()
+            passed = passed + status['passed']
+            failed = failed + status['failed']
+            skipped = skipped + status['skipped']
+            waiting = waiting + status['waiting']
+            running = running + status['running']
+            rerun_waiting = rerun_waiting + status['rerun_waiting']
+            rerun_passed = rerun_passed + status['rerun_passed']
+            rerun_failed = rerun_failed + status['rerun_failed']
+            rerun_started = rerun_started + status['rerun_started']
+            
+        return {'passed': passed,
+                'failed': failed,
+                'skipped': skipped,
+                'waiting': waiting,
+                'running': running,
+                'rerun_waiting': rerun_waiting,
+                'rerun_passed': rerun_passed,
+                'rerun_failed': rerun_failed,
+                'rerun_started': rerun_started
+                }
 
+    def is_rerunning(self):
+        status = self.get_status()
+        return status['rerun_started']
+    
     def is_finished(self):
         """Return true if the test run has finished"""
-        _, _, _, w, r = self.get_status()
-        return not (w+r)
+        status = self.get_status()
+        return not (status['waiting'] + status['running'])
+    
+    def need_rerun(self):
+        """Return true if there are test failed and haven't done the rerun"""
+        status = self.get_status()
+        return status['rerun_waiting']
 
     def get_next_test_class(self, tc_info=None):
         """Return the next test class to run. This allows us

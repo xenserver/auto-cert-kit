@@ -212,9 +212,17 @@ class TestGenerator(object):
             status_node.appendChild(doc.createTextNode('done'))
         else:
             status_node.appendChild(doc.createTextNode('init'))
+            
+        rerun_node = doc.createElement('rerun_status')
+        if skipthis:
+            rerun_node.appendChild(doc.createTextNode('done'))
+        else:
+            rerun_node.appendChild(doc.createTextNode('init'))   
+             
         control_node = doc.createElement('control')
         method_node.appendChild(status_node)
         method_node.appendChild(control_node)
+        method_node.appendChild(rerun_node)
 
         class_node.appendChild(method_node)
 
