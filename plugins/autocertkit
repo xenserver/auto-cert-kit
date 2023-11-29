@@ -757,6 +757,8 @@ __pci_addr_regex = re.compile(
 
 def _is_bus_id(bus_id):
     """ Check given bus_id is format of bus id """
+    if bus_id is None:
+        return False
     return __bus_id_regex.match(bus_id[-7:])
 
 
