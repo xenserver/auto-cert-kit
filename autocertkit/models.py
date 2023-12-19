@@ -293,19 +293,16 @@ class DeviceTestClass(object):
 
     def group_test_method_by_status(self):
         """Group test method by status"""
-        done, waiting, running = ([], [], [])
+        running, waiting, failed = ([], [], [])
         for test_method in self.test_methods:
-            if test_method.is_done():
-                done.append(test_method)
-            elif test_method.is_waiting():
-                waiting.append(test_method)
-            elif test_method.is_running():
+            if test_method.is_running():
                 running.append(test_method)
-            else:
-                raise Exception(
-                    "Unknown status of test method %s", test_method.get_name())
-
-        return done, waiting, running
+            if test_method.is_waiting():
+                waiting.append(test_method)
+            if test_method.has_failed():
+                failed.append(test_method)
+                
+        return running, waiting, failed
 
     def update(self, results):
         """Take the output of a test run (list of records), and update the results
@@ -482,18 +479,17 @@ class Device(object):
 
     def group_test_classes_by_status(self):
         """"Group test classes by status"""
-        done, waiting, running = ([], [], [])
+        running, waiting, failed = ([], [], [])
         for test_class in self.test_classes:
-            ds, ws, rs = test_class.group_test_method_by_status()
-            if ds and not ws and not rs:
-                # class in dones means its all methods done
-                done.append(test_class)
-            if ws:
-                waiting.append(test_class)
-            if rs:
+            r, w, f = test_class.group_test_method_by_status()
+            if r:
                 running.append(test_class)
+            if w:
+                waiting.append(test_class)
+            if f:
+                failed.append(test_class)
 
-        return done, waiting, running
+        return running, waiting, failed
 
     def has_passed(self):
         """Return a bool as to whether the device
@@ -511,18 +507,30 @@ class Device(object):
         """Return number of tests that have passed, failed and are waiting to be
         executed"""
 
-        tests_passed = [tm for tm in self.get_test_methods()
-                        if tm.has_passed()]
-        tests_failed = [tm for tm in self.get_test_methods()
-                        if tm.has_failed()]
-        tests_skipped = [tm for tm in self.get_test_methods()
-                         if tm.has_skipped()]
-        tests_waiting = [tm for tm in self.get_test_methods()
-                         if tm.is_waiting()]
-        tests_running = [tm for tm in self.get_test_methods()
-                         if tm.is_running()]
+        tests_passed = 0
+        tests_failed = 0
+        tests_skipped = 0
+        tests_waiting = 0
+        tests_running = 0
+                
+        for tm in self.get_test_methods():
+            if tm.has_passed():
+                tests_passed += 1
+            if tm.has_failed():
+                tests_failed += 1
+            if tm.has_skipped():
+                tests_skipped += 1
+            if tm.is_waiting():
+                tests_waiting += 1
+            if tm.is_running():
+                tests_running += 1
 
-        return len(tests_passed), len(tests_failed), len(tests_skipped), len(tests_waiting), len(tests_running)
+        return {'passed': tests_passed,
+                'failed': tests_failed,
+                'skipped': tests_skipped,
+                'waiting': tests_waiting,
+                'running': tests_running
+                }
 
     def print_report(self, stream):
         """Write a report for the device specified"""
@@ -586,6 +594,7 @@ class AutoCertKitRun(object):
 
     def __init__(self, xml_file):
         dom = minidom.parse(xml_file)
+        self.xml_file = xml_file
 
         gcns = dom.getElementsByTagName('global_config')
         # We only expect one global_config xml_node
@@ -613,83 +622,104 @@ class AutoCertKitRun(object):
         skipped = 0
         waiting = 0
         running = 0
-        for device in self.devices:
-            p, f, s, w, r = device.get_status()
-            passed = passed + p
-            failed = failed + f
-            skipped = skipped + s
-            waiting = waiting + w
-            running = running + r
-        return passed, failed, skipped, waiting, running
 
+        for device in self.devices:
+            status = device.get_status()
+            passed = passed + status['passed']
+            failed = failed + status['failed']
+            skipped = skipped + status['skipped']
+            waiting = waiting + status['waiting']
+            running = running + status['running']
+            
+        return {'passed': passed,
+                'failed': failed,
+                'skipped': skipped,
+                'waiting': waiting,
+                'running': running
+                }
+    
     def is_finished(self):
         """Return true if the test run has finished"""
-        _, _, _, w, r = self.get_status()
-        return not (w+r)
+        if self.get_rerun_times():
+            return False
+        
+        status = self.get_status()
+        return not (status['waiting'] + status['running'])
+    
+    def update_rerun_times(self, rerun_times):    
+        """Update rerun times both to xml file and to self.config"""
+        if "rerun" in self.config:
+            self.config["rerun"] = str(rerun_times)
+        
+        dom = minidom.parse(self.xml_file)
+        gcns = dom.getElementsByTagName('global_config')
+        if not gcns:
+            log.debug("global_config not found.")
+            return
+        if (gcns[0].hasAttribute("rerun")):
+            gcns[0].setAttribute("rerun", str(rerun_times))
+            log.debug("Set rerun times to %d", rerun_times)
+        with open(self.xml_file, 'w') as fh:
+            fh.write(dom.toxml())
 
-    def get_next_test_class(self, tc_info=None):
-        """Return the next test class to run. This allows us
-        to have some basic scheduling logic to group together
-        tests that, for instance, use the same network backend
-        so as to reduce the number of reboots required."""
+    
+    def get_rerun_times(self):
+        """Return the remain re-try times for rerunning failed cases automatically"""
+        return int(get_value(self.config, 'rerun'))
 
-        tcs_to_run = []
-
-        # Iterate through devices
-        for device in self.devices:
-            if tc_info and 'device' in tc_info and device.udid != tc_info['device']:
-                continue
-            # Get the test class still to run
-            tcs = device.get_test_classes_to_run()
-            self.get_next_test_classes(tcs_to_run, tcs, tc_info)
-
-        if not tcs_to_run:
-            if tc_info:
-                raise Exception(
-                    "REBOOT_FLAG is set but cannot find matching test case.")
-            return None
-
-        # Sort the list according the the integer priorities
-        # that each test class has been given.
-        # 'Reverse' specified, inorder to '.pop()'.
-
-        tcs_to_run.sort(key=operator.itemgetter(1), reverse=True)
-
-        # Return the test class at the top of the list
-        return tcs_to_run.pop()[0]
-
-    def get_next_test_classes(self, tcs_to_run, tcs, tc_info):
-        for tc in tcs:
-            if tc_info and 'test_class' in tc_info and tc_info['test_class'] not in tc.get_name():
-                continue
-            if tc_info and 'test_method' in tc_info and not tc.get_method_by_name(tc_info['test_method']):
-                continue
-
-            # Append a tuple - (test_class, order)
-            # Order index will be used below for sorting.
-            tcs_to_run.append((tc, tc.get_order()))
-
+    # CA-37474: Sometimes test cases failed due to bad network (e.g. cannot get the ip from DHCP server)
+    # It's a waste of time for us to triage.
+    # Given we accept the rerun results regardless, why not make this rerun automatically.
+    # Add rerun logic in get_next_test.
     def get_next_test(self):
         """Get the next test class and method to run"""
-        tcs_to_run = []
 
+        all_waiting_classes = []
+        all_failed_classes = []
+        
         for device in self.devices:
-            dones, waitings, runnings = device.group_test_classes_by_status()
+            runnings, waitings, fails = device.group_test_classes_by_status()
+            # Since there is only one running case at a time, return directly once found.
             if runnings:
                 test_class = runnings.pop()
-                _, _, running_methods = test_class.group_test_method_by_status()
+                running_methods, _, _ = test_class.group_test_method_by_status()
                 test_method = running_methods.pop()
                 return test_class, test_method
 
-            for tc in waitings:
-                tcs_to_run.append((tc, tc.get_order()))
-
-        tcs_to_run.sort(key=operator.itemgetter(1), reverse=True)
-
-        test_class = tcs_to_run.pop()[0]
-        _, waiting_methods, _ = test_class.group_test_method_by_status()
-        test_method = waiting_methods.pop()
-        return test_class, test_method
+            all_waiting_classes += waitings
+            all_failed_classes += fails
+            
+        if all_waiting_classes:
+            test_class = all_waiting_classes.pop()
+            _, waiting_methods, _ = test_class.group_test_method_by_status()
+            test_method = waiting_methods.pop()
+            return test_class, test_method
+        
+        # Rerun failed cases in the end after all the cases have been done.
+        rerun_times = self.get_rerun_times()
+        if rerun_times and all_failed_classes:
+            # update rerun times
+            if rerun_times > 0:
+                rerun_times = rerun_times - 1
+                self.update_rerun_times(rerun_times)
+            
+            # Change status from failed to waiting
+            for failed_class in all_failed_classes:
+                status = []
+                _, _, failed_methods = failed_class.group_test_method_by_status()
+                for failed_method in failed_methods:
+                    method_name = failed_method.get_name()
+                    log.debug("Going to rerun method: %s", method_name)
+                    status.append({'test_name': method_name, 'status': 'init', 'result': 'NULL'})
+                failed_class.update(status)
+                failed_class.save(self.xml_file)
+            
+            # Get a test to run         
+            test_class = all_failed_classes.pop()
+            # Note that the failed methods' status is waiting now
+            _, waiting_methods, _ = test_class.group_test_method_by_status()
+            test_method = waiting_methods.pop()
+            return test_class, test_method
 
 
 def create_models(xml_file):

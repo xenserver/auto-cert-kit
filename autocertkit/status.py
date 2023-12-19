@@ -91,7 +91,12 @@ def main():
         print("5:An error has occured reading. %s" % TEST_FILE)
         sys.exit(1)
 
-    p, f, s, w, r = ack_run.get_status()
+    status = ack_run.get_status()
+    p = status['passed']
+    f = status['failed']
+    s = status['skipped']
+    w = status['waiting']
+    r = status['running']
 
     if w+r == 0:
         print("0:Finished (Passed:%d, Failed:%d, Skipped:%d)" % (p, f, s))

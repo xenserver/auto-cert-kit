@@ -72,6 +72,12 @@ def parse_cmd_args():
                       const=True,
                       default=False,
                       help="Run in debug mode, exit on failure")
+    parser.add_option("-r", "--rerun",
+                      dest="rerun",
+                      action="store",
+                      type=int,
+                      default=0,
+                      help="Automatically rerun the failed cases with given re-try times")
     parser.add_option("-t", "--vlantag",
                       dest="vlan",
                       default="trunk",
@@ -114,6 +120,7 @@ def parse_cmd_args():
     config = {}
 
     config['debug'] = options.debug
+    config['rerun'] = options.rerun
 
     if options.vlan:
         config['vlan_id'] = options.vlan
