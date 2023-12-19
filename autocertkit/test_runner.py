@@ -194,8 +194,7 @@ def run_tests_from_file(test_file):
     log.debug("ACK Model, finished: %s" % ack_model.is_finished())
 
     while not ack_model.is_finished():
-        log.debug("Test Run Status: P %d, F %d, S %d, W %d, R %d" %
-                  (ack_model.get_status()))
+        log.debug("Test Run Status: %s" % ack_model.get_status())
 
         next_test_class, next_test_method = ack_model.get_next_test()
         if not next_test_method:
