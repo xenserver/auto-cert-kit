@@ -191,13 +191,13 @@ For the automated certification kit to run successfully, there are currently the
 
 The XenServer certification kit needs to be run with the latest version of the corresponding XenServer Release. Make sure that XenServer 8 has been updated to the latest version before testing. Once the above environment has been set up, please download the xenserver-server-cert-kit-xs8.iso supplemental pack as provided by XenServer, and copy the ISO onto the /root directory of the Dom0 filesystem residing on the pool coordinator host. Use the following command to install server certification kit into all hosts in the pool:
 
-    xe update-upload file-name=”/root/xenserver-server-cert-kit-xs8.iso”   
+    xe update-upload file-name=/root/xenserver-server-cert-kit-xs8.iso 
 
 The command returns the update UUID of server certification kit package on successful upload.
 
     xe update-apply uuid=<update uuid of server certification kit> --multiple  
 
-Upload "vpx-dlvm.xva” file to the server certification kit home folder on all hosts "/opt/xensource/packages/files/auto-cert-kit" .
+Upload "vpx-dlvm.xva” file to the server certification kit home folder on **all hosts** "/opt/xensource/packages/files/auto-cert-kit" .
 
 <br>
 
@@ -206,15 +206,15 @@ Upload "vpx-dlvm.xva” file to the server certification kit home folder on all 
 To run the certification tests, please run the following commands:
 
     cd /opt/xensource/packages/files/auto-cert-kit
-    python ack_cli.py [options]
+    ./ack_cli.py [options]
 
 Unless specified otherwise, the test kit will attempt to execute all of its tests (network, local storage, CPU and operational). For network adaptor certification, only the network tests are a requirement for certification, though it is advisable for the complete test kit to have been run.
 
 For any of the options the user is required to specify a network configuration (ini format) file on the command line:
 
-    python ack_cli.py -n network.conf
+    ./ack_cli.py -n network.conf
 
-There is an example file located in the server certification kit's root directory (networkconf.example). The purpose of this file is to show all available configuration items for both network interfaces and static IP addressing.
+There is an example file located in the server certification kit's root directory (networkconf.example). The purpose of this file is to show all available configuration items for both network interfaces and static IP addressing. You can refer to [Setting up the network configuration](#setting-up-the-network-configuration) to learn how to construct network.conf file.
 
 Once executed, the server certification kit will then generate and execute a list of tests for each device on the pool coordinator host that should be certified.
 
@@ -253,7 +253,7 @@ As the example diagram shown above, the L2 switch is configured to allow VLAN 20
     vf_driver_name = ixgbevf
     vf_driver_pkg = kmod-ixgbevf-2.16.1-1.el7.elrepo.x86_64.rpm
     [eth1]
-    etwork_id = 0
+    network_id = 0
     vlan_ids = 200
     vf_driver_name = ixgbevf
     vf_driver_pkg = kmod-ixgbevf-2.16.1-1.el7.elrepo.x86_64.rpm
@@ -597,7 +597,7 @@ We provide the following two methods to customize your re-run:
 
 Run a specific category of tests. Your tests are categorized into several groups. You can select to run just one of these groups with an additional argument “–m <TAG\>”. Please refer to the following table for relevant tags.
 
-    python ack_cli.py -n network.conf –m <Tag>
+    ./ack_cli.py -n network.conf –m <Tag>
 
 <table border="1" width="600">  
     <thead bgcolor="#E0E0E0">
@@ -639,19 +639,19 @@ Examples:
 1.Run only Crash Dump test class
 
 ```
-   # python ack_cli.py -n network.conf –o \
+   # ./ack_cli.py -n network.conf -o \
    "run_classes=operations_tests.CrashDumpTestClass"  
 ```
 2.Run only Multicast test class
 
 ```
-   # python ack_cli.py -n network.conf –o \
+   # ./ack_cli.py -n network.conf -o \
    "run_classes=network_tests.MulticastTestClass" 
 ```
 3.Run only all SR-IOV test classes
 
 ```
-   # python ack_cli.py -n network.conf -o \
+   # ./ack_cli.py -n network.conf -o \
    "run_classes=network_tests.InterHostSRIOVTestClass \
    network_tests.IntraHostSRIOVTestClass1 \
    network_tests.IntraHostSRIOVTestClass2"
@@ -659,7 +659,7 @@ Examples:
 4.Run any test classes you want like below showing
 
 ```
-   # python ack_cli.py -n network.conf -o \
+   # ./ack_cli.py -n network.conf -o \
    "run_classes=network_tests.MulticastTestClass \
    network_tests.IntraHostSRIOVTestClass2 \
    operations_tests.CrashDumpTestClass"
