@@ -1,34 +1,36 @@
 <p><div class="content-wrapper"></p>  
 
-# XenServer 8 Server Certification Kit Guide
+# XenServer 8 Server Certification Kit Guide <!-- omit in toc -->
 
 <br>
 
 
-Published Oct 2023  
-V8.3.4 Edition
+Published Mar 2024  
+V8.4.0 Edition
 
 <br>
 
 #### Table of Contents
 
-- [XenServer 8 Server Certification Kit Guide](#xenserver-8-server-certification-kit-guide)
-      - [Table of Contents](#table-of-contents)
-  - [Introduction](#introduction)
-  - [Prerequisites](#prerequisites)
-  - [XenServer Installation](#xenserver-installation)
-  - [Server Certification Kit Installation](#server-certification-kit-installation)
-  - [Server Certification Kit Operation](#server-certification-kit-operation)
+- [Introduction](#introduction)
+- [Prerequisites](#prerequisites)
+- [XenServer Installation](#xenserver-installation)
+- [Server Certification Kit Installation](#server-certification-kit-installation)
+- [Server Certification Kit Operation](#server-certification-kit-operation)
     - [Setting up the network configuration](#setting-up-the-network-configuration)
     - [Management Network](#management-network)
     - [Configuring the kit to use static IP addresses](#configuring-the-kit-to-use-static-ip-addresses)
-  - [Querying the status of the test run](#querying-the-status-of-the-test-run)
-  - [Test Results and Logs](#test-results-and-logs)
-  - [Submitting results and logs](#submitting-results-and-logs)
-  - [Current Known Limitations](#current-known-limitations)
-  - [Bug Reports and Feedback](#bug-reports-and-feedback)
-  - [Troubleshoot](#troubleshoot)
-    - [Notice and Disclaimer](#notice-and-disclaimer)
+    - [Querying the status of the test run](#querying-the-status-of-the-test-run)
+- [Test Results and Logs](#test-results-and-logs)
+- [Submitting results and logs](#submitting-results-and-logs)
+- [Current Known Limitations](#current-known-limitations)
+- [Bug Reports and Feedback](#bug-reports-and-feedback)
+- [Troubleshoot](#troubleshoot)
+    - [My VLAN test network\_tests.VLANTestClass.test\_vlan\_high\_port failed.](#my-vlan-test-network_testsvlantestclasstest_vlan_high_port-failed)
+    - [My MTU test network\_tests.MTUPingTestClass.test\_ping fails.](#my-mtu-test-network_testsmtupingtestclasstest_ping-fails)
+    - [My Multicast test network\_tests.MulticastTestClass fails.](#my-multicast-test-network_testsmulticasttestclass-fails)
+    - [My SR-IOV test network\_tests.InterHostSRIOVTestClass,   IntraHostSRIOVTestClass1, or IntraHostSRIOVTestClass2 fails?](#my-sr-iov-test-network_testsinterhostsriovtestclass---intrahostsriovtestclass1-or-intrahostsriovtestclass2-fails)
+    - [Few tests have failed. I don’t want to run the full kit all over again. Is there a way to run just these failed tests?](#few-tests-have-failed-i-dont-want-to-run-the-full-kit-all-over-again-is-there-a-way-to-run-just-these-failed-tests)
 
 <br>
 <br>
@@ -44,7 +46,7 @@ Whilst we do our best to ensure the kit is bug free, we are still working on imp
 
 A number of vendors have expressed interested in integrating this kit into their own test systems – as much as possible we have designed to kit to be easy to integrate. If you feel there could be modifications made to the kit that would improve its usefulness for you – then please let us know.
 
-If you are interested in contributing improvements to the kit, then please take a look at the project on GitHub:[https://github.com/xenserver/auto-cert-kit](https://github.com/xenserver/auto-cert-kit)
+If you are interested in contributing improvements to the kit, then please take a look at the project on GitHub: [https://github.com/xenserver/auto-cert-kit](https://github.com/xenserver/auto-cert-kit)
 
 > **Note**:  
 >
@@ -79,38 +81,37 @@ If you would like to join two hosts that are not identical, or of which CPUs can
 
 Then need to create a VM template, which will be used in the test for generating test VM (we call it Droid VM), below is an example for setting up a VM template for Droid VM with XenCenter. (You should already have a Windows Desktop/VM which is running XenCenter on it.)  
 
-1.	To create a VM template, you should create a VM with using e.g. Rocky 8.6 or 8 latest first as below steps.  
+1.To create a VM template, you should create a VM with using e.g. Rocky 8.6 or 8 latest first as below steps.  
 
-&emsp;&emsp;&emsp;1.Download Rocky 8.x ISO from official web site URL e.g. <a href=https://download.rockylinux.org/pub/rocky/8/isos/x86_64/Rocky-x86_64-minimal.iso>Rocky-x86_64-minimal.iso</a> and put it onto the same machine of running XenCenter.  
+&emsp;&emsp;&emsp;(1) Download Rocky 8.x ISO from official web site URL e.g. <a href=https://download.rockylinux.org/pub/rocky/8/isos/x86_64/Rocky-x86_64-minimal.iso>Rocky-x86_64-minimal.iso</a> and put it onto the same machine of running XenCenter.  
 
-&emsp;&emsp;&emsp;2.On the same machine which is running XenCenter, create a share folder and put above Rocky 8 iso file in it, here as example I will save above iso file in "c:\iso" folder on the windows VM, then share this folder and add “everyone” read access.  (Please make sure that your XenServer has network access to this VM which is hosting the shared storage.)  
+&emsp;&emsp;&emsp;(2) On the same machine which is running XenCenter, create a share folder and put above Rocky 8 iso file in it, here as example I will save above iso file in "c:\iso" folder on the windows VM, then share this folder and add “everyone” read access.  (Please make sure that your XenServer has network access to this VM which is hosting the shared storage.)  
 
 &emsp;&emsp;&emsp;<img src=ack_img/ack13.png>  
 
-&emsp;&emsp;&emsp;3.Create new SR with above share folder on XenCenter, open XenCenter and add your host, right click your host then click **New SR.**  
+&emsp;&emsp;&emsp;(3) Create new SR with above share folder on XenCenter, open XenCenter and add your host, right click your host then click **New SR.**  
 
 &emsp;&emsp;&emsp;<img src=ack_img/ack01.png>  
 
--	Select **Windows File Sharing.**  
+&emsp;&emsp;&emsp;(4) Select **Windows File Sharing.**  
 
 &emsp;&emsp;&emsp;<img src=ack_img/ack02.png>  
 
--	Click Next and input the name, then click **Next.**  
+&emsp;&emsp;&emsp;(5) Click Next and input the name, then click **Next.**  
 &emsp;&emsp;&emsp;<img src=ack_img/ack03.png>  
 
--	Input the sharing path, username and password, then click **Finish.**  
+&emsp;&emsp;&emsp;(6) Input the sharing path, username and password, then click **Finish.**  
 
-> Note:  
-> 
+> **Note:**  
 > In share name should fill in <ins><font style="color: blue">“\\\FQDN of SMB server\share folder”</font></ins> or <ins><font style="color: blue">“\\\IP Address of SMB server\share folder”</font></ins>,  SMB server is the VM on which you created the share folder in step 1.2, here as example, in step 1.2 I have created a share folder on  windows VM(it’s IP 10.70.40.71) in “c:\iso”, this windows VM is the SMB server and share folder is ‘iso’, so in share name I fill in <ins><font style="color: blue">“\\\10.70.40.71\iso”</font></ins>. Please refer to below screenshot. 
 
 
 &emsp;&emsp;&emsp;<img src=ack_img/ack04.png>  
 
--	Now you can create new VM in XenCenter, select **Rocky Linux 8.**  
+&emsp;&emsp;&emsp;(7) Now you can create new VM in XenCenter, select **Rocky Linux 8.**  
 &emsp;&emsp;&emsp;<img src=ack_img/ack05.png>  
 
--	After you created the new SR, you can select the iso file, which you save in the sharing folder.  
+&emsp;&emsp;&emsp;(8) After you created the new SR, you can select the iso file, which you save in the sharing folder.  
 &emsp;&emsp;&emsp;<img src=ack_img/ack06.png>  
 
 -	**Memory** = 4GB and **Storage** = 10GB is recommended.  
@@ -119,11 +120,11 @@ Then need to create a VM template, which will be used in the test for generating
 2.After Rocky 8 Linux installed successful, please Install latest XenServer-LinuxGuestTools first.  
 
 - Download: <a href="https://www.xenserver.com/downloads">XenServer downloads page.</a>
--	Install: <a href="https://docs.xenserver.com/en-us/citrix-hypervisor/vms/linux.html#install-citrix-vm-tools-for-linux">Install XenServer VM Tools for Linux.</a>  
+- Install: <a href="https://docs.xenserver.com/en-us/citrix-hypervisor/vms/linux.html#install-citrix-vm-tools-for-linux">Install XenServer VM Tools for Linux.</a>  
 
 3.You can get scripts from Server Certification Kit ISO file, which can be used for setting up VM, please refer below example for getting and using those scripts.  
-&emsp;&emsp;&emsp;1.Download Server Certification Kit ISO file from HCL website and put it on Rocky 8 Linux VM in /root.   
-&emsp;&emsp;&emsp;2.Mount Server Certification Kit ISO, copy  **xenserver-auto-cert-kit-<version>.el7.noarch.rpm** from IOS/ Packages folder to local disk, please refer below example.  
+&emsp;&emsp;&emsp;(1) Download Server Certification Kit ISO file from HCL website and put it on Rocky 8 Linux VM in /root.   
+&emsp;&emsp;&emsp;(2) Mount Server Certification Kit ISO, copy  **xenserver-auto-cert-kit-<version>.el7.noarch.rpm** from IOS/ Packages folder to local disk, please refer below example.  
 
 ```
 # mkdir /mnt/iso
@@ -133,36 +134,37 @@ Here as example, I used Server Certification Kit ISO version 1.3.13, so if you u
 &emsp;&emsp;&emsp;<img src=ack_img/ack14.png>  
 
 ```
-# cp /mnt/iso/Packages/xenserver-auto-cert-kit-1.3.13-1.el7.noarch.rpm /root
+    # cp /mnt/iso/Packages/xenserver-auto-cert-kit-1.3.13-1.el7.noarch.rpm /root
 ```  
-&emsp;&emsp;&emsp;3.Unpack this rpm file. Then can find VM setup scripts in “/root/opt/xensource/packages/files/auto-cert-kit/setup-scripts/”  
+&emsp;&emsp;&emsp;(3) Unpack this rpm file. Then can find VM setup scripts in “/root/opt/xensource/packages/files/auto-cert-kit/setup-scripts/”  
 ```
-# rpm2cpio xenserver-auto-cert-kit-1.3.13-1.el7.noarch.rpm | cpio -ivd
+    # rpm2cpio xenserver-auto-cert-kit-1.3.13-1.el7.noarch.rpm | cpio -ivd
 ```  
 
-&emsp;&emsp;&emsp;4. In setup-scripts folder you can find three files as below screenshot shows.
+&emsp;&emsp;&emsp;(4) In setup-scripts folder you can find three files as below screenshot shows.
 &emsp;&emsp;&emsp;<img src=ack_img/ack15.png>  
 
  
-&emsp;&emsp;&emsp;5.Then create folder “/root/setup-scripts” and copy all above three files to this folder.  
+&emsp;&emsp;&emsp;(5) Then create folder “/root/setup-scripts” and copy all above three files to this folder.  
 ```
-# mkdir /root/setup-scripts
-# cp ./opt/xensource/packages/files/auto-cert-kit/setup-scripts/*.* ./setup-scripts/
+    # mkdir /root/setup-scripts
+    # cp ./opt/xensource/packages/files/auto-cert-kit/setup-scripts/*.* ./setup-scripts/
 ```  
 &emsp;&emsp;&emsp;<img src=ack_img/ack16.png>  
 
-&emsp;&emsp;&emsp;6.Then can run commands as below to setup VM.  
+&emsp;&emsp;&emsp;(6) Then can run commands as below to setup VM.  
 ```
-• cd /root/setup-scripts/
-• sh init-run.sh
-• reboot
+    # cd /root/setup-scripts/
+    # sh init-run.sh
+    # reboot
 ```  
-&emsp;&emsp;&emsp;7.After VM rebooting, service status and firewall rule should be as below..   
+&emsp;&emsp;&emsp;(7) After VM rebooting, service status and firewall rule should be as below..   
 &emsp;&emsp;&emsp;<img src=ack_img/ack17.png>  
-**Note:** Scripts works on Rocky 8.6, but you may encounter dependency problems on the newer Rocky 8 version, if you encounter problem as below screenshot.  
+>**Note:**  
+>Scripts works on Rocky 8.6, but you may encounter dependency problems on the newer Rocky 8 version, if you encounter problem as below screenshot.  
 &emsp;&emsp;&emsp;<img src=ack_img/ack18.png>  
 
-We can see that can’t find command “semanage”, so need to install “semanage” by manual as below steps.  
+&emsp;&emsp;&emsp;(8) We can see that can’t find command “semanage”, so need to install “semanage” by manual as below steps.  
 
 - How to install necessary packages for getting semanage command using the yum command  
 ```
@@ -173,6 +175,11 @@ We can see that can’t find command “semanage”, so need to install “seman
 # yum install policycoreutils-python-utils
 ```  
 - Now “semanage” command can be used, you can re-run “init-run.sh” and verify the result.
+
+&emsp;&emsp;&emsp;(9) Extend pm_freeze_timeout for VM
+```
+# echo 300000 > /sys/power/pm_freeze_timeout
+```
 
 4.When above steps done, need to export this VM as “.xva" file.  
 
@@ -222,7 +229,7 @@ You can also run the kit in debug mode, with the argument -d. This will cause th
 
 <br>
 
-## Setting up the network configuration
+#### Setting up the network configuration
 
 If DHCP is available, we would suggest that you configure the test kit to rely on DHCP to hand out IP addresses to test VMs used by the kit. This then requires that you describe in the network configuration (config) file, which interfaces you wish to test, and which L2 networks and VLANs are associated with each. If the interface with SR-IOV feature is to be certified, you must specify the VF driver to be used.
 
@@ -351,7 +358,7 @@ vf_driver_pkg = kmod-ixgbevf-2.16.1-1.el7.elrepo.x86_64.rpm
 
 <br>
 
-## Management Network
+#### Management Network
 
 <br>
 
@@ -369,7 +376,7 @@ In each test, ‘eth1’ on the VM will correlate to the physical interface unde
 
 <br>
 
-## Configuring the kit to use static IP addresses
+#### Configuring the kit to use static IP addresses
 
 <br>
 
@@ -428,7 +435,7 @@ There is another section “static management” supplied, it can be used if int
 
 <br>
 
-## Querying the status of the test run
+#### Querying the status of the test run
 
 <br>
 
@@ -501,9 +508,9 @@ Xenserver is aware of the following limitations in the server certification kit 
 
 In order for us to collect your feedback on this kit, and improve it for subsequent releases, we would ask that you submit either certifications or bugs on our issue tracking system, ‘tracker’.
 
-1. Tracker can be found here - [https://tracker.citrix.com](https://tracker.citrix.com)
-2. If your company already has a project open on this system with XenServer, then please raise your issues here. If however, you do not have a specific project for your company, please raise your issues under the **XenServer Hardware Compatibility List (HCL)** project.
-3. You can create an issue by click **Create** on the top menu.
+1.Tracker can be found here - [https://tracker.citrix.com](https://tracker.citrix.com)
+2.If your company already has a project open on this system with XenServer, then please raise your issues here. If however, you do not have a specific project for your company, please raise your issues under the **XenServer Hardware Compatibility List (HCL)** project.
+3.You can create an issue by click **Create** on the top menu.
 
  &emsp;&emsp;&emsp;<img src=ack_img/ack12.png>
 
@@ -539,7 +546,7 @@ In order for us to collect your feedback on this kit, and improve it for subsequ
 
 <br>
 
-### Troubleshoot
+## Troubleshoot
 
 <br>
 This section is designed to capture some of the common issues faced by vendors running the certification kit. Our hope is that in time, we will be able to improve the kit to help users avoid the problems being faced, but most of the issues we see are linked to environmental factors. If you are encountering an issue with kit, please take a look at the following failures and their steps for resolution.
@@ -589,7 +596,7 @@ If you are not sure whether the driver is applicable, you can import Droid VM in
 
 <br>
 
-### Few tests have failed. I don’t want to run the full kit all over again. Is there a way to run just these failed tests?
+#### Few tests have failed. I don’t want to run the full kit all over again. Is there a way to run just these failed tests?
 
 We provide the following two methods to customize your re-run:
 
@@ -668,7 +675,7 @@ Examples:
 <br>
 
 
-## Notice and Disclaimer
+#### Notice and Disclaimer <!-- omit in toc -->
 
 <font size="2">The contents of this kit are subject to change without notice.  
 
