@@ -1947,11 +1947,11 @@ def config_arp(session, vms):
              'mode': get_context_arp_mode()})
 
 
-def shutdown_droid_vms(session, vms, async=True):
+def shutdown_droid_vms(session, vms, async_op=True):
     """Shutdown VMs"""
 
     log.debug("Shutdown required VMs")
-    if async:
+    if async_op:
         try:
             run_xapi_async_tasks(session,
                                  [lambda x=vm_ref: session.xenapi.Async.VM.shutdown(x)
@@ -1965,11 +1965,11 @@ def shutdown_droid_vms(session, vms, async=True):
             session.xenapi.VM.shutdown(i)
 
 
-def start_droid_vms(session, vms, async=True):
+def start_droid_vms(session, vms, async_op=True):
     """Start VMs"""
 
     log.debug("Starting required VMs")
-    if async:
+    if async_op:
         try:
             # Temporary setting time out to 3 mins to work around CA-146164.
             # The fix requires hotfixes, hence keeping this work-around.
