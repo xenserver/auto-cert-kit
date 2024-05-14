@@ -73,13 +73,15 @@ class SecureChannel:
         self.password = password
         self.timeout = timeout
 
+    # To match both XS8's "continue connecting (yes/no)?"
+    # and XS9's "continue connecting (yes/no/[fingerprint])?"
     def _wrap_cmd(self, cmd):
         escape_cmd = cmd.replace('$', '\$')
         return fr'''{EXPECT} << EOF
 set timeout {self.timeout}
 spawn {escape_cmd}
 expect {{
-    "continue connecting (yes/no)?" {{send "yes\n"; exp_continue}}
+    "continue connecting (yes/no" {{send "yes\n"; exp_continue}}
     "password:" {{send "{self.password}\n"; exp_continue}}
     eof {{catch wait result; exit [lindex \$result 3]}}
     timeout {{exit 250}}
