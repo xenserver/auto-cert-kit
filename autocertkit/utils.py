@@ -2394,7 +2394,7 @@ def check_test_thread_status(threads):
     """Util function to check if test threads are still active,
     returns True if any are active, else False"""
     for thread in threads:
-        if thread.isAlive():
+        if thread.is_alive():
             time.sleep(10)
             log.debug("Please be patient, the test is still running...")
             thread.join(20)
