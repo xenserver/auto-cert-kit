@@ -464,6 +464,14 @@ class VLANTestClass(testbase.NetworkTestClass):
     default_vlan = 800
     num_ips_required = 4
 
+    def extra_init(self):
+        # CA-398896: Skip vlan test from NetworkTest
+        # by removing the network base_tag 'NA'
+        if self.config['vlantest'] is False:
+            self.mask()
+
+        super(VLANTestClass, self).extra_init()
+
     def test_vlan_high_port(self, session):
         """This test creates two VMs, one on each host in the pool
         and attempts to send traffic through a VLAN network which is
