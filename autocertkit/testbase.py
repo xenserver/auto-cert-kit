@@ -69,6 +69,11 @@ class TestClass(object):
     def get_tags(self):
         return self.tags
 
+    # skip specific tests from running by removing the base_tag from tags
+    def mask(self):
+        if self.base_tag in self.tags:
+            self.tags.remove(self.base_tag)
+
     def extra_init(self):
         """Can be overriden by subclasses to perform
         extra initialisation"""

@@ -72,6 +72,11 @@ def parse_cmd_args():
                       const=True,
                       default=False,
                       help="Run in debug mode, exit on failure")
+    parser.add_option("-v", "--vlantest",
+                      dest="vlantest",
+                      action="store_true",
+                      default=False,
+                      help="Run vlan test")
     parser.add_option("-r", "--rerun",
                       dest="rerun",
                       action="store",
@@ -120,6 +125,7 @@ def parse_cmd_args():
     config = {}
 
     config['debug'] = options.debug
+    config['vlantest'] = options.vlantest
     config['rerun'] = options.rerun
 
     if options.vlan:
