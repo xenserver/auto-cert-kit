@@ -107,12 +107,29 @@ class RouteTableTests(unittest.TestCase):
         self.assertEqual(missing, [])
 
 
-ROUTE_TABLE = \
-    """Kernel IP routing table
-Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
-0.0.0.0         10.80.2.1       0.0.0.0         UG    0      0        0 eth0
-10.80.2.0       0.0.0.0         255.255.254.0   U     1      0        0 eth0
-169.254.0.0     0.0.0.0         255.255.0.0     U     1000   0        0 eth0"""
+ROUTE_TABLE = [
+  {
+    "dst": "default",
+    "gateway": "10.80.2.1",
+    "dev": "eth0",
+    "flags": []
+  },
+  {
+    "dst": "10.80.2.0/23",
+    "dev": "eth0",
+    "protocol": "kernel",
+    "scope": "link",
+    "flags": []
+  },
+  {
+    "dst": "169.254.0.0/16",
+    "dev": "eth0",
+    "gateway": "169.254.1.1",
+    "protocol": "kernel",
+    "scope": "link",
+    "flags": []
+]
+
 
 
 class RouteMethodTests(unittest.TestCase):
@@ -134,7 +151,7 @@ class RouteMethodTests(unittest.TestCase):
             elif route_obj.get_dest() == '10.80.2.0':
                 assert_about_obj(route_obj, '0.0.0.0', '255.255.254.0', 'eth0')
             elif route_obj.get_dest() == '169.254.0.0':
-                assert_about_obj(route_obj, '0.0.0.0', '255.255.0.0', 'eth0')
+                assert_about_obj(route_obj, '169.254.1.1', '255.255.0.0', 'eth0')
             else:
                 raise Exception("Error: route not in original list! "
                                 "'%s'" % route)

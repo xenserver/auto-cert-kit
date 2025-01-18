@@ -30,20 +30,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+import socket
+import struct
 
-def cli_table_to_recs(table_string):
-    """Takes a table string (like that from a CLI command) and
-    returns a list of records matching the header to values."""
 
-    lines = table_string.split('\n')
+def cidr_to_netmask(cidr):
+    netmask = (0xFFFFFFFF << (32 - cidr)) & 0xFFFFFFFF
+    return socket.inet_ntoa(struct.pack('!I', netmask))
 
-    # Take the first line as the header
-    header_line = lines.pop(0).split()
-
-    route_recs = []
-    for line in lines:
-        vals = line.split()
-        rec = dict(list(zip(header_line, vals)))
-        route_recs.append(rec)
-
-    return route_recs
