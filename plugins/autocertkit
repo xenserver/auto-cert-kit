@@ -79,6 +79,7 @@ PS = "/bin/ps"
 KILL = "/bin/kill"
 UNAME = "/bin/uname"
 SYSCTL = "/sbin/sysctl"
+SYSTEMCTL = "/usr/bin/systemctl"
 
 CAT = "/bin/cat"
 PGREP = "/usr/bin/pgrep"
@@ -2033,7 +2034,7 @@ def start_iperf_server(session, args):
     if not process_running(IPERF):
         log.debug("Iperf is not running - start process")
         # Disable iptables
-        call = ['service', 'iptables', 'stop']
+        call = [SYSTEMCTL, 'stop', 'iptables.service']
         make_local_call(call)
 
         # Start iperf - need to ensure we don't block
