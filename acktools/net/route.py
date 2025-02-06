@@ -31,11 +31,14 @@
 # SUCH DAMAGE.
 
 import sys
+import json
+
 sys.path.append("/opt/xensource/packages/files/auto-cert-kit/pypackages")
 import acktools
 from acktools import utils
 
-ROUTE_CLI = "/sbin/route"
+
+IP = "/sbin/ip"
 
 
 class Route(object):
@@ -107,35 +110,26 @@ class RouteTable(object):
 
 
 def get_route_table():
-    return acktools.make_local_call([ROUTE_CLI, '-n'])
+    return json.loads(acktools.make_local_call([IP, '-j', 'route', 'show']))
 
 
 def get_all_routes():
     """Return a list of route objects for all the routing
     entries currently found in the kernel"""
 
-    output = get_route_table()
-    lines = output.split('\n')
-
-    if lines[0] != "Kernel IP routing table":
-        raise Exception("Error! Unexpected format: '%s'" % output)
-
-    # Join the table lines
-    route_table = "\n".join(lines[1:])
-
-    # Parse the table to produce a list of recs
-    recs = utils.cli_table_to_recs(route_table)
-
     route_list = []
-    for rec in recs:
+    for route in get_route_table():
+        if route['dst'] == 'default':
+            route['dst'] = '0.0.0.0/0'
 
-        # Use keys from route table output
-        route = Route(rec['Destination'],
-                      rec['Gateway'],
-                      rec['Genmask'],
-                      rec['Iface'],
-                      )
-
-        route_list.append(route)
-
+        if '/' in route['dst']:
+            dst, cidr = route['dst'].split('/')
+            cidr = int(cidr)
+        else:
+            dst, cidr = route['dst'], 0
+        
+        route_list.append(Route(dst,
+                                route.get('gateway', '0.0.0.0'),
+                                utils.cidr_to_netmask(cidr),
+                                route['dev']))
     return route_list

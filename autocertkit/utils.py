@@ -2363,7 +2363,7 @@ def set_hw_offload(session, device, offload, state):
 
 
 def set_nic_device_status(session, interface, status):
-    """Function to set an ifconfig ethX interface up or down"""
+    """Function to set an ethX interface up or down"""
     log.debug("Bringing %s network interface %s" % (status, interface))
     call_ack_plugin(session, 'set_nic_device_status',
                     {'device': interface, 'status': status})
