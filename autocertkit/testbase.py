@@ -333,7 +333,7 @@ class TestClass(object):
         log.debug("Netconf: %s" % netconf)
         netid_rec = {}
         for iface, rec in netconf.items():
-            if iface.startswith('eth'):
+            if is_nic_device_name(iface):
                 log.debug("iface: %s Rec: %s" % (iface, rec))
                 nid = rec['network_id']
 
@@ -501,7 +501,7 @@ class NetworkTestClass(TestClass):
         # Construct a list of interface names who have the same physical ID
         # as the provided interface.
 
-        blist = intersection([k for k, v in netconf.items() if k.startswith('eth') and
+        blist = intersection([k for k, v in netconf.items() if is_nic_device_name(k) and
                               v['network_id'] == phy_id],
                              netconf.keys())
 

@@ -168,7 +168,7 @@ def check_files(config):
             assert_file_exists(os.path.join(INSTALL_DIR, config[opt]), label)
 
     for key, value in config['netconf'].items():
-        if key.startswith('eth'):
+        if utils.is_nic_device_name(key):
             vf_driver_pkg = value['vf_driver_pkg']
             if vf_driver_pkg:
                 assert_file_exists(os.path.join(
@@ -212,7 +212,7 @@ def parse_netconf_file(filename):
     cp.read(filename)
     rec = {}
     for section in cp.sections():
-        if section.startswith('eth'):
+        if utils.is_nic_device_name(section):
             parse_section_iface(cp, rec, section)
         elif section == "static_management":
             rec[section] = parse_static_config(cp, section)
@@ -342,7 +342,7 @@ def network_interfaces_to_test(session, config):
     # Extract from netconf the network interfaces that the user
     # has specified.
     ifaces_to_test = [iface.strip() for iface in config['netconf'].keys()
-                      if iface.startswith('eth')]
+                      if utils.is_nic_device_name(iface)]
 
     devices = utils.get_master_network_devices(session)
 
@@ -474,7 +474,7 @@ def pre_flight_checks(session, config):
     recs = config['netconf']
     ifaces = {}
     for k, v in recs.items():
-        if k.startswith('eth'):
+        if utils.is_nic_device_name(k):
             ifaces[k] = v['network_id']
 
     utils.log.debug(
