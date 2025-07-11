@@ -2286,7 +2286,8 @@ def get_dom0_device_name(session, vm_ref, net_ref):
                         "Instead, '%s' were returned." %
                         (pifs, device_names))
     device_name = device_names.pop()
-    return device_name.replace('eth', 'xenbr')
+    return get_bridge_by_eth(device_name)
+    
 
 
 def wait_for_dom0_device_ip(session, vm_ref, device, static_manager):
@@ -2370,6 +2371,55 @@ def set_nic_device_status(session, interface, status):
     wait_for_linkstate(session, interface, status)
     time.sleep(5)
 
+def get_eth_by_bridge(bridge: str) -> str:
+    """
+    Get the device name given a bridge name
+    """
+    eth = ""
+    call = f"xe network-list bridge={bridge} params=uuid --minimal"
+    res = make_local_call(call, shell=True)
+    network_uuid = res["stdout"].strip().split(',')[0]
+    if network_uuid:
+        call = f"xe pif-list network-uuid={network_uuid} params=device --minimal"
+        res = make_local_call(call, shell=True)
+        eth = res["stdout"].strip().split(',')[0]
+
+    if not eth:
+        log.debug(f"Device not found for bridge: {bridge}, use bridge name as device name")
+        eth = bridge
+
+    return eth
+
+def get_bridge_by_eth(eth: str) -> str:
+    """
+    Get the bridge name given a device name
+    """
+    bridge = ""
+    call = f"xe pif-list device={eth} params=network-uuid --minimal"
+    res = make_local_call(call, shell=True)
+    network_uuid = res["stdout"].strip().split(',')[0]
+    if network_uuid:
+        call = f"xe network-list uuid={network_uuid} params=bridge --minimal"
+        res = make_local_call(call, shell=True)
+        bridge = res["stdout"].strip().split(',')[0]
+
+    if not bridge:
+        log.debug(f"Bridge not found for device: {eth}, use device name as bridge name")
+        bridge = eth
+
+    return bridge
+
+
+# Plase refer to 
+# https://www.thomas-krenn.com/en/wiki/Predictable_Network_Interface_Names
+# https://systemd.io/PREDICTABLE_INTERFACE_NAMES/
+def is_nic_device_name(name):
+    return name.startswith('eth') \
+        or name.startswith('eno') \
+        or name.startswith('enp') \
+        or name.startswith('ens') \
+        or name.startswith('enx') \
+        or name.startswith('end') \
 
 class TestThread(threading.Thread):
     """Threading class that runs a function"""
