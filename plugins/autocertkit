@@ -1043,7 +1043,7 @@ def get_hw_offloads_from_core(session, args):
     checking /sys/class/net/ethX """
     eth_dev = validate_exists(args, 'eth_dev')
     if eth_dev.startswith('xenbr'):
-        eth_dev = utils.get_eth_by_bridge(eth_dev)
+        eth_dev = utils.get_eth_by_bridge(session, eth_dev)
 
     rec = {}
     flag = int(make_local_call(
@@ -1337,7 +1337,7 @@ def reset_arp(session, args):
         set_kernel_parameter("net.ipv4.conf.default.rp_filter", rp_filter_value, vm_m_ip)
 
         # Change current existing interface
-        cmd = """ip -o link | awk '{if($2 ~ "en[o|s|p|x][^:]*:" || $2 ~ "eth[^:]*:") print $2}' | sed 's/:$//'"""
+        cmd = """ip -o link | awk '{if($2 ~ "^e.+:") print $2}' | sed 's/:$//'"""
         call = [SSH, vm_m_ip, cmd]
         iface_list = make_local_call(call)["stdout"].split()
         for iface in iface_list:
@@ -1803,7 +1803,7 @@ def mark_local_pif_for_cleanup(session, device):
     # Undo any transformations between bridges/devices that may
     # have taken place already
     if 'xenbr' in device:
-        device = utils.get_eth_by_bridge(device)
+        device = utils.get_eth_by_bridge(session, device)
 
     this_host_uuid = get_from_xensource_inventory('INSTALLATION_UUID')
 
