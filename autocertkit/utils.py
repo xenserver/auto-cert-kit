@@ -2286,7 +2286,7 @@ def get_dom0_device_name(session, vm_ref, net_ref):
                         "Instead, '%s' were returned." %
                         (pifs, device_names))
     device_name = device_names.pop()
-    return get_bridge_by_eth(device_name)
+    return get_bridge_by_eth(session, device_name)
     
 
 
@@ -2371,55 +2371,43 @@ def set_nic_device_status(session, interface, status):
     wait_for_linkstate(session, interface, status)
     time.sleep(5)
 
-def get_eth_by_bridge(bridge: str) -> str:
+@log_exceptions
+def get_eth_by_bridge(session, bridge: str) -> str:
     """
-    Get the device name given a bridge name
+    Get the NIC device name given a bridge name.
     """
-    eth = ""
-    call = f"xe network-list bridge={bridge} params=uuid --minimal"
-    res = make_local_call(call, shell=True)
-    network_uuid = res["stdout"].strip().split(',')[0]
-    if network_uuid:
-        call = f"xe pif-list network-uuid={network_uuid} params=device --minimal"
-        res = make_local_call(call, shell=True)
-        eth = res["stdout"].strip().split(',')[0]
+    host = session.xenapi.session.get_this_host(session.handle)
+    pifs = session.xenapi.host.get_PIFs(host)
+    for network in session.xenapi.network.get_all():
+        if session.xenapi.network.get_bridge(network) == bridge:
+            for pif in pifs:
+                if not session.xenapi.PIF.get_physical(pif) and \
+                        session.xenapi.PIF.get_sriov_logical_PIF_of(pif):
+                    continue
+                if session.xenapi.PIF.get_network(pif) == network:
+                    return session.xenapi.PIF.get_device(pif)
 
-    if not eth:
-        log.debug(f"Device not found for bridge: {bridge}, use bridge name as device name")
-        eth = bridge
-
-    return eth
-
-def get_bridge_by_eth(eth: str) -> str:
+@log_exceptions
+def get_bridge_by_eth(session, eth: str) -> str:
     """
-    Get the bridge name given a device name
+    Get the bridge name given a NIC device name
     """
-    bridge = ""
-    call = f"xe pif-list device={eth} params=network-uuid --minimal"
-    res = make_local_call(call, shell=True)
-    network_uuid = res["stdout"].strip().split(',')[0]
-    if network_uuid:
-        call = f"xe network-list uuid={network_uuid} params=bridge --minimal"
-        res = make_local_call(call, shell=True)
-        bridge = res["stdout"].strip().split(',')[0]
-
-    if not bridge:
-        log.debug(f"Bridge not found for device: {eth}, use device name as bridge name")
-        bridge = eth
-
-    return bridge
+    host = session.xenapi.session.get_this_host(session.handle)
+    for pif in session.xenapi.host.get_PIFs(host):
+        if not session.xenapi.PIF.get_physical(pif) and \
+                session.xenapi.PIF.get_sriov_logical_PIF_of(pif):
+            continue
+        if eth == session.xenapi.PIF.get_device(pif):
+            network = session.xenapi.PIF.get_network(pif)
+            return session.xenapi.network.get_bridge(network)
 
 
 # Plase refer to 
 # https://www.thomas-krenn.com/en/wiki/Predictable_Network_Interface_Names
 # https://systemd.io/PREDICTABLE_INTERFACE_NAMES/
+# The nic interface names can start with: eth, eno, enp, ens, enx, end
 def is_nic_device_name(name):
-    return name.startswith('eth') \
-        or name.startswith('eno') \
-        or name.startswith('enp') \
-        or name.startswith('ens') \
-        or name.startswith('enx') \
-        or name.startswith('end') \
+    return name[0] == 'e'
 
 class TestThread(threading.Thread):
     """Threading class that runs a function"""
