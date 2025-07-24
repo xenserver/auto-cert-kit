@@ -1111,7 +1111,7 @@ def get_management_vif(session, vm_ref):
 
 
 def disable_vm_static_ip_service(session, mip):
-    cmd = """systemctl stop static-ip; systemctl disable static-ip; systemctl status static-ip; """
+    cmd = """systemctl stop startup-ip; systemctl disable startup-ip; systemctl status startup-ip; """
     """rm -f /etc/sysconfig/network-scripts/ifcfg-eth*; """
     ssh_command(mip, 'root', DEFAULT_PASSWORD, cmd, attempts=1, timeout=60)
 
