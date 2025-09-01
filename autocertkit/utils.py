@@ -75,6 +75,9 @@ XCP_MIN_VER_WITH_MULTICAST = "2.3.0"  # XenServer 7.2
 # XCP minimum version with SR-IOV support
 XCP_MIN_VER_WITH_SRIOV = "2.6.0"  # XenServer 7.5
 
+# XCP max version with bridge network backend support
+XCP_MAX_VER_WITH_BRIDGE = "3.4.0"  # XenServer 8.4
+
 # XAPI States
 XAPI_RUNNING_STATE = "Running"
 
