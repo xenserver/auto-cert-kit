@@ -517,6 +517,11 @@ def main(config, test_run_file):
     config['xs_version'] = utils.get_xenserver_version(session)
     config['xcp_version'] = utils.get_xcp_version(session)
 
+    # Exclude bridge cases as it is not supported since XS9
+    if config['xcp_version'] > utils.XCP_MAX_VER_WITH_BRIDGE:
+        if 'BRIDGE' not in config['exclude']:
+            config['exclude'].append('BRIDGE')
+
     generate_test_config(session, config, test_run_file)
 
     if 'generate' in config:
