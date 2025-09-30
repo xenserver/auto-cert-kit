@@ -1,12 +1,12 @@
 <p><div class="content-wrapper"></p>  
 
-# XenServer 8 Server Certification Kit Guide <!-- omit in toc -->
+# XenServer 9 Server Certification Kit Guide <!-- omit in toc -->
 
 <br>
 
 
-Published Mar 2024  
-V8.4.0 Edition
+Published Nov 2025  
+V9.0.0 Edition
 
 <br>
 
@@ -42,7 +42,7 @@ The Server Certification Kit is an automated test harness for certifying servers
 
 The kit is designed to run automatically once the user has correctly configured their server, and external environment according to the instructions given below.
 
-Whilst we do our best to ensure the kit is bug free, we are still working on improving the kits robustness – if you encounter any issues, then we’d ask that you raise an appropriate bug ticket for us to investigate. Xenserver is committed to improving both the kits quality, and value to both vendors and itself.
+Whilst we do our best to ensure the kit is bug free, we are still working on improving the kits robustness – if you encounter any issues, then we’d ask that you raise an appropriate bug ticket for us to investigate. XenServer is committed to improving both the kits quality, and value to both vendors and itself.
 
 A number of vendors have expressed interested in integrating this kit into their own test systems – as much as possible we have designed to kit to be easy to integrate. If you feel there could be modifications made to the kit that would improve its usefulness for you – then please let us know.
 
@@ -128,7 +128,7 @@ Then need to create a VM template, which will be used in the test for generating
 
 ```
 # mkdir /mnt/iso
-# mount -t iso9660 -o loop /root/xenserver-server-cert-kit-xs8.iso /mnt/iso/
+# mount -t iso9660 -o loop /root/xenserver-server-cert-kit-xs9.iso /mnt/iso/
 ```
 Here as example, I used Server Certification Kit ISO version 1.3.13, so if you use another version, should replace 1.3.13-1 to your server certification kit version, you can also check the file as below screenshot and then copy this file to “/root”.  
 &emsp;&emsp;&emsp;<img src=ack_img/ack14.png>  
@@ -196,9 +196,9 @@ For the automated certification kit to run successfully, there are currently the
 
 ## Server Certification Kit Installation
 
-The XenServer certification kit needs to be run with the latest version of the corresponding XenServer Release. Make sure that XenServer 8 has been updated to the latest version before testing. Once the above environment has been set up, please download the xenserver-server-cert-kit-xs8.iso supplemental pack as provided by XenServer, and copy the ISO onto the /root directory of the Dom0 filesystem residing on the pool coordinator host. Use the following command to install server certification kit into all hosts in the pool:
+The XenServer certification kit needs to be run with the latest version of the corresponding XenServer Release. Make sure that XenServer 9 has been updated to the latest version before testing. Once the above environment has been set up, please download the xenserver-server-cert-kit-xs9.iso supplemental pack as provided by XenServer, and copy the ISO onto the /root directory of the Dom0 filesystem residing on the pool coordinator host. Use the following command to install server certification kit into all hosts in the pool:
 
-    xe update-upload file-name=/root/xenserver-server-cert-kit-xs8.iso 
+    xe update-upload file-name=/root/xenserver-server-cert-kit-xs9.iso 
 
 The command returns the update UUID of server certification kit package on successful upload.
 
@@ -364,7 +364,7 @@ vf_driver_pkg = kmod-ixgbevf-2.16.1-1.el7.elrepo.x86_64.rpm
 
 When specifying the network configuration file, the user need only to declare the management network in the config file if either it uses a static IP range, or it is required for testing (most likely as part of a bond).
 
-The kit requires that the management network (the one being used by Xenserver) is used in each and every test it runs. This is so as to ensure the kit can communicate with the VM over the network properly.
+The kit requires that the management network (the one being used by XenServer) is used in each and every test it runs. This is so as to ensure the kit can communicate with the VM over the network properly.
 
 The result is that each Droid VM will be configured as shown in the following diagram:
 
@@ -483,7 +483,7 @@ The mechanism for providing us with these files and feedback are via the XenServ
 In the normal case where the test kit runs to completion, we would ask that the vendor submits the ack-submission package:
 
 - /root/ack-submission-[time]-[date].tar.gz
-- <a href="xenserver-sr-iov-certification-form.docx" download="xenserver-sr-iov-certification-form.docx">xenserver-sr-iov-certification-form </a>, if SR-IOV certification is performed
+- <a href="xenserver-server-certification-form.docx" download="xenserver-sr-iov-certification-form.docx">xenserver-server-certification-form </a>
 
 However, if there is a failure such that the ack-submission package is not created, then we would ask that you submit the following:
 
@@ -496,7 +496,7 @@ However, if there is a failure such that the ack-submission package is not creat
 
 <br>
 
-Xenserver is aware of the following limitations in the server certification kit at present:
+XenServer is aware of the following limitations in the server certification kit at present:
 
 - SR-IOV tests in server certification kit are able to test the maximum VFs per single port/PF, but not all ports/PFs combined if the network adapter has multiple ports.
 
@@ -680,4 +680,4 @@ Examples:
 <font size="2">The contents of this kit are subject to change without notice.  
 
 
-Copyright © 2024 Cloud Software Group Inc. This kit allows you to test your products for compatibility with XenServer products.  Actual compatibility results may vary.  The kit is not designed to test for all compatibility scenarios.  Should you use the kit, you must not misrepresent the nature of the results to third parties. TO THE EXTENT PERMITTED BY APPLICABLE LAW, XENSERVER MAKES AND YOU RECEIVE NO WARRANTIES OR CONDITIONS, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, AND XENSERVER SPECIFICALLY DISCLAIMS WITH RESPECT TO THE KIT ANY CONDITIONS OF QUALITY, AVAILABILITY, RELIABILITY, BUGS OR ERRORS, AND ANY IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, ANY WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. YOU ASSUME THE RESPONSIBILITY FOR ANY INVESTMENTS MADE OR COSTS INCURRED TO ACHIEVE YOUR INTENDED RESULTS. TO THE EXTENT PERMITTED BY APPLICABLE LAW, XENSERVER SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL, CONSEQUENTIAL, INCIDENTAL, PUNITIVE OR OTHER DAMAGES (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF INCOME, LOSS OF OPPORTUNITY, LOST PROFITS OR ANY OTHER DAMAGES), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, AND WHETHER OR NOT FOR NEGLIGENCE OR OTHERWISE, AND WHETHER OR NOT XENSERVER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.</font>
+Copyright © 2025 Cloud Software Group Inc. This kit allows you to test your products for compatibility with XenServer products.  Actual compatibility results may vary.  The kit is not designed to test for all compatibility scenarios.  Should you use the kit, you must not misrepresent the nature of the results to third parties. TO THE EXTENT PERMITTED BY APPLICABLE LAW, XENSERVER MAKES AND YOU RECEIVE NO WARRANTIES OR CONDITIONS, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, AND XENSERVER SPECIFICALLY DISCLAIMS WITH RESPECT TO THE KIT ANY CONDITIONS OF QUALITY, AVAILABILITY, RELIABILITY, BUGS OR ERRORS, AND ANY IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, ANY WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. YOU ASSUME THE RESPONSIBILITY FOR ANY INVESTMENTS MADE OR COSTS INCURRED TO ACHIEVE YOUR INTENDED RESULTS. TO THE EXTENT PERMITTED BY APPLICABLE LAW, XENSERVER SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL, CONSEQUENTIAL, INCIDENTAL, PUNITIVE OR OTHER DAMAGES (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF INCOME, LOSS OF OPPORTUNITY, LOST PROFITS OR ANY OTHER DAMAGES), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, AND WHETHER OR NOT FOR NEGLIGENCE OR OTHERWISE, AND WHETHER OR NOT XENSERVER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.</font>
