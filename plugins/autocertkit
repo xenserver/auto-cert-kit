@@ -2030,7 +2030,8 @@ def start_iperf_server(session, args):
 
         # Determine if firewalld is installed
         call = ['command', '-v', 'firewall-cmd']
-        if make_local_call(call)["stdout"].strip():
+        res = make_local_call(call)
+        if res["stdout"].strip():
             # Disable firewalld
             log.debug("Disabling firewalld")
             call = [SYSTEMCTL, 'stop', 'firewalld.service']
