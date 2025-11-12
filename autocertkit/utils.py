@@ -826,7 +826,15 @@ def get_physical_devices_by_network(session, network):
     to each component PIF. This may require some unwrapping (e.g. bonds)
     to determine all the consituent physical PIFs."""
     pifs = session.xenapi.network.get_PIFs(network)
-    physical_pifs = get_physical_pifs(session, pifs)
+    
+    # Filter PIFs to only include those from the master host
+    master_ref = get_pool_master(session)
+    master_pifs = []
+    for pif in pifs:
+        if session.xenapi.PIF.get_host(pif) == master_ref:
+            master_pifs.append(pif)
+    
+    physical_pifs = get_physical_pifs(session, master_pifs)
 
     devices = []
     for pif in physical_pifs:
@@ -1539,16 +1547,17 @@ def pool_wide_network_cleanup(session, tag):
 
 
 def get_pool_management_device(session):
-    """Returns the device used for XAPI mangagment"""
+    """Returns the device used for XAPI management on the master host"""
     device = None
-    pifs = session.xenapi.PIF.get_all()
+    master_ref = get_pool_master(session)
+    pifs = session.xenapi.host.get_PIFs(master_ref)
     for pif in pifs:
         if session.xenapi.PIF.get_management(pif):
             device_name = session.xenapi.PIF.get_device(pif)
             if device:
                 if device_name != device:
                     raise TestCaseError(
-                        """Error: Different device names are marked as management. Check that there are no residual bonds.""")
+                        f"""Error: Different device names are marked as management: {device_name} and {device}. Check that there are no residual bonds.""")
             else:
                 device = device_name
     return device
