@@ -2027,9 +2027,20 @@ def start_iperf_server(session, args):
     # Check for iperfs existence
     if not process_running(IPERF):
         log.debug("Iperf is not running - start process")
-        # Disable iptables
-        call = [SYSTEMCTL, 'stop', 'iptables.service']
-        make_local_call(call)
+
+        # Determine if firewalld is installed
+        call = ['command', '-v', 'firewall-cmd']
+        res = make_local_call(call)
+        if res["stdout"].strip():
+            # Disable firewalld
+            log.debug("Disabling firewalld")
+            call = [SYSTEMCTL, 'stop', 'firewalld.service']
+            make_local_call(call)
+        else:
+            # Disable iptables
+            log.debug("Disabling iptables")
+            call = [SYSTEMCTL, 'stop', 'iptables.service']
+            make_local_call(call)
 
         # Start iperf - need to ensure we don't block
         call = ['nohup', IPERF, '-s', '-B', ip, '>/dev/null', '&']
