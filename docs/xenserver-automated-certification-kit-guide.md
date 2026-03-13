@@ -105,13 +105,25 @@ The script will:
 1. Copy setup scripts to the VM and execute them
 2. Shut down the VM
 3. Export the VM as `vpx-dlvm.xva`
-4. Distribute the XVA file to all pool hosts
 
 #### Example
 
     ./gen_vm_template.py 192.168.1.100
 
 > **Note**: For manual preparation steps, see [Appendix: Manual Configuration](#appendix-manual-configuration). 
+
+#### Distribute `vpx-dlvm.xva` to all slave hosts
+
+After `gen_vm_template.py` finishes, copy `vpx-dlvm.xva` from the pool coordinator (Dom0) to each slave host.
+
+Run the following command on the pool coordinator host (repeat once per slave host):
+
+    cd /opt/xensource/packages/files/auto-cert-kit
+    scp ./vpx-dlvm.xva root@<slave-ip>:/opt/xensource/packages/files/auto-cert-kit/
+
+Verify on each slave host:
+
+    ls -lh /opt/xensource/packages/files/auto-cert-kit/vpx-dlvm.xva
 
 
 <br>
@@ -126,7 +138,7 @@ The command returns the update UUID of server certification kit package on succe
 
     xe update-apply uuid=<update uuid of server certification kit> --multiple  
 
-Upload "vpx-dlvm.xva” file to the server certification kit home folder on **all hosts** "/opt/xensource/packages/files/auto-cert-kit" .
+Upload "vpx-dlvm.xva" file to the server certification kit home folder on **all hosts** "/opt/xensource/packages/files/auto-cert-kit" .
 
 <br>
 
