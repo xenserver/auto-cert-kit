@@ -1713,10 +1713,21 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
     while task_refs:
         idx, ref = task_refs.pop(0)  # take the first item off
         log.debug("Current Task: %s" % ref)
-        status = session.xenapi.task.get_status(ref)
+        try:
+            status = session.xenapi.task.get_status(ref)
+        except Exception as e:
+            if 'HANDLE_INVALID' in str(e):
+                # Task completed and was garbage-collected by xapi before
+                # we could poll it. Treat as success with empty result.
+                log.debug("Task %s: handle invalid (already completed "
+                          "and GC'd by xapi)" % ref)
+                results.append((idx, ''))
+                continue
+            raise
         if status == "success":
             log.debug("%s has finished" % ref)
             result = session.xenapi.task.get_result(ref)
+            session.xenapi.task.destroy(ref)
 
             log.debug("Result = %s" % result)
             if result.startswith('<value>'):
@@ -1726,8 +1737,9 @@ def run_xapi_async_tasks(session, funcs, timeout=300):
                 results.append((idx, result))
         elif status == "failure":
             # The task has failed, and the error should be propogated upwards.
-            raise Exception("Async call failed with error: %s" %
-                            session.xenapi.task.get_error_info(ref))
+            error_info = session.xenapi.task.get_error_info(ref)
+            session.xenapi.task.destroy(ref)
+            raise Exception("Async call failed with error: %s" % error_info)
         else:
             log.debug("Task Status: %s" % status)
             # task has not finished, so re-attach to list
