@@ -155,7 +155,7 @@ The `network.conf` file tells the certification kit which physical interfaces to
 Run the following command on the pool coordinator host (Dom0):
 
     cd /opt/xensource/packages/files/auto-cert-kit
-    ./gen_netowrk_conf.py
+    ./gen_network_conf.py
 
 The script will guide you through:
 1. Selecting NICs to test (minimum 2 required for bonding tests)
